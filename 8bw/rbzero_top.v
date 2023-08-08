@@ -19,24 +19,24 @@ module rbzero_top(
   
   wire hsync_n, vsync_n;
   assign {hsync,vsync} = {~hsync_n,~vsync_n};
-  wire [1:0] rr,gg,bb;
-  assign rgb = {bb[1],gg[1],rr[1]};
   wire [9:0] hpos;
   wire [9:0] vpos;
-  
+  wire [5:0] rgb6;  // 6-bit colour, BBGGRR bit order.
   rbzero dut(
-    .clk(clk),
-    .reset(reset),
-    .hsync_n(hsync_n), .vsync_n(vsync_n),
-    .hpos(hpos), .vpos(vpos),
-    .r(rr), .g(gg), .b(bb)
+    .clk    (clk),
+    .reset  (reset),
+    .hsync_n(hsync_n),
+    .vsync_n(vsync_n),
+    .hpos   (hpos),
+    .vpos   (vpos),
+    .rgb    (rgb6)
   );
   
   dither dither(
-    .field(0),
-    .xo(hpos[0]), .yo(vpos[0]),
-    .r(rr), .g(gg), .b(bb),
-    .dR(rgb[0]), .dG(rgb[1]), .dB(rgb[2])
+    .field  (0),
+    .xo     (hpos[0]), .yo(vpos[0]),
+    .rgb6   (rgb6),
+    .rgb3   (rgb)
   );
   
 endmodule
@@ -45,13 +45,17 @@ endmodule
 module dither(
   input field,
   input xo, yo, // Odd of X and Y positions respectively.
-  input [1:0] r,g,b,
-  output dR,dG,dB
+  input [5:0] rgb6,
+  output [2:0] rgb3
 );
   wire dither_hi = (xo^yo)^field;
   wire dither_lo = (xo^field)&(yo^field);
-  assign dR = (r==2'b11) ? 1'b1 : (r==2'b10) ? dither_hi : (r==2'b01) ? dither_lo : 1'b0;
-  assign dG = (g==2'b11) ? 1'b1 : (g==2'b10) ? dither_hi : (g==2'b01) ? dither_lo : 1'b0;
-  assign dB = (b==2'b11) ? 1'b1 : (b==2'b10) ? dither_hi : (b==2'b01) ? dither_lo : 1'b0;
+  //SMELL: Do this with a 'for' or something?
+  wire [1:0] r = rgb6[1:0];
+  wire [1:0] g = rgb6[3:2];
+  wire [1:0] b = rgb6[5:4];
+  assign rgb3[0] = (r==2'b11) ? 1'b1 : (r==2'b10) ? dither_hi : (r==2'b01) ? dither_lo : 1'b0;
+  assign rgb3[1] = (g==2'b11) ? 1'b1 : (g==2'b10) ? dither_hi : (g==2'b01) ? dither_lo : 1'b0;
+  assign rgb3[2] = (b==2'b11) ? 1'b1 : (b==2'b10) ? dither_hi : (b==2'b01) ? dither_lo : 1'b0;
 
 endmodule

@@ -5,7 +5,7 @@ module rbzero(
   input clk,
   input reset,
   output wire hsync_n, vsync_n,
-  output wire [1:0] r, g, b,
+  output wire [5:0] rgb,
   output wire [9:0] hpos,
   output wire [9:0] vpos
 );
@@ -27,20 +27,17 @@ module rbzero(
     .visible(visible)
   );
 
-  wire [5:0] rgb;
-
-  wire hit;
+  wire wall_en;
+  wire [5:0] wall_rgb;
 
   row_render row_render(
-    .side(vpos[3]),
-    .size({1'b0,vpos}),
-    .hpos(hpos),
-    .r(rgb[1:0]),
-    .g(rgb[3:2]),
-    .b(rgb[5:4]),
-    .hit(hit)
+    .side   (vpos[3]),
+    .size   ({1'b0,vpos}),
+    .hpos   (hpos),
+    .rgb    (wall_rgb),
+    .hit    (wall_en)
   );
 
-  assign {b,g,r} = (visible & hit) ? rgb : 6'b000000;
+  assign rgb = {6{(visible & wall_en)}} & wall_rgb;
 
 endmodule
