@@ -64,7 +64,7 @@ module rbzero (
     .hit(hit)
   );
 
-  assign {b,g,r} = hit ? rgb : 6'b000000;
+  assign {b,g,r} = (visible & hit) ? rgb : 6'b000000;
 
 endmodule
 
