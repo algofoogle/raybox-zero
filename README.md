@@ -38,4 +38,26 @@ Differences from how Raybox was designed:
         Same goes for external RAM access, *to an extent*.
     *   Disadvantage: row-tracing is crappy. Wrong aspect ratio, and wrong orientation (unless you rotate the screen).
 
+## Other modules
+
+### Required
+
+*   tracer logic and FSM
+*   row renderer?
+*   map
+*   vga/rgb mux
+*   view vectors (and SPI slave controller?)
+*   reciprocal(s)
+*   shared multiplier?
+
+### Optional
+
+*   texture SPI RAM master and local memory
+*   external control pins
+*   debugging IO
+*   debug overlay
+*   temporal ordered dither
+
+
+
 [Raybox]: https://github.com/algofoogle/raybox
