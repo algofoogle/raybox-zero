@@ -8,6 +8,7 @@
 `include "vga_sync.v"
 `include "rbzero.v"
 `include "row_render.v"
+`include "vga_mux.v"
 
 module rbzero_top(
   input clk,
@@ -32,8 +33,11 @@ module rbzero_top(
     .rgb    (rgb6)
   );
   
+  reg dither_field;
+  always @(posedge vsync_n) dither_field <= ~dither_field;
+  
   dither dither(
-    .field  (0),
+    .field  (dither_field),
     .xo     (hpos[0]), .yo(vpos[0]),
     .rgb6   (rgb6),
     .rgb3   (rgb)
