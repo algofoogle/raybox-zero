@@ -10,6 +10,8 @@
 `include "row_render.v"
 `include "vga_mux.v"
 `include "wall_tracer.v"
+`include "lzc.v"
+`include "reciprocal.v"
 
 module rbzero_top(
   input clk,
