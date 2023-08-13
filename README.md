@@ -58,6 +58,10 @@ Differences from how Raybox was designed:
 *   debug overlay
 *   temporal ordered dither
 
+## Notes
+
+*   When tracing rows instead of columns, we don't need an immediate reciprocal, but could instead calculate it progressively
+    as part of the FSM. This *might* allow for greater accuracy, and *could* also be a smaller amount of logic.
 
 
 [Raybox]: https://github.com/algofoogle/raybox

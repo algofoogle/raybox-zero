@@ -9,6 +9,7 @@
 `include "rbzero.v"
 `include "row_render.v"
 `include "vga_mux.v"
+`include "wall_tracer.v"
 
 module rbzero_top(
   input clk,
@@ -19,7 +20,7 @@ module rbzero_top(
 );
   
   wire hsync_n, vsync_n;
-  assign {hsync,vsync} = {~hsync_n,~vsync_n};
+  assign {hsync,vsync} = ~{hsync_n,vsync_n};
   wire [9:0] hpos;
   wire [9:0] vpos;
   wire [5:0] rgb6;  // 6-bit colour, BBGGRR bit order.
@@ -35,7 +36,8 @@ module rbzero_top(
   
   reg dither_field;
   always @(posedge vsync_n) dither_field <= ~dither_field;
-  
+  initial dither_field = 0;
+
   dither dither(
     .field  (dither_field),
     .xo     (hpos[0]), .yo(vpos[0]),
@@ -46,14 +48,27 @@ module rbzero_top(
 endmodule
 
 
+//NOTE: This dither is as follows:
+// Perhaps the better way is to use these patterns:
+// - 11: 100%: Pixels fully on.
+// - 10: 62.5% (5/8):
+//      odd   even
+//      xx    x.
+//      x.    .x
+// - 01: 37.5% (3/8):
+//      Inverse of above
 module dither(
   input field,
   input xo, yo, // Odd of X and Y positions respectively.
   input [5:0] rgb6,
   output [2:0] rgb3
 );
-  wire dither_hi = (xo^yo)^field;
-  wire dither_lo = (xo^field)&(yo^field);
+  // // Dither using 100/50/25/0%:
+  // wire dither_hi = (xo^yo)^field;
+  // wire dither_lo = (xo^field)&(yo^field);
+  // Dither using 100/63/38/0
+  wire dither_hi = yo ? (field ? 1'b1 : ~xo) : field^xo;
+  wire dither_lo = ~dither_hi;
   //SMELL: Do this with a 'for' or something?
   wire [1:0] r = rgb6[1:0];
   wire [1:0] g = rgb6[3:2];
