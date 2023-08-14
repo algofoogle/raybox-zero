@@ -2,7 +2,7 @@
 `timescale 1ns / 1ps
 
 module vga_mux(
-  output [5:0]  out,
+  output reg [5:0]  out,
 
   input         visible,
 
