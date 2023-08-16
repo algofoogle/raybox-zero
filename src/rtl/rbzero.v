@@ -1,6 +1,8 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
+`include "fixed_point_params.v"
+
 module rbzero(
   input clk,
   input reset,
@@ -15,7 +17,7 @@ module rbzero(
   localparam H_VIEW = 640;
   localparam HALF_SIZE = H_VIEW/2;
 
-  // VGA sync driver:
+  // --- VGA sync driver: ---
   wire hsync, vsync;
   wire visible;
   assign {hsync_n,vsync_n} = ~{hsync,vsync};
@@ -34,9 +36,9 @@ module rbzero(
     .visible  (visible)
   );
 
+  // --- Row-level renderer: ---
   wire wall_en;
   wire [5:0] wall_rgb;
-
   row_render row_render(
     // Inputs:
     .side     (traced_side),
@@ -47,9 +49,40 @@ module rbzero(
     .hit      (wall_en)
   );
 
-  wire traced_side;
-  wire [10:0] traced_size;
+  // --- Point-Of-View data, i.e. view vectors: ---
+  wire `F playerX, playerY, facingX, facingY, vplaneX, vplaneY;
+  pov pov(
+    .playerX(playerX), .playerY(playerY),
+    .facingX(facingX), .facingY(facingY),
+    .vplaneX(vplaneX), .vplaneY(vplaneY)
+  );
 
+  // --- Debug overlay: ---
+  wire debug_en;
+  wire [5:0] debug_rgb;
+  debug_overlay debug_overlay(
+    .hpos(hpos), .vpos(vpos),
+    // View vectors:
+    .playerX(playerX), .playerY(playerY),
+    .facingX(facingX), .facingY(facingY),
+    .vplaneX(vplaneX), .vplaneY(vplaneY),
+    .in_debug_overlay(debug_en),
+    .debug_rgb(debug_rgb)
+  );
+
+  // --- Map overlay: ---
+  wire map_en;
+  wire [5:0] map_rgb;
+  map_overlay map_overlay(
+    .hpos(hpos), .vpos(vpos),
+    .playerX(playerX), .playerY(playerY),
+    .in_map_overlay(map_en),
+    .map_rgb(map_rgb)
+  );
+
+  // --- Row-level ray caster/tracer: ---
+  wire        traced_side;
+  wire [10:0] traced_size;
   wall_tracer wall_tracer(
     // Inputs:
     .clk      (clk),
@@ -59,23 +92,29 @@ module rbzero(
     // but gets the signal to stop and present its result at the end of the line,
     // i.e. when 'hmax' goes high, and hence on the 'run' falling edge:
     .i_run    (~hmax),
+    // View vectors:
+    .playerX(playerX), .playerY(playerY),
+    .facingX(facingX), .facingY(facingY),
+    .vplaneX(vplaneX), .vplaneY(vplaneY),
     // Outputs:
     .o_side   (traced_side),
     .o_size   (traced_size)
   );
 
-
-
+  // --- Combined pixel colour driver/mux: ---
   wire [5:0] bg = hpos < HALF_SIZE
     ? 6'b10_10_10   // Light grey for left (or bottom) side.
     : 6'b01_01_01;  // Dark grey.
-  
   vga_mux vga_mux(
-    .out      (rgb),
     .visible  (visible),
-    .bg_rgb   (bg),
+    .debug_en (debug_en),
+    .debug_rgb(debug_rgb),
+    .map_en   (map_en),
+    .map_rgb  (map_rgb),
+    .wall_en  (wall_en),
     .wall_rgb (wall_rgb),
-    .wall_en  (wall_en)
+    .bg_rgb   (bg),
+    .out      (rgb)
   );
 
 endmodule

@@ -92,10 +92,10 @@ These are some possible pinouts on TT04 or even more-constrained targets:
 *   debug overlay
 *   temporal ordered dither
 
-## Notes
+## Other ideas and notes
 
 *   When tracing rows instead of columns, we don't need an immediate reciprocal, but could instead calculate it progressively
     as part of the FSM. This *might* allow for greater accuracy, and *could* also be a smaller amount of logic.
-
+*   It would be cool if we had the option of changing vectors between rows (scanlines) so that we could potentially render different angles (split-screen)?
 
 [Raybox]: https://github.com/algofoogle/raybox
