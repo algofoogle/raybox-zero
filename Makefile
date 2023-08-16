@@ -47,7 +47,7 @@ ifeq ($(OS),Windows_NT)
 	VERILATOR = verilator_bin.exe
 else
 	SIM_EXE = sim/obj_dir/V$(TOP)
-	VERILALTOR = verilator
+	VERILATOR = verilator
 endif
 XDEFINES := $(DEF:%=+define+%)
 # A fixed seed value for sim_seed:
