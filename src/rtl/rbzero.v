@@ -87,11 +87,13 @@ module rbzero(
     // Inputs:
     .clk      (clk),
     .reset    (reset),
-    .i_row    (vpos),
+    // vsync is used to reset the FSM and prepare for all traces that will take place
+    // in the next frame:
+    .vsync    (vsync),
     // Tracer is allowed to run for the whole line duration,
     // but gets the signal to stop and present its result at the end of the line,
-    // i.e. when 'hmax' goes high, and hence on the 'run' falling edge:
-    .i_run    (~hmax),
+    // i.e. when 'hmax' goes high:
+    .hmax     (hmax),
     // View vectors:
     .playerX(playerX), .playerY(playerY),
     .facingX(facingX), .facingY(facingY),
