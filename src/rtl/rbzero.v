@@ -16,6 +16,8 @@ module rbzero(
 
   localparam H_VIEW = 640;
   localparam HALF_SIZE = H_VIEW/2;
+  localparam MAP_WIDTH_BITS = 4;
+  localparam MAP_HEIGHT_BITS = 4;
 
   // --- VGA sync driver: ---
   wire hsync, vsync;
@@ -52,9 +54,53 @@ module rbzero(
   // --- Point-Of-View data, i.e. view vectors: ---
   wire `F playerX, playerY, facingX, facingY, vplaneX, vplaneY;
   pov pov(
+    .clk(clk),
+    .vsync(vsync),
     .playerX(playerX), .playerY(playerY),
     .facingX(facingX), .facingY(facingY),
     .vplaneX(vplaneX), .vplaneY(vplaneY)
+  );
+
+  // --- Map ROM: ---
+  wire [MAP_WIDTH_BITS-1:0] tracer_map_col;
+  wire [MAP_HEIGHT_BITS-1:0] tracer_map_row;
+  wire tracer_map_val;
+  map_rom #(
+    .MAP_WIDTH_BITS(MAP_WIDTH_BITS),
+    .MAP_HEIGHT_BITS(MAP_HEIGHT_BITS)
+  ) map_rom (
+    .i_col(tracer_map_col),
+    .i_row(tracer_map_row),
+    .o_val(tracer_map_val)
+  );
+
+  // --- Map ROM for overlay: ---
+  //SMELL: We only want one map ROM instance, but for now this is just a hack to avoid
+  // contention when both the tracer and map overlay need to read from the map ROM.
+  //@@@ This must be eliminated because it's blatant waste.
+  wire [MAP_WIDTH_BITS-1:0] overlay_map_col;
+  wire [MAP_HEIGHT_BITS-1:0] overlay_map_row;
+  wire overlay_map_val;
+  map_rom #(
+    .MAP_WIDTH_BITS(MAP_WIDTH_BITS),
+    .MAP_HEIGHT_BITS(MAP_HEIGHT_BITS)
+  ) map_rom_overlay(
+    .i_col(overlay_map_col),
+    .i_row(overlay_map_row),
+    .o_val(overlay_map_val)
+  );
+
+  // --- Map overlay: ---
+  wire map_en;
+  wire [5:0] map_rgb;
+  map_overlay map_overlay(
+    .hpos(hpos), .vpos(vpos),
+    .playerX(playerX), .playerY(playerY),
+    .o_map_col(overlay_map_col),
+    .o_map_row(overlay_map_row),
+    .i_map_val(overlay_map_val),
+    .in_map_overlay(map_en),
+    .map_rgb(map_rgb)
   );
 
   // --- Debug overlay: ---
@@ -70,19 +116,10 @@ module rbzero(
     .debug_rgb(debug_rgb)
   );
 
-  // --- Map overlay: ---
-  wire map_en;
-  wire [5:0] map_rgb;
-  map_overlay map_overlay(
-    .hpos(hpos), .vpos(vpos),
-    .playerX(playerX), .playerY(playerY),
-    .in_map_overlay(map_en),
-    .map_rgb(map_rgb)
-  );
-
   // --- Row-level ray caster/tracer: ---
   wire        traced_side;
-  wire [10:0] traced_size;
+  wire [6:-9] traced_vdist;
+  wire [10:0] traced_size;  // Calculated from traced_vdist, in this module.
   wall_tracer wall_tracer(
     // Inputs:
     .clk      (clk),
@@ -98,9 +135,23 @@ module rbzero(
     .playerX(playerX), .playerY(playerY),
     .facingX(facingX), .facingY(facingY),
     .vplaneX(vplaneX), .vplaneY(vplaneY),
+    // Map ROM access:
+    .o_map_col(tracer_map_col),
+    .o_map_row(tracer_map_row),
+    .i_map_val(tracer_map_val),
     // Outputs:
     .o_side   (traced_side),
-    .o_size   (traced_size)
+    .o_vdist  (traced_vdist)
+  );
+
+  wire satHeight;
+  wire `F heightScale;
+  assign traced_size = heightScale[2:-8];
+  reciprocal #(.M(`Qm),.N(`Qn)) height_scaler (
+    .i_data({5'b0,traced_vdist,3'b0}),
+    .i_abs(1),
+    .o_data(heightScale),
+    .o_sat(satHeight)
   );
 
   // --- Combined pixel colour driver/mux: ---

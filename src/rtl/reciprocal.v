@@ -78,6 +78,9 @@ module reciprocal #(
   //SMELL: Is there a way to either restrict the multiplier size, or have a 2-step shared multiplier,
   // so as to make this synth to less logic? Could we even just get away with reduced reciprocal precision?
 
+  //NOTE: The following multipliers cannot be treated as constants, which means I think they basically
+  // always need to synthesise as FULL multipliers... is there any way around that?
+
   assign a = scale_data;
 
   assign b = n1466 - a;
@@ -105,7 +108,10 @@ module reciprocal #(
   //Saturation logic
   //SMELL: Double-check our bit range here. In the Q16.16 original, the check was against [31:15], which is 17 bits,
   // but I feel like it was meant to be 16 bits (i.e. [31:16]).
-  assign o_sat = |rescale_data[M*2-1:M-N]; // If any upper bits are used, we've overflowed, so saturate.
+  //SMELL: Maybe it was 17 bits because of the sign bit in index 15?
+  // i.e. bit 15 must not be set, because if it is, then it would look like a negative result
+  // (which might suggested overflow because it actually represents an absolute, and hence positive value)...?
+  assign o_sat = |rescale_data[M*2-1:M-N]; // We've overflowed if any upper bits of the full-range product are set, so saturate.
   assign sat_data = o_sat ? nSat : rescale_data[M-N-1:-N*2];
 
   assign o_data = (sign && !i_abs) ? (~sat_data + 1'b1) : sat_data;

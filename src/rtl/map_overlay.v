@@ -1,6 +1,12 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
+
+//@@@ map_overlay can't work properly yet, because *for now* we need to assume the tracer wants
+// access to the map ROM at the same time as map_overlay. Hopefully we'll find that there's HEAPS
+// of free tracing time, in which case we'll just make sure the FSM runs when we're out of
+// the 'in_map_overlay' screen region.
+
 module map_overlay #(
   parameter H_VIEW = 640,
   parameter MAP_WIDTH_BITS = 4,
@@ -9,6 +15,12 @@ module map_overlay #(
 ) (
   input [9:0] hpos, vpos,
   input `F playerX, playerY, //facingX, facingY, vplaneX, vplaneY,
+
+  // Interface to map ROM:
+  output [MAP_WIDTH_BITS-1:0]   o_map_col,
+  output [MAP_HEIGHT_BITS-1:0]  o_map_row,
+  input                         i_map_val,
+
   output in_map_overlay,
   output [5:0] map_rgb
 );
@@ -26,10 +38,14 @@ module map_overlay #(
                                   && (playerX[-1:-MAP_SCALE]==hpos[MAP_SCALE-1:0])
                                   && (playerY[-1:-MAP_SCALE]==vpos[MAP_SCALE-1:0]);
 
+  assign o_map_col = hpos[MAP_SCALE+MAP_WIDTH_BITS-1:MAP_SCALE];
+  assign o_map_row = vpos[MAP_SCALE+MAP_HEIGHT_BITS-1:MAP_SCALE];
+
   assign map_rgb =
     in_player_pixel ? 6'b00_11_11 :   // Player pixel in map is yellow.
     in_player_cell  ? 6'b00_01_00 :   // Player cell is dark green.
     in_map_gridline ? 6'b01_00_00 :   // Map gridlines are dark blue.
+    i_map_val       ? 6'b11_00_00 :   // Occupied map cells are bright blue.
                       6'b00_00_00;    // Until we can read the actual map, map cells are black.
 
 endmodule

@@ -92,10 +92,41 @@ These are some possible pinouts on TT04 or even more-constrained targets:
 *   debug overlay
 *   temporal ordered dither
 
+## Game ideas
+
+*   With a VGA display that's physically rotated into portrait orientation, this can still be a classic Wolf3D-style FPS,
+    despite having a strange aspect ratio. If that were REALLY a worry, we could restrict it to more of a square display.
+*   Breakout-style game in 3D POV, but with up/down motion instead of left/right.
+*   2D platformer extruded into 3D POV, e.g. Super Mario Bros, i.e. with gravity and jumping, and maybe even edge climbing.
+    *   NOTE: Could be interesting to experiment with a higher-resolution map, such that each block is actually a much
+        thinner strip that can be used to build more complex voxel-like structures.
+*   "Descent"-style game but flying thru a flat up/down maze.
+
+## Other things that MIGHT be possible without excessive extra logic
+
+*   Distance shading (inc. for background).
+*   Texture-mapped background (i.e. "floor/ceiling" texture mapping).
+*   Dithering RGB222 to represent more like RGB444.
+*   Some very primitive sprite overlays, even with centre-line displacement.
+*   Displacement (left/right skew).
+
 ## Other ideas and notes
 
 *   When tracing rows instead of columns, we don't need an immediate reciprocal, but could instead calculate it progressively
     as part of the FSM. This *might* allow for greater accuracy, and *could* also be a smaller amount of logic.
 *   It would be cool if we had the option of changing vectors between rows (scanlines) so that we could potentially render different angles (split-screen)?
+*   It's possible that we can read texture data from external SPI RAM (or SPI ROM), line by line, either into a local line-level buffer,
+    or even by using two QSPI, because the address of a texture stripe can be loaded during HBLANK, and then each pixel clock transition
+    can load the next (say) RGB222 (or even RGB332) whenever it is needed. However, pushing to full resolution (25MHz) might break down,
+    and might get tricky if, for example, we need to skip some texels.
+    *   Maybe I need to do a TT04 submission that is JUST a small RAM with 6-bit data I/O (for RGB222), address set serially (with auto-increment),
+        and a few control pins to either set/reset the address, activate a write or read, set up/down mode, skip, ...?
+    *   A single tile might (?) be able to hold ~80 words (of 6 bits) as simple DFFRAM: 8x8 image, or a map.
+        Sanity check: If max. OpenRAM that fits in Caravel is 176,000 bits, then max in 1 tile is only ~230 bits.
+    *   What if the interface we described above is actually just a generic controller for ANY external RAM?
+        *   16-bit address via UO and UIO.
+        *   Inputs: CLK, SetAddr, Gen (i.e. when SetAddr is not asserted, it is NOP/Inc; else it is an address bit to clock in).
+    *   NOTE: This would be pretty easy to build with 7400-series logic.
+
 
 [Raybox]: https://github.com/algofoogle/raybox

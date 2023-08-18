@@ -15,14 +15,24 @@
 
 
 
-module wall_tracer(
-  input               clk,
-  input               reset,  //SMELL: Not used. Should we??
-  input               vsync,  // High: hold FSM in reset. Low; let FSM run.
-  input               hmax,   // High: Present last trace result on o_size and start next line.
+module wall_tracer #(
+  parameter MAP_WIDTH_BITS = 4,
+  parameter MAP_HEIGHT_BITS = 4
+) (
+  input                         clk,
+  input                         reset,  //SMELL: Not used. Should we??
+  input                         vsync,  // High: hold FSM in reset. Low; let FSM run.
+  input                         hmax,   // High: Present last trace result on o_size and start next line.
   input `F playerX, playerY, facingX, facingY, vplaneX, vplaneY,
-  output reg          o_side,
-  output reg [10:0]   o_size
+
+  // Interface to map ROM:
+  output [MAP_WIDTH_BITS-1:0]   o_map_col,
+  output [MAP_HEIGHT_BITS-1:0]  o_map_row,
+  input                         i_map_val,
+
+  // Tracing result, per line:
+  output reg                    o_side,
+  output reg [6:-9]             o_vdist // Visual distance in Q7.9 format.
 );
 
   // TO BE DEFINED:
@@ -35,9 +45,6 @@ module wall_tracer(
   // and working on modifying it to work with slightly different control inputs
   // and outputs that suit our row-based approach and no trace buffer memory.
   // I will also exclude sprite stuff for now.
-
-  // Map cell we're testing:
-  reg `I mapX, mapY;
 
   // Ray DEFLECTION vector, i.e. ray direction OFFSET (full precision; before scaling):
   reg `F rayAddendX, rayAddendY;
@@ -80,12 +87,13 @@ module wall_tracer(
   // need one multiplier, which uses `side` to determine its multiplicand.
   wire `F2 rayFullHitX = visualWallDist*rayDirX;
   wire `F2 rayFullHitY = visualWallDist*rayDirY;
-  wire `F wallPartial = o_side
+  wire `F wallPartial = side
       ? playerX + `FF(rayFullHitX)
       : playerY + `FF(rayFullHitY);
   // Use the wall hit fractional value to determine the wall texture offset
   // in the range [0,63]:
   assign tex = wallPartial[-1:-6];
+  wire [5:0] tex; //SMELL: Placeholder for now. Later would form part of the registered traced result outputs.
 
   //SMELL: Do these need to be signed? They should only ever be positive, anyway.
   // Get integer player position:
@@ -139,16 +147,17 @@ module wall_tracer(
   // Map cell we're testing:
   reg `I mapX, mapY;
   // Send the current tested map cell to the map ROM:
-  assign map_col = mapX[MAP_SIZE_BITS-1:0];
-  assign map_row = mapY[MAP_SIZE_BITS-1:0];
+  assign o_map_col = mapX[MAP_WIDTH_BITS-1:0];
+  assign o_map_row = mapY[MAP_HEIGHT_BITS-1:0];
   //SMELL: Either mapX/Y or map_col/row seem redundant. However, maybe mapX/Y are defined
   // as full `I range to be compatible with comparisons/assignments? Maybe there's a better
   // way to deal with this using wires.
   //TODO: Optimise.
 
   //SMELL: Can we optimise the subtractors out of this, e.g. by regs for previous values?
-  wire `F visualWallDist = o_side ? trackDistY-stepDistY : trackDistX-stepDistX;
+  wire `F visualWallDist = side ? trackDistY-stepDistY : trackDistX-stepDistX;
   assign vdist = visualWallDist[6:-9]; //HACK:
+  wire [6:-9] vdist; //SMELL: Placeholder for now. Later would form part of the registered traced result outputs.
   //HACK: Range [6:-9] are enough bits to get the precision and limits we want for distance,
   // i.e. UQ7.9 allows distance to have 1/512 precision and range of [0,127).
   //TODO: Explain this, i.e. it's used by a texture mapper to work out scaling.
@@ -165,7 +174,7 @@ module wall_tracer(
   localparam TEST = 2;
   localparam DONE = 3;
   
-
+  reg side;
   reg [1:0] state; //SMELL: Size this according to actual no. of states.
 
   always @(posedge clk) begin
@@ -188,7 +197,7 @@ module wall_tracer(
       // the least logic overall (I think) in order to get a perfectly balanced display.
 
       // Set a known initial state for the side:
-      o_side <= 0;
+      side <= 0;
       //SMELL: Don't actually need this, except to make simulation clearer,
       // because side will be determined during tracing, anyway?
     end else begin
@@ -196,7 +205,7 @@ module wall_tracer(
         PREP: begin
           // Get the cell the player's currently in:
           mapX <= playerMapX;
-          mayY <= playerMapY;
+          mapY <= playerMapY;
 
           //SMELL: Could we get better precision with these trackers, by scaling?
           trackDistX <= `FF(trackInitX);
@@ -211,18 +220,18 @@ module wall_tracer(
           if (needStepX) begin
             mapX <= rxi ? mapX+1'b1 : mapX-1'b1;
             trackDistX <= trackDistX + stepDistX;
-            o_side <= 0;
+            side <= 0;
           end else begin
             mapY <= ryi ? mapY+1'b1 : mapY-1'b1;
             trackDistY <= trackDistY + stepDistY;
-            o_side <= 1;
+            side <= 1;
           end
           state <= TEST;
         end
         TEST: begin
-          //SMELL: Combine this with STEP, above.
+          //SMELL: Combine this with STEP, above... or does it need to be separate for the map ROM's sake?
           // Check if we've hit a wall yet.
-          if (map_val!=0) begin
+          if (i_map_val!=0) begin
             // Hit a wall, so stop tracing this line and wait until the next is ready.
             state <= DONE;
           end else begin
@@ -238,7 +247,8 @@ module wall_tracer(
             //SMELL: @@@ NEED TO DECIDE WHAT TYPE OF RESULT WE'LL RETURN HERE...
             // @@@ Will it be the distance in ~Q7.9, or floating-point-style
             // @@@ (LZC & unshifted reciprocal), or height (from reciprocal)?
-            o_size <= @@@
+            o_vdist <= vdist;
+            o_side <= side;
             // Increment rayAddend:
             rayAddendX <= rayAddendX + vplaneX;
             rayAddendY <= rayAddendY + vplaneY;

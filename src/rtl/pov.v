@@ -6,6 +6,8 @@
 `include "fixed_point_params.v"
 
 module pov(
+  input clk,
+  input vsync,
   output `F playerX, playerY, facingX, facingY, vplaneX, vplaneY
 );
 /* verilator lint_off REALCVT */
@@ -18,8 +20,22 @@ module pov(
   localparam `F vplaneYstart  = `realF( 0.0); // ...makes FOV ~52deg. Too small, but makes maths easy for now.
 /* verilator lint_on REALCVT */
 
-  assign playerX = playerXstart;
-  assign playerY = playerYstart;
+  reg `F px,py;
+  initial {px,py} = {playerXstart,playerYstart};
+
+  reg [2:0] vsyncS;
+  always @(posedge clk) vsyncS <= {vsyncS[1:0],vsync};
+  wire vsync_start_edge = vsyncS[2:1] == 2'b01;
+
+  always @(posedge clk) begin
+    if (vsync_start_edge) begin
+      px <= px + 15;
+      py <= py + 3;
+    end
+  end
+
+  assign playerX = px;
+  assign playerY = py;
   assign facingX = facingXstart;
   assign facingY = facingYstart;
   assign vplaneX = vplaneXstart;
