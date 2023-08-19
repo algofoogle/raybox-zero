@@ -2,6 +2,8 @@
 
 While [Raybox][] is my main HDL ray caster, this project is an attempt to do a minimalist version that might be able to fit on TT04.
 
+![raybox-zero running in Verilator](doc/raybox-zero-verilator.png)
+
 ## Running Verilator simulation on Windows
 
 I went through "[Setting up under Windows](https://github.com/algofoogle/raybox#setting-up-under-windows)" on a new Windows 11 machine,

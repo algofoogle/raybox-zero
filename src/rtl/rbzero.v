@@ -3,6 +3,10 @@
 
 `include "fixed_point_params.v"
 
+//SMELL: These should probably be defined by the target (e.g. TT04 or FPGA) rather than inline here:
+// `define USE_MAP_OVERLAY
+// `define USE_DEBUG_OVERLAY
+
 module rbzero(
   input clk,
   input reset,
@@ -74,6 +78,8 @@ module rbzero(
     .o_val(tracer_map_val)
   );
 
+
+`ifdef USE_MAP_OVERLAY
   // --- Map ROM for overlay: ---
   //SMELL: We only want one map ROM instance, but for now this is just a hack to avoid
   // contention when both the tracer and map overlay need to read from the map ROM.
@@ -89,7 +95,6 @@ module rbzero(
     .i_row(overlay_map_row),
     .o_val(overlay_map_val)
   );
-
   // --- Map overlay: ---
   wire map_en;
   wire [5:0] map_rgb;
@@ -102,7 +107,10 @@ module rbzero(
     .in_map_overlay(map_en),
     .map_rgb(map_rgb)
   );
+`endif//USE_MAP_OVERLAY
 
+
+`ifdef USE_DEBUG_OVERLAY
   // --- Debug overlay: ---
   wire debug_en;
   wire [5:0] debug_rgb;
@@ -115,6 +123,8 @@ module rbzero(
     .in_debug_overlay(debug_en),
     .debug_rgb(debug_rgb)
   );
+`endif//USE_DEBUG_OVERLAY
+
 
   // --- Row-level ray caster/tracer: ---
   wire        traced_side;
@@ -160,10 +170,19 @@ module rbzero(
     : 6'b01_01_01;  // Dark grey.
   vga_mux vga_mux(
     .visible  (visible),
-    .debug_en (debug_en),
-    .debug_rgb(debug_rgb),
-    .map_en   (map_en),
-    .map_rgb  (map_rgb),
+
+`ifdef USE_DEBUG_OVERLAY
+    .debug_en (debug_en), .debug_rgb(debug_rgb),
+`else//!USE_DEBUG_OVERLAY
+    .debug_en (0), .debug_rgb(6'd0),
+`endif//USE_DEBUG_OVERLAY
+
+`ifdef USE_MAP_OVERLAY
+    .map_en   (map_en), .map_rgb(map_rgb),
+`else//!USE_MAP_OVERLAY
+    .map_en   (0), .map_rgb(6'd0),
+`endif//USE_MAP_OVERLAY
+
     .wall_en  (wall_en),
     .wall_rgb (wall_rgb),
     .bg_rgb   (bg),
