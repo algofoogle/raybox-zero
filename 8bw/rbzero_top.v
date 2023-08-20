@@ -5,13 +5,18 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
-`include "vga_sync.v"
+`include "debug_overlay.v"
+`include "lzc.v"
+`include "reciprocal.v"
+`include "map_overlay.v"
+`include "map_rom.v"
+`include "pov.v"
 `include "rbzero.v"
 `include "row_render.v"
 `include "vga_mux.v"
+`include "vga_sync.v"
 `include "wall_tracer.v"
-`include "lzc.v"
-`include "reciprocal.v"
+
 
 module rbzero_top(
   input clk,
