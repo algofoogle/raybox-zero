@@ -155,11 +155,30 @@ module rbzero(
   );
 
   wire satHeight;
-  wire `F heightScale;
-  assign traced_size = heightScale[2:-8];
+  wire `UF heightScale;
+  //  wire [9:0] mixy = hpos+vpos;          assign traced_size = {mixy[0],        heightScale[2:-7]};   // Works.
+  //  wire [9:0] mix  = hpos+vpos;          assign traced_size = {mix [0],        heightScale[2:-7]};   // Works.
+  //  wire [9:0] mi   = hpos+vpos;          assign traced_size = {mi  [0],        heightScale[2:-7]};   // Works.
+  //  wire [9:0] m    = hpos+vpos;          assign traced_size = {m   [0],        heightScale[2:-7]};   // Works.
+      wire [9:0] M    = hpos+vpos;          assign traced_size = {M   [0],        heightScale[2:-7]};   // FAILS!!
+  //  wire [9:0] Mi   = hpos+vpos;          assign traced_size = {Mi  [0],        heightScale[2:-7]};   // Works.
+  //  wire [9:0] MI   = hpos+vpos;          assign traced_size = {MI  [0],        heightScale[2:-7]};   // Works.
+  //  wire [9:0] A    = hpos+vpos;          assign traced_size = {A   [0],        heightScale[2:-7]};   // FAILS!!
+  //  wire [9:0] B    = hpos+vpos;          assign traced_size = {B   [0],        heightScale[2:-7]};   // FAILS!!
+
+  //   wire [1:0] A = hpos[1:0]+vpos[1:0];  assign traced_size = {A[0],           heightScale[2:-7]};   // Works.
+  //                                        assign traced_size = {hpos[0]+vpos[0],heightScale[2:-7]};   // FAILS!!
+
+  // assign traced_size = {hpos[0],heightScale[2:-7]};                                // FAILS!!
+  // assign traced_size = {vpos[0],heightScale[2:-7]};                                // FAILS!!
+  // assign traced_size = {1'b1,   heightScale[2:-7]};                                // Works.
+  // assign traced_size = {1'b0,   heightScale[1:-8]};                                // Works.
+  // assign traced_size = {1'b1,   heightScale[1:-8]};                                // Works.
+  // assign traced_size = {hpos[0],heightScale[1:-8]};                                // FAILS!!
+
   reciprocal #(.M(`Qm),.N(`Qn)) height_scaler (
     .i_data({5'b0,traced_vdist,3'b0}),
-    .i_abs(1),
+    .i_abs(1'b1),
     .o_data(heightScale),
     .o_sat(satHeight)
   );
@@ -174,13 +193,13 @@ module rbzero(
 `ifdef USE_DEBUG_OVERLAY
     .debug_en (debug_en), .debug_rgb(debug_rgb),
 `else//!USE_DEBUG_OVERLAY
-    .debug_en (0), .debug_rgb(6'd0),
+    .debug_en (1'b0), .debug_rgb(6'd0),
 `endif//USE_DEBUG_OVERLAY
 
 `ifdef USE_MAP_OVERLAY
     .map_en   (map_en), .map_rgb(map_rgb),
 `else//!USE_MAP_OVERLAY
-    .map_en   (0), .map_rgb(6'd0),
+    .map_en   (1'b0), .map_rgb(6'd0),
 `endif//USE_MAP_OVERLAY
 
     .wall_en  (wall_en),

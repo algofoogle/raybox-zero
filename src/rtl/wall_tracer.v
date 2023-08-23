@@ -120,8 +120,8 @@ module wall_tracer #(
   // ...which are values generated combinationally by the `reciprocal` instances below.
   //NOTE: If we needed to save space, we could have just one reciprocal, sharing via different states.
   // That would probably work OK since we don't need to CONSTANTLY be getting the reciprocals.
-  reciprocal #(.M(`Qm),.N(`Qn)) flipX (.i_data(rayDirX), .i_abs(1), .o_data(stepDistX), .o_sat(satX));
-  reciprocal #(.M(`Qm),.N(`Qn)) flipY (.i_data(rayDirY), .i_abs(1), .o_data(stepDistY), .o_sat(satY));
+  reciprocal #(.M(`Qm),.N(`Qn)) flipX (.i_data(rayDirX), .i_abs(1'b1), .o_data(stepDistX), .o_sat(satX));
+  reciprocal #(.M(`Qm),.N(`Qn)) flipY (.i_data(rayDirY), .i_abs(1'b1), .o_data(stepDistY), .o_sat(satY));
   //TODO: Try making these into a single shared reciprocal instance.
   // These capture the "saturation" (i.e. overflow) state of our reciprocal calculators:
   wire satX;
