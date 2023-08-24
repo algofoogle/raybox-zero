@@ -160,7 +160,7 @@ module rbzero(
   //  wire [9:0] mix  = hpos+vpos;          assign traced_size = {mix [0],        heightScale[2:-7]};   // Works.
   //  wire [9:0] mi   = hpos+vpos;          assign traced_size = {mi  [0],        heightScale[2:-7]};   // Works.
   //  wire [9:0] m    = hpos+vpos;          assign traced_size = {m   [0],        heightScale[2:-7]};   // Works.
-      wire [9:0] M    = hpos+vpos;          assign traced_size = {M   [0],        heightScale[2:-7]};   // FAILS!!
+  //  wire [9:0] M    = hpos+vpos;          assign traced_size = {M   [0],        heightScale[2:-7]};   // FAILS!!
   //  wire [9:0] Mi   = hpos+vpos;          assign traced_size = {Mi  [0],        heightScale[2:-7]};   // Works.
   //  wire [9:0] MI   = hpos+vpos;          assign traced_size = {MI  [0],        heightScale[2:-7]};   // Works.
   //  wire [9:0] A    = hpos+vpos;          assign traced_size = {A   [0],        heightScale[2:-7]};   // FAILS!!
@@ -175,6 +175,8 @@ module rbzero(
   // assign traced_size = {1'b0,   heightScale[1:-8]};                                // Works.
   // assign traced_size = {1'b1,   heightScale[1:-8]};                                // Works.
   // assign traced_size = {hpos[0],heightScale[1:-8]};                                // FAILS!!
+
+  assign traced_size = heightScale[2:-8];
 
   reciprocal #(.M(`Qm),.N(`Qn)) height_scaler (
     .i_data({5'b0,traced_vdist,3'b0}),
