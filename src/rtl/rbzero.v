@@ -8,14 +8,19 @@
 // `define USE_DEBUG_OVERLAY
 
 module rbzero(
-  input clk,
-  input reset,
-  output wire hsync_n, vsync_n,
-  output wire [5:0] rgb,
+  input               clk,
+  input               reset,
+  // SPI interface for updating vectors:
+  input               i_sclk,
+  input               i_mosi,
+  input               i_ss_n,
+  // VGA outputs:
+  output wire         hsync_n, vsync_n,
+  output wire [5:0]   rgb,
   // hpos and vpos are currently supplied so a top module can do dithering,
   // but otherwise they're not really required, or even just bit-0 of each would do:
-  output wire [9:0] hpos,
-  output wire [9:0] vpos
+  output wire [9:0]   hpos,
+  output wire [9:0]   vpos
 );
 
   localparam H_VIEW = 640;
@@ -56,10 +61,20 @@ module rbzero(
   );
 
   // --- Point-Of-View data, i.e. view vectors: ---
-  wire `F playerX, playerY, facingX, facingY, vplaneX, vplaneY;
+  wire `F playerX /* verilator public */;
+  wire `F playerY /* verilator public */;
+  wire `F facingX /* verilator public */;
+  wire `F facingY /* verilator public */;
+  wire `F vplaneX /* verilator public */;
+  wire `F vplaneY /* verilator public */;
+  wire visible_frame_end = (hpos==799 && vpos==479); // The moment when SPI-loaded vector data could be used.
   pov pov(
-    .clk(clk),
-    .vsync(vsync),
+    .clk      (clk),
+    .reset    (reset),
+    .i_sclk   (i_sclk),
+    .i_mosi   (i_mosi),
+    .i_ss_n   (i_ss_n),
+    .load_if_ready(visible_frame_end),
     .playerX(playerX), .playerY(playerY),
     .facingX(facingX), .facingY(facingY),
     .vplaneX(vplaneX), .vplaneY(vplaneY)

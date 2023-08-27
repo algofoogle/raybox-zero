@@ -43,7 +43,7 @@ using namespace std;
 // #define USE_POWER_PINS //NOTE: This is automatically set in the Makefile, now.
 #define INSPECT_INTERNAL //NOTE: This is automatically set in the Makefile, now.
 #ifdef INSPECT_INTERNAL
-  // #include "Vrbzero_rbzero.h"       // Needed for accessing "verilator public" stuff in `rbzero`
+  #include "Vrbzero_rbzero.h"       // Needed for accessing "verilator public" stuff in `rbzero`
 #endif
 
 #define FONT_FILE "sim/font-cousine/Cousine-Regular.ttf"
@@ -794,6 +794,76 @@ void render_text(SDL_Renderer* renderer, TTF_Font* font, int x, int y, string s)
 }
 
 
+// This gets called right next to every TB->tick() call.
+// It has its own counters to keep track of when to update SPI inputs to TB.
+// Currently it's designed to constantly stream in the current vector states
+// via SPI, even if they haven't updated. However, it does need to take a
+// snapshot of the current vector states when starting each new streaming
+// (because they could otherwise be changing):
+void update_spi_state() {
+  static int spi_next_countdown = 5; // For now run at one fifth of the clock. Later, we could add some jitter.
+  static int spi_state_counter = 0; // Tracks which state we're up to, incrementing when spi_next_countdown==0.
+  static uint32_t vectors[6] = {
+    0x001800, 0x001800,
+    0x000000, 0x001000,
+    0xFFF800, 0x000000,
+    // 0x123456, 0x789abc,
+    // 0xdef024, 0x68ace0,
+    // 0x555aaa, 0x13579b,
+  };
+  //NOTE: States:
+  // 0 = SS and SCLK deasserted.
+  // 1 = SS asserted.
+  // 2 = First MOSI + SCLK deasserted.
+  // 3 = First MOSI + SCLK asserted.
+  // Repeat above 2 states for remaining 143 bits (up to states 288,289)
+  // 290 = SCLK deasserted.
+  if (0 == --spi_next_countdown) {
+    spi_next_countdown = 5;
+    switch (spi_state_counter) {
+      case 0:
+      {
+        //TODO: @@@ Snapshot vectors.
+        TB->m_core->i_ss_n = 1; // Deasserted.
+        TB->m_core->i_sclk = 0; // Deasserted.
+        break;
+      }
+      case 1:
+      {
+        TB->m_core->i_ss_n = 0; // Asserted.
+        break;
+      }
+      case 290:
+      {
+        TB->m_core->i_sclk = 0; // Deasserted.
+        break;
+      }
+      default:
+      {
+        // Get a bit.
+        int bit_index = (spi_state_counter>>1)-1;
+        int vindex = bit_index/24;
+        int vshift = bit_index%24;
+        TB->m_core->i_mosi = ((vectors[vindex]<<vshift)&0x800000) ? 1 : 0;
+        if (spi_state_counter&1) {
+          // Assert SCLK.
+          TB->m_core->i_sclk = 1;
+        }
+        else {
+          // Deassert SCLK.
+          TB->m_core->i_sclk = 0;
+        }
+        break;
+      }
+    }
+    if (291 == ++spi_state_counter) {
+      spi_state_counter = 0;
+      // vectors[0]++;
+    }
+  }
+}
+
+
 
 int main(int argc, char **argv) {
 
@@ -874,17 +944,25 @@ int main(int argc, char **argv) {
   TB->print_big_num(CLOCK_HZ);
   printf(" Hz\n");
 
-// #ifdef INSPECT_INTERNAL
-//   printf(
-//     "\n"
-//     "Initial state of design:\n"
-//     "  h        : %d\n"
-//     "  v        : %d\n"
-//     "\n",
-//     TB->m_core->DESIGN->h,
-//     TB->m_core->DESIGN->v,
-//   );
-// #endif
+#ifdef INSPECT_INTERNAL
+  printf(
+    "\n"
+    "Initial state of design:\n"
+    "  playerX  : %d\n"
+    "  playerY  : %d\n"
+    "  facingX  : %d\n"
+    "  facingY  : %d\n"
+    "  vplaneX  : %d\n"
+    "  vplaneY  : %d\n"
+    "\n",
+    TB->m_core->DESIGN->playerX,
+    TB->m_core->DESIGN->playerY,
+    TB->m_core->DESIGN->facingX,
+    TB->m_core->DESIGN->facingY,
+    TB->m_core->DESIGN->vplaneX,
+    TB->m_core->DESIGN->vplaneY
+  );
+#endif
 
 
   // printf("Starting simulation in ");
@@ -947,7 +1025,7 @@ int main(int argc, char **argv) {
 
       bool hsync_stopped = false;
       bool vsync_stopped = false;
-      TB->tick();      hsync_stopped |= TB->hsync_stopped();      vsync_stopped |= TB->vsync_stopped();
+      update_spi_state(); TB->tick();      hsync_stopped |= TB->hsync_stopped();      vsync_stopped |= TB->vsync_stopped();
 #ifdef USE_SPEAKER
       TB->examine_condition_met |= TB->m_core->speaker;
 #endif // USE_SPEAKER
@@ -1059,6 +1137,16 @@ int main(int argc, char **argv) {
 
     SDL_UpdateTexture( texture, NULL, framebuffer, WINDOW_WIDTH * 4 );
     SDL_RenderCopy( renderer, texture, NULL, NULL );
+// #ifdef INSPECT_INTERNAL
+//     printf("%06X %06X %06X %06X %06X %06X\n",
+//       TB->m_core->DESIGN->playerX,
+//       TB->m_core->DESIGN->playerY,
+//       TB->m_core->DESIGN->facingX,
+//       TB->m_core->DESIGN->facingY,
+//       TB->m_core->DESIGN->vplaneX,
+//       TB->m_core->DESIGN->vplaneY
+//     );
+// #endif//INSPECT_INTERNAL
     if (font) {
       SDL_Rect rect;
       SDL_Texture *text_texture = NULL;
@@ -1077,6 +1165,17 @@ int main(int argc, char **argv) {
       s += gLockInputs[LOCK_R]  ? ">" : ".";
       s += gMouseCapture        ? "*" : ".";
       s += "] ";
+#ifdef INSPECT_INTERNAL
+      s += " pX,Y=("
+        + to_string(fixed2double(TB->m_core->DESIGN->playerX)) + ", "
+        + to_string(fixed2double(TB->m_core->DESIGN->playerY)) + ") ";
+      s += " fX,Y=("
+        + to_string(fixed2double(TB->m_core->DESIGN->facingX)) + ", "
+        + to_string(fixed2double(TB->m_core->DESIGN->facingY)) + ") ";
+      s += " vX,Y=("
+        + to_string(fixed2double(TB->m_core->DESIGN->vplaneX)) + ", "
+        + to_string(fixed2double(TB->m_core->DESIGN->vplaneY)) + ") ";
+#endif//INSPECT_INTERNAL
       get_text_and_rect(renderer, 10, VFULL+10, s.c_str(), font, &text_texture, &rect);
       if (text_texture) {
         SDL_RenderCopy(renderer, text_texture, NULL, &rect);
