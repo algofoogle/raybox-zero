@@ -67,7 +67,7 @@ module pov(
   // Sync SCLK using 3-bit shift reg (to catch rising/falling edges):
   reg [2:0] sclk_buffer; always @(posedge clk) sclk_buffer <= {sclk_buffer[1:0], i_sclk};
   wire sclk_rise = (sclk_buffer[2:1]==2'b01);
-  wire sclk_fall = (sclk_buffer[2:1]==2'b10);
+  // wire sclk_fall = (sclk_buffer[2:1]==2'b10);
 
   // Sync /SS; only needs 2 bits because we don't care about edges:
   reg [1:0] ss_buffer; always @(posedge clk) ss_buffer <= {ss_buffer[0], i_ss_n};

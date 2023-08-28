@@ -1,4 +1,4 @@
-// Fixed-point reciprocal for Q12.12, modified from:
+// Single-step fixed-point reciprocal approximation for Q12.12, modified from:
 // https://github.com/algofoogle/raybox/blob/main/src/rtl/reciprocal.v
 // ...which is in turn adapted from:
 // https://github.com/ameetgohil/reciprocal-sv/blob/master/rtl/reciprocal.sv
@@ -18,17 +18,16 @@ module reciprocal #(
   output  wire            o_sat   // 1=saturated
 );
 /* verilator lint_off REALCVT */
-  `define ROUNDING_FIX -0.5
   // Find raw fixed-point value representing 1.466:
   // localparam integer nb = 1.466*(2.0**N);
   //SMELL: Wackiness to work around Quartus bug: https://community.intel.com/t5/Intel-Quartus-Prime-Software/BUG/td-p/1483047
   localparam SCALER = 1<<N;
   localparam real FSCALER = SCALER;
-  localparam [M-1:-N] n1466 = 1.466*FSCALER+`ROUNDING_FIX;    // 1.466 in QM.N
+  localparam [M-1:-N] n1466 = `Qmn'($rtoi(1.466*FSCALER));    // 1.466 in QM.N
 
   // Find raw fixed-point value representing 1.0012:
   // localparam integer nd = 1.0012*(2.0**N);
-  localparam [M-1:-N] n10012 = 1.0012*FSCALER+`ROUNDING_FIX;  // 1.0012 in QM.N
+  localparam [M-1:-N] n10012 = `Qmn'($rtoi(1.0012*FSCALER));  // 1.0012 in QM.N
 /* verilator lint_on REALCVT */
 
   localparam [M-1:-N] nSat = ~(1<<(M+N-1));   // Max positive integer (i.e. saturation).
@@ -37,7 +36,7 @@ module reciprocal #(
 
   initial begin
     //NOTE: In Quartus, at compile-time, this should hopefully spit out the params from above
-    // in the compilation log:
+    // in the compilation log, and in OpenLane it should be in logs/synthesis/1-synthesis.log:
     $display("reciprocal params for Q%0d.%0d:  n1466=%X, n10012=%X, nSat=%X", M, N, n1466, n10012, nSat);
   end
 
