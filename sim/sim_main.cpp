@@ -134,6 +134,7 @@ bool          gSyncFrame = false;
 bool          gHighlight = true;
 bool          gGuides = false;
 bool          gOverrideVectors = false;
+bool          gSwapMouseXY = false;
 int           gMouseX, gMouseY;
 double        gMotionMultiplier = 1.0;
 #ifdef WINDOWS
@@ -143,14 +144,17 @@ bool          gMouseCapture = false; // Not on by default in Linux, because of p
 #endif
 
 
-//SMELL: @raybox leftovers:
-typedef struct {
-  uint32_t px, py, fx, fy, vx, vy;
-} fixed_vectors_t;
+// 'gView' is the current view state:
 typedef struct {
   double px, py, fx, fy, vx, vy;
 } float_vectors_t;
-float_vectors_t gOvers; // Floating point overrides.
+float_vectors_t gView = {
+   1.5,  1.5, // player
+   0.0,  1.0, // facing
+  -0.5,  0.0, // vplane
+};
+
+//SMELL: @raybox leftovers:
 enum {
   LOCK_F = 0,
   LOCK_B,
@@ -518,14 +522,8 @@ void process_sdl_events() {
           printf("Stepping by 1 frame is not yet implemented!\n");
           break;
         case SDLK_o:
-          printf("Not implemented\n");
-          // gOverrideVectors = !gOverrideVectors;
-          // if (!gOverrideVectors) {
-          //   printf("Vectors override turned off\n");
-          // }
-          // else {
-          //   activate_vectors_override();
-          // }
+          gSwapMouseXY = !gSwapMouseXY;
+          printf("Mouse axes are%s swapped\n", gSwapMouseXY ? "" : " NOT");
           break;
         // Turn off all input locks:
         case SDLK_END:    memset(&gLockInputs, 0, sizeof(gLockInputs)); break;
@@ -558,6 +556,53 @@ void process_sdl_events() {
       }
     }
   }
+}
+
+
+void rotate_view(double a) {
+  double nx, ny;
+  double ca = cos(a);
+  double sa = sin(a);
+  // Rotate direction vector:
+  nx =  gView.fx*ca + gView.fy*sa;
+  ny = -gView.fx*sa + gView.fy*ca;
+  gView.fx = nx;
+  gView.fy = ny;
+  // // Generate viewplane vector:
+  // viewX = -headingY * viewMag;
+  // viewY =  headingX * viewMag;
+  // Rotate viewplane vector:
+  nx =  gView.vx*ca + gView.vy*sa;
+  ny = -gView.vx*sa + gView.vy*ca;
+  gView.vx = nx;
+  gView.vy = ny;
+}
+
+
+
+void recalc_view(const Uint8* k, int mouseX, int mouseY) {
+  //SMELL: Actual travel distance should be based on time elapsed, which will require an extra argument.
+  const double key_rotate_speed   = 0.01;
+  const double mouse_rotate_speed = 0.001;
+  const double move_quantum       = pow(2.0, -9.0); // This borrows from `playerMove` in the design, and in Q12.12 it is the raw value: 8
+  const double playerCrawl        = move_quantum *  4.0;
+  const double playerWalk         = move_quantum * 10.0; // Should be 0.01953125
+  const double playerRun          = move_quantum * 18.0;
+  const double playerMove         = playerWalk;
+  bool fast = k[SDL_SCANCODE_LSHIFT];
+  int mouseDelta = gSwapMouseXY ? mouseY : mouseX;
+  double m = fast ? playerRun : playerMove;
+  m *= gMotionMultiplier;
+  double r = key_rotate_speed;
+  r *= gMotionMultiplier;
+  if (fast) r *= 1.8;
+  if (k[SDL_SCANCODE_LEFT])   rotate_view( r);
+  if (k[SDL_SCANCODE_RIGHT])  rotate_view(-r);
+  if (mouseDelta != 0)        rotate_view(-mouse_rotate_speed * double(mouseDelta));
+  if (k[SDL_SCANCODE_W]) { gView.px += m * gView.fx;   gView.py += m * gView.fy; }
+  if (k[SDL_SCANCODE_S]) { gView.px -= m * gView.fx;   gView.py -= m * gView.fy; }
+  if (k[SDL_SCANCODE_A]) { gView.px -= m * gView.vx;   gView.py -= m * gView.vy; }
+  if (k[SDL_SCANCODE_D]) { gView.px += m * gView.vx;   gView.py += m * gView.vy; }
 }
 
 
@@ -599,11 +644,12 @@ void handle_control_inputs(bool prepare) {
     // ACTIVE mode: Read the momentary state of all keyboard keys, and add them via `|=` to whatever is already asserted:
     auto keystate = SDL_GetKeyboardState(NULL);
 
-    if (gOverrideVectors) {
-      // recalc_override_vectors(keystate, mouseX, mouseY);
-      // set_override_vectors();
-      // set_write_new_position(1);
-    }
+    // if (gOverrideVectors) {
+    //   recalc_override_vectors(keystate, mouseX, mouseY);
+    //   set_override_vectors();
+    //   set_write_new_position(1);
+    // }
+    recalc_view(keystate, mouseX, mouseY);
 
     // TB->m_core->show_debug = 1;
     TB->m_core->reset     |= keystate[SDL_SCANCODE_R];
@@ -803,14 +849,7 @@ void render_text(SDL_Renderer* renderer, TTF_Font* font, int x, int y, string s)
 void update_spi_state() {
   static int spi_next_countdown = 5; // For now run at one fifth of the clock. Later, we could add some jitter.
   static int spi_state_counter = 0; // Tracks which state we're up to, incrementing when spi_next_countdown==0.
-  static uint32_t vectors[6] = {
-    0x001800, 0x001800,
-    0x000000, 0x001000,
-    0xFFF800, 0x000000,
-    // 0x123456, 0x789abc,
-    // 0xdef024, 0x68ace0,
-    // 0x555aaa, 0x13579b,
-  };
+  static uint32_t vectors[6] = {0};
   //NOTE: States:
   // 0 = SS and SCLK deasserted.
   // 1 = SS asserted.
@@ -823,7 +862,14 @@ void update_spi_state() {
     switch (spi_state_counter) {
       case 0:
       {
-        //TODO: @@@ Snapshot vectors.
+        // Take a snapshot of gView now:
+        vectors[0] = double2fixed(gView.px);
+        vectors[1] = double2fixed(gView.py);
+        vectors[2] = double2fixed(gView.fx);
+        vectors[3] = double2fixed(gView.fy);
+        vectors[4] = double2fixed(gView.vx);
+        vectors[5] = double2fixed(gView.vy);
+        // Get SPI inputs ready:
         TB->m_core->i_ss_n = 1; // Deasserted.
         TB->m_core->i_sclk = 0; // Deasserted.
         break;
