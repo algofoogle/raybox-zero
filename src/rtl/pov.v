@@ -24,17 +24,38 @@ module pov(
 
   reg ready; // Is ready_buffer valid?
 
+  //SMELL: Should we put ALL the clocked stuff together in here, or instead
+  // create a separate clocked section for each register target (as we do with SPI)?
+  // e.g. ready <= reset ? 0 : spi_done;
+
   always @(posedge clk) begin
     if (reset) begin
+
       ready <= 0;
       //SMELL: Could do this via ready_buffer instead?
       {playerX,playerY} <= {playerXstart,playerYstart};
       {facingX,facingY} <= {facingXstart,facingYstart};
       {vplaneX,vplaneY} <= {vplaneXstart,vplaneYstart};
-    end else if (load_if_ready && ready) begin
-      // Load buffered vectors into live vector registers:
-      {playerX,playerY,facingX,facingY,vplaneX,vplaneY} <= ready_buffer;
+
+    end else begin
+
+      if (load_if_ready && ready) begin
+        // Load buffered vectors into live vector registers:
+        {playerX,playerY,facingX,facingY,vplaneX,vplaneY} <= ready_buffer;
+      end
+
+      if (spi_done) begin
+        // Last bit was clocked in, so copy the whole spi_buffer into our ready_buffer:
+        ready_buffer <= spi_buffer;
+        ready <= 1;
+        spi_done <= 0;
+      end else if (ss_active && sclk_rise && spi_frame_end) begin
+        // Last bit is being clocked in...
+        spi_done <= 1;
+      end
+
     end
+
   end
 
   //SMELL: ------------------ NEED TO IMPLEMENT/RESPECT RESETS FOR ALL THIS?? --------------------
@@ -79,16 +100,5 @@ module pov(
   end
 
   reg [143:0] ready_buffer; // Last buffered (complete) SPI bit stream that is ready for next loading as vector data.
-  always @(posedge clk) begin
-    if (spi_done) begin
-      // Last bit was clocked in, so copy the whole spi_buffer into our ready_buffer:
-      ready_buffer <= spi_buffer;
-      ready <= 1;
-      spi_done <= 0;
-    end else if (ss_active && sclk_rise && spi_frame_end) begin
-      // Last bit is being clocked in...
-      spi_done <= 1;
-    end
-  end
 
 endmodule
