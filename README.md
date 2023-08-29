@@ -1,6 +1,6 @@
 # Raybox Zero
 
-While [Raybox][] is my main HDL ray caster, this project is an attempt to do a minimalist version that might be able to fit on TT04.
+While [Raybox] is my main HDL ray caster, this project is an attempt to do a minimalist version that might be able to fit on TT04.
 
 ![raybox-zero running in Verilator](doc/raybox-zero-verilator.png)
 
@@ -18,6 +18,27 @@ Other than that, I can run the simulator with:
 make clean_sim
 ```
 
+You can also run `make clean_sim_random` which will start all uninitialised registers/memories with randomised data, but to get the random seed it relies on the 'Windows Time' service, so make sure that is started first.
+
+
+## Running Verilator simulation on Linux
+
+**These instructions are tested with Ubuntu 20.04 LTS**, but are not yet complete because I'm using a VM that came preloaded with the build tools and Verilator v4.227.
+
+Make sure SDL2 dev packages are installed:
+
+```bash
+sudo apt update
+sudo apt install libsdl2-dev libsdl2-ttf-dev
+```
+
+Then build and run the simulation with:
+
+```bash
+make clean_sim
+```
+
+
 ## Running on 8bitworkshop
 
 The IDE at [8bitworkshop.com](https://8bitworkshop.com) is neat!
@@ -32,6 +53,7 @@ The [`8bw`](./8bw/) directory contains a top module (`rbzero_top`) that could ot
 ## Differences from how Raybox was designed
 
 ### I/O constraints
+
 These are some possible pinouts on TT04 or even more-constrained targets:
 
 *   Standard pinout:

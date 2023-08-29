@@ -3,6 +3,8 @@
 
 `include "fixed_point_params.v"
 
+// wall_tracer with SHARED RECIPROCAL IMPLEMENTATION
+
 //NOTE: I tend to use 'row' and 'line' interchangeably in these comments,
 // because 'line' is usually in the context of the screen (i.e. a scanline)
 // and 'row' means the same thing but in the context of a traced wall slice.
@@ -129,25 +131,23 @@ module wall_tracer #(
   //TODO: Optimise this, if it actually makes a difference during synth anyway.
 
   // What distance (i.e. what extension of our ray's vector) do we go when travelling by 1 cell in the...
-  wire `F stepDistX;  // ...map X direction...
-  wire `F stepDistY;  // ...may Y direction...
+  reg `F stepDistX;  // ...map X direction...
+  reg `F stepDistY;  // ...may Y direction...
   // ...which are values generated combinationally by the `reciprocal` instances below.
-  //NOTE: If we needed to save space, we could have just one reciprocal, sharing via different states.
-  // That would probably work OK since we don't need to CONSTANTLY be getting the reciprocals.
-  reciprocal #(.M(`Qm),.N(`Qn)) flipX (.i_data(rayDirX), .i_abs(1'b1), .o_data(stepDistX), .o_sat(satX));
-  reciprocal #(.M(`Qm),.N(`Qn)) flipY (.i_data(rayDirY), .i_abs(1'b1), .o_data(stepDistY), .o_sat(satY));
-  //TODO: Try making these into a single shared reciprocal instance.
-  // These capture the "saturation" (i.e. overflow) state of our reciprocal calculators:
-  wire satX;
-  wire satY;
-  // These are not needed currently, but we might use them as we improve the design,
+
+  reg     rcp_sel; // This muxes between rayDirX and rayDirY as the input to the shared reciprocal.
+  wire `F rcp_in = rcp_sel ? rayDirY : rayDirX; // Input; value we want to find the reciprocal of.
+  wire `F rcp_out; // Output; reciprocal of rcp_in.
+  wire    rcp_sat; // These capture the "saturation" (i.e. overflow) state of our reciprocal calculator.
+  //NOTE: rcp_sat is not needed currently, but we might use it as we improve the design,
   // in order to stop tracing on a given axis?
 
-  // This is the reciprocal that the early version of Raybox used to calculate absolute wall height,
-  // but it was commented out when texture mapping was implemented (because it was done a little
-  // differently outside of the tracer):
-  // wire satHeight;
-  // reciprocal #(.M(`Qm),.N(`Qn)) height_scaler (.i_data(visualWallDist),   .i_abs(1), .o_data(heightScale),.o_sat(satHeight));
+  reciprocal #(.M(`Qm),.N(`Qn)) shared_reciprocal (
+    .i_data (rcp_in),
+    .i_abs  (1'b1),
+    .o_data (rcp_out),
+    .o_sat  (rcp_sat)
+  );
 
   // Generate the initial tracking distances, as a portion of the full
   // step distances, relative to where our player is (fractionally) in the map cell:
@@ -171,25 +171,37 @@ module wall_tracer #(
   //SMELL: Can we optimise the subtractors out of this, e.g. by regs for previous values?
   wire `F visualWallDist = side ? trackDistY-stepDistY : trackDistX-stepDistX;
   assign vdist = visualWallDist[6:-9]; //HACK:
-  wire [6:-9] vdist; //SMELL: Placeholder for now. Later would form part of the registered traced result outputs.
+  wire [6:-9] vdist;
   //HACK: Range [6:-9] are enough bits to get the precision and limits we want for distance,
   // i.e. UQ7.9 allows distance to have 1/512 precision and range of [0,127).
   //TODO: Explain this, i.e. it's used by a texture mapper to work out scaling.
   //TODO: Consider replacing with an exponent (floating-point-like) alternative?
 
-  // // Output current line (row) counter value:
-  // assign column = line_counter;
-
   // Used to indicate whether X/Y-stepping is the next target:
   wire needStepX = trackDistX < trackDistY; //NOTE: UNSIGNED comparison per def'n of trackX/Ydist.
 
-  localparam PREP = 0;
-  localparam STEP = 1;
-  localparam TEST = 2;
-  localparam DONE = 3;
+  // States for getting stepDistX = 1.0/rayDirX:
+  localparam SDXPrep    = 0;
+  localparam SDXWait    = 1;
+  localparam SDXLoad    = 2;
+
+  // States for getting stepDistY = 1.0/rayDirY:
+  localparam SDYPrep    = 3;
+  localparam SDYWait    = 4;
+  localparam SDYLoad    = 5;
+
+  // States for main line trace process:
+  localparam TracePrep  = 6;
+  localparam TraceStep  = 7;
+  localparam TraceTest  = 8;
+  localparam TraceDone  = 9;
+
+  // Symbols representing different data sources for the reciprocal:
+  localparam RCP_RDX = 0; // rayDirX.
+  localparam RCP_RDY = 1; // rayDirY.
   
   reg side;
-  reg [1:0] state; //SMELL: Size this according to actual no. of states.
+  reg [3:0] state; //SMELL: Size this according to actual no. of states.
 
   `ifdef RESET_TO_KNOWN
     wire do_reset = vsync || reset;
@@ -200,7 +212,7 @@ module wall_tracer #(
   always @(posedge clk) begin
     if (do_reset) begin
       // While VSYNC is asserted, reset FSM to start a new frame.
-      state <= PREP;
+      state <= SDXPrep;
 
       // Get the initial ray direction (top row)...
       rayAddendX <= -(vplaneX<<<8)-(vplaneX<<<4);
@@ -223,13 +235,25 @@ module wall_tracer #(
         o_vdist <= 0;
         o_side <= 0;
         side <= 0;
+        rcp_sel <= RCP_RDX; // Reciprocal's data source is initially rayDirX.
         // stepDistX <= 0;
         // stepDistY <= 0;
       `endif//RESET_TO_KNOWN
 
     end else begin
       case (state)
-        PREP: begin
+
+        // Get stepDistX from rayDirX:
+        SDXPrep: begin  state <= SDXWait;   rcp_sel <= RCP_RDX; end
+        SDXWait: begin  state <= SDXLoad;   end // Do nothing; just wait for reciprocal to settle.
+        SDXLoad: begin  state <= SDYPrep;   stepDistX <= rcp_out; end
+
+        // Get stepDistY from rayDirY:
+        SDYPrep: begin  state <= SDYWait;   rcp_sel <= RCP_RDY; end
+        SDYWait: begin  state <= SDYLoad;   end // Do nothing; just wait for reciprocal to settle.
+        SDYLoad: begin  state <= TracePrep; stepDistY <= rcp_out; end
+
+        TracePrep: begin
           // Get the cell the player's currently in:
           mapX <= playerMapX;
           mapY <= playerMapY;
@@ -238,11 +262,9 @@ module wall_tracer #(
           trackDistX <= `FF(trackInitX);
           trackDistY <= `FF(trackInitY);
           //NOTE: track init comes from stepDist, comes from rayDir, comes from rayAddend.
-          //SMELL: Could we get rid of 'DONE' (or just merge with 'PREP') and then
-          // only do this state change based on hmax?
-          state <= STEP;
+          state <= TraceStep;
         end
-        STEP: begin
+        TraceStep: begin
           //SMELL: Can we explicitly set different states to match which trace/step we're doing?
           if (needStepX) begin
             mapX <= rxi ? mapX+1'b1 : mapX-1'b1;
@@ -253,20 +275,20 @@ module wall_tracer #(
             trackDistY <= trackDistY + stepDistY;
             side <= 1;
           end
-          state <= TEST;
+          state <= TraceTest;
         end
-        TEST: begin
-          //SMELL: Combine this with STEP, above... or does it need to be separate for the map ROM's sake?
+        TraceTest: begin
+          //SMELL: Combine this with TraceStep, above... or does it need to be separate for the map ROM's sake?
           // Check if we've hit a wall yet.
           if (i_map_val!=0) begin
             // Hit a wall, so stop tracing this line and wait until the next is ready.
-            state <= DONE;
+            state <= TraceDone;
           end else begin
             // No hit yet; keep going.
-            state <= STEP;
+            state <= TraceStep;
           end
         end
-        DONE: begin
+        TraceDone: begin
           // Trace of the current line is done.
           // Wait for hmax...
           if (hmax) begin
@@ -279,10 +301,7 @@ module wall_tracer #(
             // Increment rayAddend:
             rayAddendX <= rayAddendX + vplaneX;
             rayAddendY <= rayAddendY + vplaneY;
-            state <= PREP;
-            //SMELL: If (say) reciprocal propagation time, etc, is of concern then
-            // we could insert extra states before getting to PREP (which is where
-            // the rayAddend change trickle-down will ultimately be used).
+            state <= SDXPrep;
           end
         end
       endcase
