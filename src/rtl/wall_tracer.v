@@ -13,6 +13,12 @@
 // - Stop tracing after the final row (or don't; save on logic?)
 // - Advance one row at a time.
 
+`define RESET_TO_KNOWN  // Include explicit reset logic, to avoid unknown states in simulation?
+//NOTE: This will generate extra logic, but means greater predictability. If my design is right,
+// it's not strictly necessary to do this (if we want to reduce logic/floorplan), because the
+// design should settle to a predictable state within 1 full frame, but it's better to do this than
+// not. Also, it's probably essential for good, reliable automated tests. On the other hand, we
+// could try using Verilator to set random states to try and test possible 'bad startup' conditions.
 
 
 module wall_tracer #(
@@ -35,10 +41,17 @@ module wall_tracer #(
   output reg [6:-9]             o_vdist // Visual distance in Q7.9 format.
 );
 
-  // TO BE DEFINED:
-  // - map outputs (map_row/map_col) and input (map_val)
-  // - tex
-  // - vdist??
+  //SMELL: Still need to define the function of 'tex'
+
+  // Examples of things which could share logic instead of needing simultaneous combo logic:
+  // - rayFullHit multiplier -- doesn't even need sharing if using 'side' to mux the multiplicand.
+  // - rayDir add/shift? -- an added mux might take away the benefit of sharing, though.
+  // - flip reciprocal (and later height_scaler)
+  // - partialXY only ever *needs* fractional part, so can save 12 bits?
+  //SMELL: Don't optimise until key parts of the design is finished! Otherwise we can't
+  // tell whether our optimisations have actually made an improvement or not.
+  // ALSO: Try testing each optimisation on its own, and then all together. It's hard to
+  // predict synth optimisations that might occur in combos.
 
   //NOTE: I'm bringing in code from
   // https://github.com/algofoogle/raybox/blob/main/src/rtl/tracer.v
@@ -85,6 +98,7 @@ module wall_tracer #(
   // which will then be used to determine the wall texture stripe.
   //TODO: Surely there's a way to optimise this. For starters, I think we only
   // need one multiplier, which uses `side` to determine its multiplicand.
+  //NOTE: visualWallDist is also a function of 'side'... can we do any tricks with that?
   wire `F2 rayFullHitX = visualWallDist*rayDirX;
   wire `F2 rayFullHitY = visualWallDist*rayDirY;
   wire `F wallPartial = side
@@ -177,8 +191,14 @@ module wall_tracer #(
   reg side;
   reg [1:0] state; //SMELL: Size this according to actual no. of states.
 
+  `ifdef RESET_TO_KNOWN
+    wire do_reset = vsync || reset;
+  `else//!RESET_TO_KNOWN
+    wire do_reset = vsync;
+  `endif//RESET_TO_KNOWN
+
   always @(posedge clk) begin
-    if (vsync) begin
+    if (do_reset) begin
       // While VSYNC is asserted, reset FSM to start a new frame.
       state <= PREP;
 
@@ -196,10 +216,17 @@ module wall_tracer #(
       // we want to jump the gun by 1 line, hence -vplane*272. This happens to need
       // the least logic overall (I think) in order to get a perfectly balanced display.
 
-      // Set a known initial state for the side:
-      side <= 0;
-      //SMELL: Don't actually need this, except to make simulation clearer,
-      // because side will be determined during tracing, anyway?
+      `ifdef RESET_TO_KNOWN
+        // Set a known initial state for stuff:
+        //SMELL: Don't actually need this, except to make simulation clearer,
+        // because all of this stuff will naturally settle after 1 full frame anyway...?
+        o_vdist <= 0;
+        o_side <= 0;
+        side <= 0;
+        // stepDistX <= 0;
+        // stepDistY <= 0;
+      `endif//RESET_TO_KNOWN
+
     end else begin
       case (state)
         PREP: begin
