@@ -143,7 +143,6 @@ module rbzero(
 
   // --- Row-level ray caster/tracer: ---
   wire        traced_side;
-  wire [6:-9] traced_vdist;
   wire [10:0] traced_size;  // Calculated from traced_vdist, in this module.
   wall_tracer wall_tracer(
     // Inputs:
@@ -166,17 +165,7 @@ module rbzero(
     .i_map_val(tracer_map_val),
     // Outputs:
     .o_side   (traced_side),
-    .o_vdist  (traced_vdist)
-  );
-
-  wire satHeight;
-  wire `F heightScale;
-  assign traced_size = heightScale[2:-8];
-  reciprocal #(.M(`Qm),.N(`Qn)) height_scaler (
-    .i_data({5'b0,traced_vdist,3'b0}),
-    .i_abs(1'b1),
-    .o_data(heightScale),
-    .o_sat(satHeight)
+    .o_size   (traced_size)
   );
 
   // --- Combined pixel colour driver/mux: ---

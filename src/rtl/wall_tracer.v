@@ -40,10 +40,39 @@ module wall_tracer #(
 
   // Tracing result, per line:
   output reg                    o_side,
-  output reg [6:-9]             o_vdist // Visual distance in Q7.9 format.
+  output reg [10:0]             o_size // Wall half-size.
 );
 
   //SMELL: Still need to define the function of 'tex'
+
+  // States for getting stepDistX = 1.0/rayDirX:
+  localparam SDXPrep    = 0;
+  localparam SDXWait    = 1;
+  localparam SDXLoad    = 2;
+
+  // States for getting stepDistY = 1.0/rayDirY:
+  localparam SDYPrep    = 3;
+  localparam SDYWait    = 4;
+  localparam SDYLoad    = 5;
+
+  // States for main line trace process:
+  localparam TracePrep  = 6;
+  localparam TraceStep  = 7;
+  localparam TraceTest  = 8;
+  localparam TraceHit   = 9;
+
+  // States for wall rendered size reciprocal:
+  localparam SizePrep   = 10;
+  localparam SizeWait   = 11;
+  localparam SizeLoad   = 12;
+
+  // Final trace state, where it waits for hmax before presenting the result:
+  localparam TraceDone  = 13;
+
+  // Symbols representing different data sources for the reciprocal:
+  localparam [1:0] RCP_RDX    = 2'd0; // rayDirX.
+  localparam [1:0] RCP_RDY    = 2'd1; // rayDirY.
+  localparam [1:0] RCP_VDIST  = 2'd2; // vdist.
 
   // Examples of things which could share logic instead of needing simultaneous combo logic:
   // - rayFullHit multiplier -- doesn't even need sharing if using 'side' to mux the multiplicand.
@@ -135,13 +164,16 @@ module wall_tracer #(
   reg `F stepDistY;  // ...may Y direction...
   // ...which are values generated combinationally by the `reciprocal` instances below.
 
-  reg     rcp_sel; // This muxes between rayDirX and rayDirY as the input to the shared reciprocal.
-  wire `F rcp_in = rcp_sel ? rayDirY : rayDirX; // Input; value we want to find the reciprocal of.
+  // Shared reciprocal input source selection; value we want to find the reciprocal of:
+  reg [1:0] rcp_sel; // This muxes between rayDirX, rayDirY, vdist.
+  wire `F rcp_in =
+    (rcp_sel==RCP_RDX) ?  rayDirX :
+    (rcp_sel==RCP_RDY) ?  rayDirY :
+                          {5'b0,vdist,3'b0};
   wire `F rcp_out; // Output; reciprocal of rcp_in.
   wire    rcp_sat; // These capture the "saturation" (i.e. overflow) state of our reciprocal calculator.
   //NOTE: rcp_sat is not needed currently, but we might use it as we improve the design,
   // in order to stop tracing on a given axis?
-
   reciprocal #(.M(`Qm),.N(`Qn)) shared_reciprocal (
     .i_data (rcp_in),
     .i_abs  (1'b1),
@@ -180,26 +212,6 @@ module wall_tracer #(
   // Used to indicate whether X/Y-stepping is the next target:
   wire needStepX = trackDistX < trackDistY; //NOTE: UNSIGNED comparison per def'n of trackX/Ydist.
 
-  // States for getting stepDistX = 1.0/rayDirX:
-  localparam SDXPrep    = 0;
-  localparam SDXWait    = 1;
-  localparam SDXLoad    = 2;
-
-  // States for getting stepDistY = 1.0/rayDirY:
-  localparam SDYPrep    = 3;
-  localparam SDYWait    = 4;
-  localparam SDYLoad    = 5;
-
-  // States for main line trace process:
-  localparam TracePrep  = 6;
-  localparam TraceStep  = 7;
-  localparam TraceTest  = 8;
-  localparam TraceDone  = 9;
-
-  // Symbols representing different data sources for the reciprocal:
-  localparam RCP_RDX = 0; // rayDirX.
-  localparam RCP_RDY = 1; // rayDirY.
-  
   reg side;
   reg [3:0] state; //SMELL: Size this according to actual no. of states.
 
@@ -232,7 +244,9 @@ module wall_tracer #(
         // Set a known initial state for stuff:
         //SMELL: Don't actually need this, except to make simulation clearer,
         // because all of this stuff will naturally settle after 1 full frame anyway...?
-        o_vdist <= 0;
+        //SMELL: Do we ACTUALLY want to reset o_size/side on vsync? Wouldn't we want to
+        // keep it in case it needs to be reused?
+        o_size <= 0;
         o_side <= 0;
         side <= 0;
         rcp_sel <= RCP_RDX; // Reciprocal's data source is initially rayDirX.
@@ -280,23 +294,35 @@ module wall_tracer #(
         TraceTest: begin
           //SMELL: Combine this with TraceStep, above... or does it need to be separate for the map ROM's sake?
           // Check if we've hit a wall yet.
-          if (i_map_val!=0) begin
-            // Hit a wall, so stop tracing this line and wait until the next is ready.
-            state <= TraceDone;
-          end else begin
+          if (i_map_val==0) begin
             // No hit yet; keep going.
             state <= TraceStep;
+          end else begin
+            // Hit a wall, so stop tracing this line and wait until the next is ready.
+            state <= TraceHit;
           end
         end
+        TraceHit: begin
+          // Tracing stops because we hit something.
+          //SMELL: This state is not required.
+          state <= SizePrep;
+        end
+        SizePrep: begin
+          rcp_sel <= RCP_VDIST;
+          state <= SizeWait;
+        end
+        SizeWait: begin
+          state <= SizeLoad;
+        end
+        SizeLoad: begin
+          //SMELL: This state is not required.
+          state <= TraceDone;
+        end
         TraceDone: begin
-          // Trace of the current line is done.
-          // Wait for hmax...
+          // No more work to do, so hang around in this state waiting for hmax...
           if (hmax) begin
-            // Upon hmax, output our new result and start the next line.
-            //SMELL: @@@ NEED TO DECIDE WHAT TYPE OF RESULT WE'LL RETURN HERE...
-            // @@@ Will it be the distance in ~Q7.9, or floating-point-style
-            // @@@ (LZC & unshifted reciprocal), or height (from reciprocal)?
-            o_vdist <= vdist;
+            // Upon hmax, present our new result and start the next line.
+            o_size <= rcp_out[2:-8];
             o_side <= side;
             // Increment rayAddend:
             rayAddendX <= rayAddendX + vplaneX;
