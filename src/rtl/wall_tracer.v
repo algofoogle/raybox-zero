@@ -38,6 +38,10 @@ module wall_tracer #(
   output [MAP_HEIGHT_BITS-1:0]  o_map_row,
   input                         i_map_val,
 
+`ifdef TRACE_STATE_DEBUG
+  output [3:0]                  o_state,
+`endif//TRACE_STATE_DEBUG
+
   // Tracing result, per line:
   output reg                    o_side,
   output reg [10:0]             o_size // Wall half-size.
@@ -73,6 +77,10 @@ module wall_tracer #(
   localparam [1:0] RCP_RDX    = 2'd0; // rayDirX.
   localparam [1:0] RCP_RDY    = 2'd1; // rayDirY.
   localparam [1:0] RCP_VDIST  = 2'd2; // vdist.
+
+`ifdef TRACE_STATE_DEBUG
+  assign o_state = state;
+`endif//TRACE_STATE_DEBUG
 
   // Examples of things which could share logic instead of needing simultaneous combo logic:
   // - rayFullHit multiplier -- doesn't even need sharing if using 'side' to mux the multiplicand.

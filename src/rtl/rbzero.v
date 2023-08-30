@@ -6,6 +6,7 @@
 //SMELL: These should probably be defined by the target (e.g. TT04 or FPGA) rather than inline here:
 // `define USE_MAP_OVERLAY
 // `define USE_DEBUG_OVERLAY
+// `define TRACE_STATE_DEBUG  // Trace state is represented visually per each line on-screen.
 
 module rbzero(
   input               clk,
@@ -164,9 +165,16 @@ module rbzero(
     .o_map_row(tracer_map_row),
     .i_map_val(tracer_map_val),
     // Outputs:
+`ifdef TRACE_STATE_DEBUG
+    .o_state  (trace_state), //DEBUG.
+`endif//TRACE_STATE_DEBUG
     .o_side   (traced_side),
     .o_size   (traced_size)
   );
+
+`ifdef TRACE_STATE_DEBUG
+  wire [3:0] trace_state;
+`endif//TRACE_STATE_DEBUG
 
   // --- Combined pixel colour driver/mux: ---
   wire [5:0] bg = hpos < HALF_SIZE
@@ -186,6 +194,10 @@ module rbzero(
 `else//!USE_MAP_OVERLAY
     .map_en   (1'b0), .map_rgb(6'd0),
 `endif//USE_MAP_OVERLAY
+
+`ifdef TRACE_STATE_DEBUG
+    .trace_state_debug(trace_state), //DEBUG.
+`endif//TRACE_STATE_DEBUG
 
     .wall_en  (wall_en),
     .wall_rgb (wall_rgb),
