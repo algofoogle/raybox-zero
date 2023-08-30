@@ -28,6 +28,7 @@ module rbzero(
   localparam HALF_SIZE = H_VIEW/2;
   localparam MAP_WIDTH_BITS = 4;
   localparam MAP_HEIGHT_BITS = 4;
+  localparam MAP_SCALE = 3;
 
   // --- VGA sync driver: ---
   wire hsync, vsync;
@@ -114,7 +115,11 @@ module rbzero(
   // --- Map overlay: ---
   wire map_en;
   wire [5:0] map_rgb;
-  map_overlay map_overlay(
+  map_overlay #(
+    .MAP_SCALE(MAP_SCALE),
+    .MAP_WIDTH_BITS(MAP_WIDTH_BITS),
+    .MAP_HEIGHT_BITS(MAP_HEIGHT_BITS)
+  ) map_overlay(
     .hpos(hpos), .vpos(vpos),
     .playerX(playerX), .playerY(playerY),
     .o_map_col(overlay_map_col),
@@ -145,7 +150,10 @@ module rbzero(
   // --- Row-level ray caster/tracer: ---
   wire        traced_side;
   wire [10:0] traced_size;  // Calculated from traced_vdist, in this module.
-  wall_tracer wall_tracer(
+  wall_tracer #(
+    .MAP_WIDTH_BITS(MAP_WIDTH_BITS),
+    .MAP_HEIGHT_BITS(MAP_HEIGHT_BITS)
+  ) wall_tracer(
     // Inputs:
     .clk      (clk),
     .reset    (reset),
