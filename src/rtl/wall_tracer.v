@@ -60,9 +60,10 @@ module wall_tracer #(
   localparam SDYLoad    = 5;
 
   // States for main line trace process:
-  localparam TracePrep  = 6;
+  localparam TracePrepX = 6;
+  localparam TracePrepY = 8; // Out of order, but doesn't matter.
   localparam TraceStep  = 7;
-  localparam TraceTest  = 8;
+  // localparam TraceTest  = 8;
   localparam TraceHit   = 9;
 
   // States for wall rendered size reciprocal:
@@ -194,9 +195,13 @@ module wall_tracer #(
   //SMELL: These only need to capture the middle half of the result,
   // i.e. if we're using Q12.12, our result should still be the [11:-12] bits
   // extracted from the product:
-  wire `F2 trackInitX = stepDistX * partialX;
-  wire `F2 trackInitY = stepDistY * partialY;
-  //TODO: This could again share 1 multiplier, given a state ID for each of X and Y.
+  wire `F mul_in_a = (state==TracePrepX) ? stepDistX : stepDistY;
+  wire `F mul_in_b = (state==TracePrepX) ?  partialX :  partialY;
+  wire `F2 mul_out = mul_in_a * mul_in_b;
+  //NOTE: Try making these unsigned, since I think we're always going to be using them for non-negative values.
+  // wire `F2 trackInitX = stepDistX * partialX;
+  // wire `F2 trackInitY = stepDistY * partialY;
+  // //TODO: This could again share 1 multiplier, given a state ID for each of X and Y.
 
   // Map cell we're testing:
   reg `I mapX, mapY;
@@ -275,19 +280,25 @@ module wall_tracer #(
         // Get stepDistY from rayDirY:
         SDYPrep: begin  state <= SDYWait;   rcp_sel <= RCP_RDY; end
         SDYWait: begin  state <= SDYLoad;   end // Do nothing; just wait for reciprocal to settle.
-        SDYLoad: begin  state <= TracePrep; stepDistY <= rcp_out; end
+        SDYLoad: begin  state <= TracePrepX; stepDistY <= rcp_out; end
 
-        TracePrep: begin
+        TracePrepX: begin
           // Get the cell the player's currently in:
           mapX <= playerMapX;
           mapY <= playerMapY;
 
           //SMELL: Could we get better precision with these trackers, by scaling?
-          trackDistX <= `FF(trackInitX);
-          trackDistY <= `FF(trackInitY);
+          trackDistX <= `FF(mul_out);
           //NOTE: track init comes from stepDist, comes from rayDir, comes from rayAddend.
+
+          state <= TracePrepY;
+        end
+
+        TracePrepY: begin
+          trackDistY <= `FF(mul_out); //NOTE: mul inputs (and hence output) react to 'state'.
           state <= TraceStep;
         end
+
         TraceStep: begin
           if (i_map_val==0) begin
             //SMELL: Can we explicitly set different states to match which trace/step we're doing?
@@ -306,17 +317,6 @@ module wall_tracer #(
             state <= TraceHit;
           end
         end
-        // TraceTest: begin
-        //   //SMELL: Combine this with TraceStep, above... or does it need to be separate for the map ROM's sake?
-        //   // Check if we've hit a wall yet.
-        //   if (i_map_val==0) begin
-        //     // No hit yet; keep going.
-        //     state <= TraceStep;
-        //   end else begin
-        //     // Hit a wall, so stop tracing this line and wait until the next is ready.
-        //     state <= TraceHit;
-        //   end
-        // end
         TraceHit: begin
           // Tracing stops because we hit something.
           //SMELL: This state is not required.
