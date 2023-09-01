@@ -160,9 +160,9 @@ module wall_tracer #(
   //TODO: Optimise this, if it actually makes a difference during synth anyway.
 
   // What distance (i.e. what extension of our ray's vector) do we go when travelling by 1 cell in the...
-  reg `F stepDistX;  // ...map X direction...
-  reg `F stepDistY;  // ...may Y direction...
-  // ...which are values generated combinationally by the `reciprocal` instances below.
+  reg  `F stepDistX;            // ...map X direction...
+  wire `F stepDistY = rcp_out;  // ...map Y direction; for the whole time it's *actually* needed, it can get its value directly from rcp_out.
+  // reg `F stepDistY;  // ...may Y direction...
 
   // Shared reciprocal input source selection; value we want to find the reciprocal of:
   reg [1:0] rcp_sel; // This muxes between rayDirX, rayDirY, vdist.
@@ -265,9 +265,10 @@ module wall_tracer #(
         SDXLoad: begin  state <= SDYWait;   stepDistX <= rcp_out;     rcp_sel <= RCP_RDY; end
 
         // Get stepDistY from rayDirY:
-        SDYWait: begin  state <= SDYLoad; /* Do nothing; wait for reciprocal to settle */ end
-        SDYLoad: begin  state <= TracePrep; stepDistY <= rcp_out;                         end
-        //NOTE: Loading stepDistY must come before TracePrep, because it is an input to trackInit.
+        SDYWait: begin  state <= TracePrep; /* Do nothing; wait for reciprocal (and mul) to settle */ end
+        //NOTE: stepDistY is actually just rcp_out fed directly into trackInitY. No need to reg it.
+        // The rest of the time it's used directly in TraceStep, too, then not used until we
+        // start the next line all over again.
 
         TracePrep: begin
           // Get the cell the player's currently in:
