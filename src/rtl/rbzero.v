@@ -181,7 +181,7 @@ module rbzero(
   );
 
 `ifdef TRACE_STATE_DEBUG
-  wire [3:0] trace_state;
+  wire [2:0] trace_state;
 `endif//TRACE_STATE_DEBUG
 
   // --- Combined pixel colour driver/mux: ---

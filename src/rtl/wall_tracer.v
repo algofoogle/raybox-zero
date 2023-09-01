@@ -39,7 +39,7 @@ module wall_tracer #(
   input                         i_map_val,
 
 `ifdef TRACE_STATE_DEBUG
-  output [3:0]                  o_state,
+  output [2:0]                  o_state,
 `endif//TRACE_STATE_DEBUG
 
   // Tracing result, per line:
