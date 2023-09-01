@@ -15,7 +15,7 @@
 // - Stop tracing after the final row (or don't; save on logic?)
 // - Advance one row at a time.
 
-`define RESET_TO_KNOWN  // Include explicit reset logic, to avoid unknown states in simulation?
+// `define RESET_TO_KNOWN  // Include explicit reset logic, to avoid unknown states in simulation?
 //NOTE: This will generate extra logic, but means greater predictability. If my design is right,
 // it's not strictly necessary to do this (if we want to reduce logic/floorplan), because the
 // design should settle to a predictable state within 1 full frame, but it's better to do this than
@@ -55,23 +55,15 @@ module wall_tracer #(
   localparam SDXLoad    = 2;
 
   // States for getting stepDistY = 1.0/rayDirY:
-  localparam SDYPrep    = 3;
-  localparam SDYWait    = 4;
-  localparam SDYLoad    = 5;
+  localparam SDYWait    = 3;
+  localparam SDYLoad    = 4;
 
   // States for main line trace process:
-  localparam TracePrep  = 6;
-  localparam TraceStep  = 7;
-  localparam TraceTest  = 8;
-  localparam TraceHit   = 9;
-
-  // States for wall rendered size reciprocal:
-  localparam SizePrep   = 10;
-  localparam SizeWait   = 11;
-  localparam SizeLoad   = 12;
+  localparam TracePrep  = 5;
+  localparam TraceStep  = 6;
 
   // Final trace state, where it waits for hmax before presenting the result:
-  localparam TraceDone  = 13;
+  localparam TraceDone  = 7;
 
   // Symbols representing different data sources for the reciprocal:
   localparam [1:0] RCP_RDX    = 2'd0; // rayDirX.
@@ -222,7 +214,7 @@ module wall_tracer #(
   wire needStepX = trackDistX < trackDistY; //NOTE: UNSIGNED comparison per def'n of trackX/Ydist.
 
   reg side;
-  reg [3:0] state; //SMELL: Size this according to actual no. of states.
+  reg [2:0] state; //SMELL: Size this according to actual no. of states.
 
   `ifdef RESET_TO_KNOWN
     wire do_reset = vsync || reset;
@@ -268,14 +260,14 @@ module wall_tracer #(
       case (state)
 
         // Get stepDistX from rayDirX:
-        SDXPrep: begin  state <= SDXWait;   rcp_sel <= RCP_RDX; end
-        SDXWait: begin  state <= SDXLoad;   end // Do nothing; just wait for reciprocal to settle.
-        SDXLoad: begin  state <= SDYPrep;   stepDistX <= rcp_out; end
+        SDXPrep: begin  state <= SDXWait;                             rcp_sel <= RCP_RDX; end
+        SDXWait: begin  state <= SDXLoad; /* Do nothing; wait for reciprocal to settle */ end
+        SDXLoad: begin  state <= SDYWait;   stepDistX <= rcp_out;     rcp_sel <= RCP_RDY; end
 
         // Get stepDistY from rayDirY:
-        SDYPrep: begin  state <= SDYWait;   rcp_sel <= RCP_RDY; end
-        SDYWait: begin  state <= SDYLoad;   end // Do nothing; just wait for reciprocal to settle.
-        SDYLoad: begin  state <= TracePrep; stepDistY <= rcp_out; end
+        SDYWait: begin  state <= SDYLoad; /* Do nothing; wait for reciprocal to settle */ end
+        SDYLoad: begin  state <= TracePrep; stepDistY <= rcp_out;                         end
+        //NOTE: Loading stepDistY must come before TracePrep, because it is an input to trackInit.
 
         TracePrep: begin
           // Get the cell the player's currently in:
@@ -303,36 +295,13 @@ module wall_tracer #(
               side <= 1;
             end
           end else begin
-            state <= TraceHit;
+            // Hit; rcp input can now be vdist:
+            state <= TraceDone;
+            rcp_sel <= RCP_VDIST;
           end
         end
-        // TraceTest: begin
-        //   //SMELL: Combine this with TraceStep, above... or does it need to be separate for the map ROM's sake?
-        //   // Check if we've hit a wall yet.
-        //   if (i_map_val==0) begin
-        //     // No hit yet; keep going.
-        //     state <= TraceStep;
-        //   end else begin
-        //     // Hit a wall, so stop tracing this line and wait until the next is ready.
-        //     state <= TraceHit;
-        //   end
-        // end
-        TraceHit: begin
-          // Tracing stops because we hit something.
-          //SMELL: This state is not required.
-          state <= SizePrep;
-        end
-        SizePrep: begin
-          rcp_sel <= RCP_VDIST;
-          state <= SizeWait;
-        end
-        SizeWait: begin
-          state <= SizeLoad;
-        end
-        SizeLoad: begin
-          //SMELL: This state is not required.
-          state <= TraceDone;
-        end
+        //NOTE: Wait states not needed on rcp because rcp_out will only actually be used much later
+        // when hmax is asserted. By that point, we've waited long enough.
         TraceDone: begin
           // No more work to do, so hang around in this state waiting for hmax...
           if (hmax) begin
