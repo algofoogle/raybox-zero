@@ -132,21 +132,21 @@ module wall_tracer #(
   reg `UF trackDistX;
   reg `UF trackDistY;
 
-  // Get fractional part [0,1) of where the ray hits the wall,
-  // i.e. how far along the individual wall cell the hit occurred,
-  // which will then be used to determine the wall texture stripe.
-  //TODO: Surely there's a way to optimise this. For starters, I think we only
-  // need one multiplier, which uses `side` to determine its multiplicand.
-  //NOTE: visualWallDist is also a function of 'side'... can we do any tricks with that?
-  wire `F2 rayFullHitX = visualWallDist*rayDirX;
-  wire `F2 rayFullHitY = visualWallDist*rayDirY;
-  wire `F wallPartial = side
-      ? playerX + `FF(rayFullHitX)
-      : playerY + `FF(rayFullHitY);
-  // Use the wall hit fractional value to determine the wall texture offset
-  // in the range [0,63]:
-  assign tex = wallPartial[-1:-6];
-  wire [5:0] tex; //SMELL: Placeholder for now. Later would form part of the registered traced result outputs.
+  // // Get fractional part [0,1) of where the ray hits the wall,
+  // // i.e. how far along the individual wall cell the hit occurred,
+  // // which will then be used to determine the wall texture stripe.
+  // //TODO: Surely there's a way to optimise this. For starters, I think we only
+  // // need one multiplier, which uses `side` to determine its multiplicand.
+  // //NOTE: visualWallDist is also a function of 'side'... can we do any tricks with that?
+  // wire `F2 rayFullHitX = visualWallDist*rayDirX;
+  // wire `F2 rayFullHitY = visualWallDist*rayDirY;
+  // wire `F wallPartial = side
+  //     ? playerX + `FF(rayFullHitX)
+  //     : playerY + `FF(rayFullHitY);
+  // // Use the wall hit fractional value to determine the wall texture offset
+  // // in the range [0,63]:
+  // assign tex = wallPartial[-1:-6];
+  // wire [5:0] tex; //SMELL: Placeholder for now. Later would form part of the registered traced result outputs.
 
   //SMELL: Do these need to be signed? They should only ever be positive, anyway.
   // Get integer player position:
@@ -287,29 +287,32 @@ module wall_tracer #(
           state <= TraceStep;
         end
         TraceStep: begin
-          //SMELL: Can we explicitly set different states to match which trace/step we're doing?
-          if (needStepX) begin
-            mapX <= rxi ? mapX+1'b1 : mapX-1'b1;
-            trackDistX <= trackDistX + stepDistX;
-            side <= 0;
-          end else begin
-            mapY <= ryi ? mapY+1'b1 : mapY-1'b1;
-            trackDistY <= trackDistY + stepDistY;
-            side <= 1;
-          end
-          state <= TraceTest;
-        end
-        TraceTest: begin
-          //SMELL: Combine this with TraceStep, above... or does it need to be separate for the map ROM's sake?
-          // Check if we've hit a wall yet.
           if (i_map_val==0) begin
-            // No hit yet; keep going.
-            state <= TraceStep;
+            //SMELL: Can we explicitly set different states to match which trace/step we're doing?
+            if (needStepX) begin
+              mapX <= rxi ? mapX+1'b1 : mapX-1'b1;
+              trackDistX <= trackDistX + stepDistX;
+              side <= 0;
+            end else begin
+              mapY <= ryi ? mapY+1'b1 : mapY-1'b1;
+              trackDistY <= trackDistY + stepDistY;
+              side <= 1;
+            end
           end else begin
-            // Hit a wall, so stop tracing this line and wait until the next is ready.
             state <= TraceHit;
           end
         end
+        // TraceTest: begin
+        //   //SMELL: Combine this with TraceStep, above... or does it need to be separate for the map ROM's sake?
+        //   // Check if we've hit a wall yet.
+        //   if (i_map_val==0) begin
+        //     // No hit yet; keep going.
+        //     state <= TraceStep;
+        //   end else begin
+        //     // Hit a wall, so stop tracing this line and wait until the next is ready.
+        //     state <= TraceHit;
+        //   end
+        // end
         TraceHit: begin
           // Tracing stops because we hit something.
           //SMELL: This state is not required.
