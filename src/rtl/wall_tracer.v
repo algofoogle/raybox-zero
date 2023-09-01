@@ -208,10 +208,11 @@ module wall_tracer #(
   // way to deal with this using wires.
   //TODO: Optimise.
 
-  //SMELL: Can we optimise the subtractors out of this, e.g. by regs for previous values?
-  wire `F visualWallDist = side ? trackDistY-stepDistY : trackDistX-stepDistX;
+  reg `F visualWallDist;
+  // wire `F visualWallDist = side ? trackDistY-stepDistY : trackDistX-stepDistX;
   assign vdist = visualWallDist[6:-9]; //HACK:
   wire [6:-9] vdist;
+
   //HACK: Range [6:-9] are enough bits to get the precision and limits we want for distance,
   // i.e. UQ7.9 allows distance to have 1/512 precision and range of [0,127).
   //TODO: Explain this, i.e. it's used by a texture mapper to work out scaling.
@@ -258,6 +259,7 @@ module wall_tracer #(
         o_side <= 0;
         side <= 0;
         rcp_sel <= RCP_RDX; // Reciprocal's data source is initially rayDirX.
+        visualWallDist <= 0;
         // stepDistX <= 0;
         // stepDistY <= 0;
       `endif//RESET_TO_KNOWN
@@ -292,10 +294,12 @@ module wall_tracer #(
             if (needStepX) begin
               mapX <= rxi ? mapX+1'b1 : mapX-1'b1;
               trackDistX <= trackDistX + stepDistX;
+              visualWallDist <= trackDistX;
               side <= 0;
             end else begin
               mapY <= ryi ? mapY+1'b1 : mapY-1'b1;
               trackDistY <= trackDistY + stepDistY;
+              visualWallDist <= trackDistY;
               side <= 1;
             end
           end else begin
