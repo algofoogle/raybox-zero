@@ -195,8 +195,10 @@ module wall_tracer #(
   //SMELL: These only need to capture the middle half of the result,
   // i.e. if we're using Q12.12, our result should still be the [11:-12] bits
   // extracted from the product:
-  wire `F mul_in_a = (state==TracePrepX) ? stepDistX : stepDistY;
-  wire `F mul_in_b = (state==TracePrepX) ?  partialX :  partialY;
+  reg `F mul_in_a;
+  reg `F mul_in_b;
+  // wire `F mul_in_a = (state==TracePrepX) ? stepDistX : stepDistY;
+  // wire `F mul_in_b = (state==TracePrepX) ?  partialX :  partialY;
   wire `F2 mul_out = mul_in_a * mul_in_b;
   //NOTE: Try making these unsigned, since I think we're always going to be using them for non-negative values.
   // wire `F2 trackInitX = stepDistX * partialX;
@@ -278,7 +280,7 @@ module wall_tracer #(
         SDXLoad: begin  state <= SDYPrep;   stepDistX <= rcp_out; end
 
         // Get stepDistY from rayDirY:
-        SDYPrep: begin  state <= SDYWait;   rcp_sel <= RCP_RDY; end
+        SDYPrep: begin  state <= SDYWait;   rcp_sel <= RCP_RDY; {mul_in_a, mul_in_b} <= {stepDistX, partialX}; end
         SDYWait: begin  state <= SDYLoad;   end // Do nothing; just wait for reciprocal to settle.
         SDYLoad: begin  state <= TracePrepX; stepDistY <= rcp_out; end
 
@@ -289,6 +291,7 @@ module wall_tracer #(
 
           //SMELL: Could we get better precision with these trackers, by scaling?
           trackDistX <= `FF(mul_out);
+          {mul_in_a, mul_in_b} <= {stepDistY, partialY};
           //NOTE: track init comes from stepDist, comes from rayDir, comes from rayAddend.
 
           state <= TracePrepY;
