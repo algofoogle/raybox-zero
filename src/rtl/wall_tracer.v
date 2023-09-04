@@ -174,11 +174,12 @@ module wall_tracer #(
   // ...which are values generated combinationally by the `reciprocal` instances below.
 
   // Shared reciprocal input source selection; value we want to find the reciprocal of:
-  reg [1:0] rcp_sel; // This muxes between rayDirX, rayDirY, vdist.
-  wire `F rcp_in =
-    (rcp_sel==RCP_RDX) ?  rayDirX :
-    (rcp_sel==RCP_RDY) ?  rayDirY :
-                          {5'b0,vdist,3'b0};
+  // reg [1:0] rcp_sel; // This muxes between rayDirX, rayDirY, vdist.
+  reg `F rcp_in;
+  // wire `F rcp_in =
+  //   (rcp_sel==RCP_RDX) ?  rayDirX :
+  //   (rcp_sel==RCP_RDY) ?  rayDirY :
+  //                         {5'b0,vdist,3'b0};
   wire `F rcp_out; // Output; reciprocal of rcp_in.
   wire    rcp_sat; // These capture the "saturation" (i.e. overflow) state of our reciprocal calculator.
   //NOTE: rcp_sat is not needed currently, but we might use it as we improve the design,
@@ -263,7 +264,8 @@ module wall_tracer #(
         o_size <= 0;
         o_side <= 0;
         side <= 0;
-        rcp_sel <= RCP_RDX; // Reciprocal's data source is initially rayDirX.
+        // rcp_sel <= RCP_RDX; // Reciprocal's data source is initially rayDirX.
+        //SMELL: Add rcp_in.
         visualWallDist <= 0;
         // stepDistX <= 0;
         // stepDistY <= 0;
@@ -273,12 +275,12 @@ module wall_tracer #(
       case (state)
 
         // Get stepDistX from rayDirX:
-        SDXPrep: begin  state <= SDXWait;   rcp_sel <= RCP_RDX; end
+        SDXPrep: begin  state <= SDXWait;   rcp_in <= rayDirX; end
         SDXWait: begin  state <= SDXLoad;   end // Do nothing; just wait for reciprocal to settle.
         SDXLoad: begin  state <= SDYPrep;   stepDistX <= rcp_out; end
 
         // Get stepDistY from rayDirY:
-        SDYPrep: begin  state <= SDYWait;   rcp_sel <= RCP_RDY; end
+        SDYPrep: begin  state <= SDYWait;   rcp_in <= rayDirY; end
         SDYWait: begin  state <= SDYLoad;   end // Do nothing; just wait for reciprocal to settle.
         SDYLoad: begin  state <= TracePrepX; stepDistY <= rcp_out; end
 
@@ -323,7 +325,8 @@ module wall_tracer #(
           state <= SizePrep;
         end
         SizePrep: begin
-          rcp_sel <= RCP_VDIST;
+          // rcp_sel <= RCP_VDIST;
+          rcp_in <= {5'b0,vdist,3'b0};
           state <= SizeWait;
         end
         SizeWait: begin
