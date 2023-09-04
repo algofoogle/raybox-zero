@@ -30,13 +30,19 @@ module pov(
 
   reg `F playerXreg, playerYreg, facingXreg, facingYreg, vplaneXreg, vplaneYreg;
 
-  // Try truncating outputs to Q9.9:
-  assign playerX = {{4{playerXreg[11]}},playerXreg[7:-9],3'b0}; // 4 bits of sign extension (collectively the Q9th), then Q8.9, then lower 3 bits 0.
-  assign playerY = {{4{playerYreg[11]}},playerYreg[7:-9],3'b0};
-  assign facingX = {{4{facingXreg[11]}},facingXreg[7:-9],3'b0}; //NOTE: This and below could be much more capped in the Q region.
-  assign facingY = {{4{facingYreg[11]}},facingYreg[7:-9],3'b0};
-  assign vplaneX = {{4{vplaneXreg[11]}},vplaneXreg[7:-9],3'b0};
-  assign vplaneY = {{4{vplaneYreg[11]}},vplaneYreg[7:-9],3'b0};
+  // Try truncating outputs to various Qm.n precisions...
+
+  // Q7.9 made up of 6 bits of sign extension (collectively the Q7th), then Q6.9, then lower 3 bits 0.
+  // This is enough for the player moving within a 64x64 map to a granularity of 1/512 units (~0.002 of a block, which probably feels like about 3mm).
+  assign playerX = {{6{playerXreg[11]}},playerXreg[5:-9],3'b0};
+  assign playerY = {{6{playerYreg[11]}},playerYreg[5:-9],3'b0};
+
+  // Q2.9 made up of 11 bits of sign extension (collectively the Q2nd), then Q1.9, then lower 3 bits 0.
+  // These have much smaller magnitude because normally each vector won't exceed 1.0... we allow a range of [-2.0,+2.0) because that's more than enough:
+  assign facingX = {{11{facingXreg[11]}},facingXreg[0:-9],3'b0};
+  assign facingY = {{11{facingYreg[11]}},facingYreg[0:-9],3'b0};
+  assign vplaneX = {{11{vplaneXreg[11]}},vplaneXreg[0:-9],3'b0};
+  assign vplaneY = {{11{vplaneYreg[11]}},vplaneYreg[0:-9],3'b0};
 
   always @(posedge clk) begin
     if (reset) begin
