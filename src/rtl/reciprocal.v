@@ -7,12 +7,16 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
+`define FP    [S:-N]        // Typically a 24-bit operand.
+`define FP2   [M*2-1:-N*2]  // Typically a 48-bit product result.
 
 module reciprocal #(
   parameter [4:0] M = 12,         // Integer bits, inc. sign.
   parameter       N = 12          // Fractional bits.
 )(
+  input   wire            clk,
   input   wire [M-1:-N]   i_data,
+  input   wire            i_start, // Asserted when a new input value is to be processed.
   input   wire            i_abs,  // 1=we want the absolute value only.
   output  wire [M-1:-N]   o_data,
   output  wire            o_sat   // 1=saturated
@@ -51,14 +55,11 @@ module reciprocal #(
   */
 
   wire [4:0]          lzc_cnt, rescale_lzc; //SMELL: These should be sized per M+N; extra bit is for sign?? Is that necessary? See `rescale_data`.
-  wire [S:-N]         a, b, d, f, reci, sat_data, scale_data;
+  wire `FP            a, b, d, f, reci, sat_data, scale_data;
   wire [M*2-1:-N*2]   rescale_data; // Double the size of [S:-N], i.e. size of 2 full fixed-point numbers, i.e. their product.
   wire                sign;
   wire [S:-N]         unsigned_data;
 
-  /* verilator lint_off UNUSED */
-  wire [M*2-1:-N*2]   c, e;
-  /* verilator lint_on UNUSED */
 
   assign sign = i_data[S];
 
@@ -84,13 +85,24 @@ module reciprocal #(
 
   assign b = n1466 - a;
 
-  assign c = $signed(a) * $signed(b);
+  wire `FP  mul_in_a = (i_start==1) ? a : d;
+  wire `FP  mul_in_b = b;
+  wire `FP2 mul_out = $signed(mul_in_a) * $signed(mul_in_b); //SMELL: Make sure this is treated as signed.
 
-  assign d = n10012 - $signed(c[S:-N]);
+  // assign c = $signed(a) * $signed(b);
+  // assign d = n10012 - $signed(c[S:-N]);
+  // assign e = $signed(d) * $signed(b);
+  assign d = n10012 - $signed(c);
 
-  assign e = $signed(d) * $signed(b);
+  // assign f = e[S:-N];
 
-  assign f = e[S:-N];
+  /* @@@erilator lint_off UNUSED */
+  reg `FP c;
+  wire `FP f = mul_out`FP;
+  /* @@@erilator lint_on UNUSED */
+
+  always @(posedge clk) if (i_start) c <= mul_out`FP;
+
 
   // [M-1:M-2] are the bits that would overflow if multiplied by 4 (i.e. SHL-2):
   assign reci = |f[M-1:M-2] ? nSat : f << 2; //saturation detection and (e*4)
@@ -109,7 +121,7 @@ module reciprocal #(
   // but I feel like it was meant to be 16 bits (i.e. [31:16]).
   //SMELL: Maybe it was 17 bits because of the sign bit in index 15?
   // i.e. bit 15 must not be set, because if it is, then it would look like a negative result
-  // (which might suggested overflow because it actually represents an absolute, and hence positive value)...?
+  // (which might suggest overflow because it actually represents an absolute, and hence positive value)...?
   assign o_sat = |rescale_data[M*2-1:M-N]; // We've overflowed if any upper bits of the full-range product are set, so saturate.
   assign sat_data = o_sat ? nSat : rescale_data[M-N-1:-N*2];
 

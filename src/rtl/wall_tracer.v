@@ -50,29 +50,30 @@ module wall_tracer #(
   //SMELL: Still need to define the function of 'tex'
 
   // States for getting stepDistX = 1.0/rayDirX:
-  localparam SDXPrep    = 0;
-  localparam SDXWait    = 1;
-  localparam SDXLoad    = 2;
+  localparam SDX1       = 0;
+  localparam SDX2       = 1;
+  localparam SDX3       = 2;
+  localparam SDX4       = 3;
 
   // States for getting stepDistY = 1.0/rayDirY:
-  localparam SDYPrep    = 3;
-  localparam SDYWait    = 4;
-  localparam SDYLoad    = 5;
+  localparam SDY1       = 4;
+  localparam SDY2       = 5;
+  localparam SDY3       = 6;
+  localparam SDY4       = 7;
 
   // States for main line trace process:
-  localparam TracePrepX = 6;
-  localparam TracePrepY = 8; // Out of order, but doesn't matter.
-  localparam TraceStep  = 7;
-  // localparam TraceTest  = 8;
-  localparam TraceHit   = 9;
+  localparam TracePrepX = 8;
+  localparam TracePrepY = 9; // Out of order, but doesn't matter.
+  localparam TraceStep  = 10;
+  localparam TraceHit   = 11;
 
   // States for wall rendered size reciprocal:
-  localparam SizePrep   = 10;
-  localparam SizeWait   = 11;
-  localparam SizeLoad   = 12;
+  localparam SDZ1       = 12;
+  localparam SDZ2       = 13;
+  localparam SDZ3       = 14;
 
   // Final trace state, where it waits for hmax before presenting the result:
-  localparam TraceDone  = 13;
+  localparam TraceDone  = 15;
 
   // Symbols representing different data sources for the reciprocal:
   localparam [1:0] RCP_RDX    = 2'd0; // rayDirX.
@@ -176,6 +177,7 @@ module wall_tracer #(
   // Shared reciprocal input source selection; value we want to find the reciprocal of:
   // reg [1:0] rcp_sel; // This muxes between rayDirX, rayDirY, vdist.
   reg `F rcp_in;
+  reg rcp_start;
   // wire `F rcp_in =
   //   (rcp_sel==RCP_RDX) ?  rayDirX :
   //   (rcp_sel==RCP_RDY) ?  rayDirY :
@@ -185,7 +187,9 @@ module wall_tracer #(
   //NOTE: rcp_sat is not needed currently, but we might use it as we improve the design,
   // in order to stop tracing on a given axis?
   reciprocal #(.M(`Qm),.N(`Qn)) shared_reciprocal (
+    .clk    (clk),
     .i_data (rcp_in),
+    .i_start(rcp_start),
     .i_abs  (1'b1),
     .o_data (rcp_out),
     .o_sat  (rcp_sat)
@@ -239,7 +243,7 @@ module wall_tracer #(
   always @(posedge clk) begin
     if (do_reset) begin
       // While VSYNC is asserted, reset FSM to start a new frame.
-      state <= SDXPrep;
+      state <= SDX1;
 
       // Get the initial ray direction (top row)...
       rayAddendX <= -(vplaneX<<<8)-(vplaneX<<<4);
@@ -275,14 +279,15 @@ module wall_tracer #(
       case (state)
 
         // Get stepDistX from rayDirX:
-        SDXPrep: begin  state <= SDXWait;   rcp_in <= rayDirX; end
-        SDXWait: begin  state <= SDXLoad;   end // Do nothing; just wait for reciprocal to settle.
-        SDXLoad: begin  state <= SDYPrep;   stepDistX <= rcp_out; end
+        SDX1: begin state <= SDX2;        rcp_start <= 1; rcp_in <= rayDirX; end
+        SDX2: begin state <= SDX3;        rcp_start <= 1; rcp_in <= rayDirX; end
+        SDX3: begin state <= SDX4;        rcp_start <= 0; rcp_in <= rayDirX; end
+        SDX4: begin state <= SDY1;        rcp_start <= 0; stepDistX <= rcp_out; end
 
-        // Get stepDistY from rayDirY:
-        SDYPrep: begin  state <= SDYWait;   rcp_in <= rayDirY; end
-        SDYWait: begin  state <= SDYLoad;   end // Do nothing; just wait for reciprocal to settle.
-        SDYLoad: begin  state <= TracePrepX; stepDistY <= rcp_out; end
+        SDY1: begin state <= SDY2;        rcp_start <= 1; rcp_in <= rayDirY; end
+        SDY2: begin state <= SDY3;        rcp_start <= 1; rcp_in <= rayDirY; end
+        SDY3: begin state <= SDY4;        rcp_start <= 0; rcp_in <= rayDirY; end
+        SDY4: begin state <= TracePrepX;  rcp_start <= 0; stepDistY <= rcp_out; end
 
         TracePrepX: begin
           // Get the cell the player's currently in:
@@ -322,20 +327,13 @@ module wall_tracer #(
         TraceHit: begin
           // Tracing stops because we hit something.
           //SMELL: This state is not required.
-          state <= SizePrep;
+          state <= SDZ1;
         end
-        SizePrep: begin
-          // rcp_sel <= RCP_VDIST;
-          rcp_in <= {5'b0,vdist,3'b0};
-          state <= SizeWait;
-        end
-        SizeWait: begin
-          state <= SizeLoad;
-        end
-        SizeLoad: begin
-          //SMELL: This state is not required.
-          state <= TraceDone;
-        end
+
+        SDZ1: begin state <= SDZ2;        rcp_start <= 1; rcp_in <= {5'b0,vdist,3'b0}; end
+        SDZ2: begin state <= SDZ3;        rcp_start <= 1; rcp_in <= {5'b0,vdist,3'b0}; end
+        SDZ3: begin state <= TraceDone;   rcp_start <= 0; rcp_in <= {5'b0,vdist,3'b0}; end
+
         TraceDone: begin
           // No more work to do, so hang around in this state waiting for hmax...
           if (hmax) begin
@@ -345,7 +343,7 @@ module wall_tracer #(
             // Increment rayAddend:
             rayAddendX <= rayAddendX + vplaneX;
             rayAddendY <= rayAddendY + vplaneY;
-            state <= SDXPrep;
+            state <= SDX1;
           end
         end
       endcase
