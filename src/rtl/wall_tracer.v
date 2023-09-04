@@ -271,6 +271,7 @@ module wall_tracer #(
         // rcp_sel <= RCP_RDX; // Reciprocal's data source is initially rayDirX.
         //SMELL: Add rcp_in.
         visualWallDist <= 0;
+        rcp_start <= 0;
         // stepDistX <= 0;
         // stepDistY <= 0;
       `endif//RESET_TO_KNOWN
@@ -279,15 +280,15 @@ module wall_tracer #(
       case (state)
 
         // Get stepDistX from rayDirX:
-        SDX1: begin state <= SDX2;        rcp_start <= 1; rcp_in <= rayDirX; end
-        SDX2: begin state <= SDX3;        rcp_start <= 1; rcp_in <= rayDirX; end
-        SDX3: begin state <= SDX4;        rcp_start <= 0; rcp_in <= rayDirX; end
-        SDX4: begin state <= SDY1;        rcp_start <= 0; stepDistX <= rcp_out; end
+        SDX1: begin state <= SDX2;                        rcp_in <= rayDirX;    end
+        SDX2: begin state <= SDX3;        rcp_start <= 1;                       end
+        SDX3: begin state <= SDX4;        rcp_start <= 0;                       end
+        SDX4: begin state <= SDY1;                        stepDistX <= rcp_out; end
 
-        SDY1: begin state <= SDY2;        rcp_start <= 1; rcp_in <= rayDirY; end
-        SDY2: begin state <= SDY3;        rcp_start <= 1; rcp_in <= rayDirY; end
-        SDY3: begin state <= SDY4;        rcp_start <= 0; rcp_in <= rayDirY; end
-        SDY4: begin state <= TracePrepX;  rcp_start <= 0; stepDistY <= rcp_out; end
+        SDY1: begin state <= SDY2;                        rcp_in <= rayDirY;    end
+        SDY2: begin state <= SDY3;        rcp_start <= 1;                       end
+        SDY3: begin state <= SDY4;        rcp_start <= 0;                       end
+        SDY4: begin state <= TracePrepX;                  stepDistY <= rcp_out; end
 
         TracePrepX: begin
           // Get the cell the player's currently in:
@@ -330,9 +331,9 @@ module wall_tracer #(
           state <= SDZ1;
         end
 
-        SDZ1: begin state <= SDZ2;        rcp_start <= 1; rcp_in <= {5'b0,vdist,3'b0}; end
-        SDZ2: begin state <= SDZ3;        rcp_start <= 1; rcp_in <= {5'b0,vdist,3'b0}; end
-        SDZ3: begin state <= TraceDone;   rcp_start <= 0; rcp_in <= {5'b0,vdist,3'b0}; end
+        SDZ1: begin state <= SDZ2;                        rcp_in <= {5'b0,vdist,3'b0};  end
+        SDZ2: begin state <= SDZ3;        rcp_start <= 1;                               end
+        SDZ3: begin state <= TraceDone;   rcp_start <= 0;                               end
 
         TraceDone: begin
           // No more work to do, so hang around in this state waiting for hmax...
