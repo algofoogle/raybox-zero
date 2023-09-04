@@ -30,12 +30,13 @@ module pov(
 
   reg `F playerXreg, playerYreg, facingXreg, facingYreg, vplaneXreg, vplaneYreg;
 
-  assign playerX = playerXreg;
-  assign playerY = playerYreg;
-  assign facingX = facingXreg;
-  assign facingY = facingYreg;
-  assign vplaneX = vplaneXreg;
-  assign vplaneY = vplaneYreg;
+  // Try truncating outputs to Q9.9:
+  assign playerX = {{4{playerXreg[11]}},playerXreg[7:-9],3'b0}; // 4 bits of sign extension (collectively the Q9th), then Q8.9, then lower 3 bits 0.
+  assign playerY = {{4{playerYreg[11]}},playerYreg[7:-9],3'b0};
+  assign facingX = {{4{facingXreg[11]}},facingXreg[7:-9],3'b0}; //NOTE: This and below could be much more capped in the Q region.
+  assign facingY = {{4{facingYreg[11]}},facingYreg[7:-9],3'b0};
+  assign vplaneX = {{4{vplaneXreg[11]}},vplaneXreg[7:-9],3'b0};
+  assign vplaneY = {{4{vplaneYreg[11]}},vplaneYreg[7:-9],3'b0};
 
   always @(posedge clk) begin
     if (reset) begin
