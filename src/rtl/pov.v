@@ -10,7 +10,7 @@ module pov(
   input reset,
   input i_sclk, i_ss_n, i_mosi, // SPI input.
   input load_if_ready, // Will go high at the moment that buffered data can go live.
-  output reg `F playerX, playerY, facingX, facingY, vplaneX, vplaneY
+  output `F playerX, playerY, facingX, facingY, vplaneX, vplaneY
 );
 /* verilator lint_off REALCVT */
   // Some good starting parameters...
@@ -28,20 +28,33 @@ module pov(
   // create a separate clocked section for each register target (as we do with SPI)?
   // e.g. ready <= reset ? 0 : spi_done;
 
+  reg `F playerXreg, playerYreg, facingXreg, facingYreg, vplaneXreg, vplaneYreg;
+
+  assign playerX = playerXreg;
+  assign playerY = playerYreg;
+  assign facingX = facingXreg;
+  assign facingY = facingYreg;
+  assign vplaneX = vplaneXreg;
+  assign vplaneY = vplaneYreg;
+
   always @(posedge clk) begin
     if (reset) begin
 
       ready <= 0;
       //SMELL: Could do this via ready_buffer instead?
-      {playerX,playerY} <= {playerXstart,playerYstart};
-      {facingX,facingY} <= {facingXstart,facingYstart};
-      {vplaneX,vplaneY} <= {vplaneXstart,vplaneYstart};
+      {playerXreg,playerYreg} <= {playerXstart,playerYstart};
+      {facingXreg,facingYreg} <= {facingXstart,facingYstart};
+      {vplaneXreg,vplaneYreg} <= {vplaneXstart,vplaneYstart};
 
     end else begin
 
       if (load_if_ready && ready) begin
         // Load buffered vectors into live vector registers:
-        {playerX,playerY,facingX,facingY,vplaneX,vplaneY} <= ready_buffer;
+        {
+          playerXreg, playerYreg,
+          facingXreg, facingYreg,
+          vplaneXreg, vplaneYreg
+        } <= ready_buffer;
       end
 
       if (spi_done) begin
