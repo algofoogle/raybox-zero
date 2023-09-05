@@ -19,6 +19,7 @@
 // #include <err.h>
 #include <iostream>
 #include <string>
+#include <vector>
 #include <filesystem> // For std::filesystem::absolute() (which is only used if we have C++17)
 #include "testbench.h"
 using namespace std;
@@ -146,12 +147,15 @@ bool          gMouseCapture = false; // Not on by default in Linux, because of p
 
 // 'gView' is the current view state:
 typedef struct {
-  double px, py, fx, fy, vx, vy;
+  double px, py, fx, fy, vx, vy; // Standard vectors.
+  double sf, sv; // Optional vector scaling.
 } float_vectors_t;
 float_vectors_t gView = {
    1.5,  1.5, // player
    0.0,  1.0, // facing
   -0.5,  0.0, // vplane
+   1.0,       // scale facing
+   1.0        // scale vplane
 };
 
 //SMELL: @raybox leftovers:
@@ -251,130 +255,6 @@ void scale_motion_multiplier(double s) {
 }
 
 
-/*
-class RawImage {
-public:
-  uint8_t* m_raw;
-  int width;
-  int height;
-  bool valid;
-  RawImage() {
-    width = 0;
-    height = 0;
-    m_raw = NULL;
-    valid = false;
-  }
-  RawImage(const char* texture_file, int expect_width=0, int expect_height=0) : RawImage() {
-    load_image(texture_file);
-  }
-  ~RawImage() {
-    if (m_raw) delete m_raw;
-  }
-  void load_image(const char* f, int xw=0, int xh=0) {
-    SDL_Surface* s = IMG_Load(f);
-    if (!s) {
-      printf("ERROR: Failed to load texture image file '%s' due to error '%s'\n", f, SDL_GetError());
-      return;
-    }
-    width = s->w;
-    height = s->h;
-    if ( (xw && xw != width) || (xh && xh != height) ) {
-      printf("ERROR: Image '%s' should be %dx%d pixels, but is: %dx%d\n", f, xw, xh, width, height);
-      SDL_FreeSurface(s);
-      return;
-    }
-    Uint32 fmt = s->format->format;
-    if (fmt != SDL_PIXELFORMAT_RGB24) {
-      printf("ERROR: Image '%s' is wrong pixel format. Was expecting %x but got %x\n", f, SDL_PIXELFORMAT_RGB24, fmt);
-      SDL_FreeSurface(s);
-      return;
-    }
-    // Load raw image data...
-    SDL_LockSurface(s);
-    m_raw = new uint8_t[width*height*3];
-    for (int y = 0; y < height; ++y) {
-      // Copy line by line, because of s->pitch.
-      memcpy(m_raw + y*width*3, ((uint8_t*)(s->pixels)) + y*s->pitch, width*3 );
-    }
-    SDL_UnlockSurface(s);
-    // Done:
-    SDL_FreeSurface(s);
-    valid = true;
-  }
-  uint8_t* rgba(int x, int y) {
-    return m_raw+((y*width)+x)*3;
-  }
-  uint8_t r(int x, int y) { return rgba(x,y)[0]; }
-  uint8_t g(int x, int y) { return rgba(x,y)[1]; }
-  uint8_t b(int x, int y) { return rgba(x,y)[2]; }
-  // uint8_t a(int x, int y) { return rgba(x,y)[3]; }
-};
-
-
-// Texture file is expected to be a 24-bit PNG that is 128x64px, with the left
-// half of it being "bright" wall, and right half "dark" wall.
-// Only the upper 2 bits should be used in each of the R,G,B channels, to be
-// compatible with how Raybox currently works. The code just picks off the
-// upper 2 bits of each channel anyway.
-void load_texture_rom(const char *texture_file) {
-  RawImage tex(texture_file, 128, 64);
-  if (!tex.valid) {
-    printf("ERROR: Texture ROM image %s is invalid\n", texture_file);
-    return;
-  } else {
-    printf("DEBUG: Loaded texture ROM image %s\n", texture_file);
-  }
-  // Transfer texture image data into the design's wall_textures ROM,
-  // while also writing out to assets/texture-xrgb-2222.hex:
-  const char* tex_dump = "assets/texture-xrgb-2222.hex";
-  printf("Dumping texture data to %s\n", tex_dump);
-  FILE *f = fopen(tex_dump, "w");
-//   fprintf(f, "@00000000\n");
-  int counter = 0;
-  for (int x=0; x<tex.width; ++x) {
-    for (int y=0; y<tex.height; ++y) {
-      uint8_t r = (tex.r(x, y) & 0xC0) >> 6; // Upper 2 bits only.
-      uint8_t g = (tex.g(x, y) & 0xC0) >> 6; // Upper 2 bits only.
-      uint8_t b = (tex.b(x, y) & 0xC0) >> 6; // Upper 2 bits only.
-      uint8_t v = (r<<4) | (g<<2) | (b);
-      // TB->m_core->DESIGN->wall_textures->data[x][y] = v;
-      fprintf(f, "%02X%c", v, counter%16==15 ? '\n' : ' ');
-      ++counter;
-    }
-  }
-  printf("DEBUG: Transferred texture ROM into raybox.wall_textures\n");
-  fclose(f);
-}
-
-
-
-void convert_image_rom_png_to_hex(const char *infile, const char *outfile, int width, int height) {
-  RawImage image(infile, width, height);
-  if (!image.valid) {
-    printf("ERROR: Image ROM file %s is invalid\n", infile);
-    return;
-  } else {
-    printf("DEBUG: Loaded Image ROM %s\n", infile);
-  }
-  printf("Dumping Image ROM data to %s\n", outfile);
-  FILE *f = fopen(outfile, "w");
-//   fprintf(f, "@00000000\n");
-  int counter = 0;
-  for (int x=0; x<image.width; ++x) {
-    for (int y=0; y<image.height; ++y) {
-      uint8_t r = (image.r(x, y) & 0xC0) >> 6; // Upper 2 bits only.
-      uint8_t g = (image.g(x, y) & 0xC0) >> 6; // Upper 2 bits only.
-      uint8_t b = (image.b(x, y) & 0xC0) >> 6; // Upper 2 bits only.
-      uint8_t v = (r<<4) | (g<<2) | (b);
-      fprintf(f, "%02X%c", v, counter%16==15 ? '\n' : ' ');
-      ++counter;
-    }
-  }
-  fclose(f);
-}
-*/
-
-
 void process_sdl_events() {
   // Event used to receive window close, keyboard actions, etc:
   SDL_Event e;
@@ -383,10 +263,6 @@ void process_sdl_events() {
     if (SDL_QUIT == e.type) {
       // SDL quit event (e.g. close window)?
       gQuit = true;
-    // } else if (SDL_MOUSEMOTION == e.type) {
-    //   int x = e.motion.xrel;
-    //   int y = e.motion.yrel;
-    //   printf("\t\t\t\t\t\t\t\t\t\t\t\t\tMouse motion: %d, %d\n", x, y);
     } else if (SDL_KEYDOWN == e.type) {
       int fn_key = 0;
       switch (e.key.keysym.sym) {
@@ -529,6 +405,24 @@ void process_sdl_events() {
         case SDLK_END:    memset(&gLockInputs, 0, sizeof(gLockInputs)); break;
 
         default:
+
+          if (KMOD_CTRL & e.key.keysym.mod) {
+            // CTRL+arrow means we want to apply scaling to facing or vplane vectors:
+            bool hit = true;
+            switch (e.key.keysym.sym) {
+              case SDLK_UP:     gView.sf += 0.01; if (gView.sf > 1.99) gView.sf = 1.99; break;
+              case SDLK_DOWN:   gView.sf -= 0.01; if (gView.sf < 0.01) gView.sf = 0.01; break;
+              case SDLK_RIGHT:  gView.sv += 0.01; if (gView.sv > 1.99) gView.sv = 1.99; break;
+              case SDLK_LEFT:   gView.sv -= 0.01; if (gView.sv < 0.01) gView.sv = 0.01; break;
+              default:
+                hit = false;
+                break;
+            }
+            if (hit) {
+              printf("Vector scaling: sf = %5.2f  sv = %5.2f\n", gView.sf, gView.sv);
+            }
+          }
+          
           // The following keys are treated differently depending on whether we're in gOverrideVectors mode or not:
           if (gOverrideVectors) {
             // Override Vectors mode: Let the sim directly set our player position and viewpoint.
@@ -568,9 +462,6 @@ void rotate_view(double a) {
   ny = -gView.fx*sa + gView.fy*ca;
   gView.fx = nx;
   gView.fy = ny;
-  // // Generate viewplane vector:
-  // viewX = -headingY * viewMag;
-  // viewY =  headingX * viewMag;
   // Rotate viewplane vector:
   nx =  gView.vx*ca + gView.vy*sa;
   ny = -gView.vx*sa + gView.vy*ca;
@@ -596,8 +487,10 @@ void recalc_view(const Uint8* k, int mouseX, int mouseY) {
   double r = key_rotate_speed;
   r *= gMotionMultiplier;
   if (fast) r *= 1.8;
-  if (k[SDL_SCANCODE_LEFT])   rotate_view( r);
-  if (k[SDL_SCANCODE_RIGHT])  rotate_view(-r);
+  if (!k[SDL_SCANCODE_LCTRL] && !k[SDL_SCANCODE_RCTRL]) { // Ignore arrows if CTRL is held (because it's used for vector scaling control).
+    if (k[SDL_SCANCODE_LEFT])   rotate_view( r);
+    if (k[SDL_SCANCODE_RIGHT])  rotate_view(-r);
+  }
   if (mouseDelta != 0)        rotate_view(-mouse_rotate_speed * double(mouseDelta));
   if (k[SDL_SCANCODE_W]) { gView.px += m * gView.fx;   gView.py += m * gView.fy; }
   if (k[SDL_SCANCODE_S]) { gView.px -= m * gView.fx;   gView.py -= m * gView.fy; }
@@ -644,11 +537,6 @@ void handle_control_inputs(bool prepare) {
     // ACTIVE mode: Read the momentary state of all keyboard keys, and add them via `|=` to whatever is already asserted:
     auto keystate = SDL_GetKeyboardState(NULL);
 
-    // if (gOverrideVectors) {
-    //   recalc_override_vectors(keystate, mouseX, mouseY);
-    //   set_override_vectors();
-    //   set_write_new_position(1);
-    // }
     recalc_view(keystate, mouseX, mouseY);
 
     // TB->m_core->show_debug = 1;
@@ -839,7 +727,6 @@ void render_text(SDL_Renderer* renderer, TTF_Font* font, int x, int y, string s)
   }
 }
 
-
 // This gets called right next to every TB->tick() call.
 // It has its own counters to keep track of when to update SPI inputs to TB.
 // Currently it's designed to constantly stream in the current vector states
@@ -849,26 +736,37 @@ void render_text(SDL_Renderer* renderer, TTF_Font* font, int x, int y, string s)
 void update_spi_state() {
   static int spi_next_countdown = 5; // For now run at one fifth of the clock. Later, we could add some jitter.
   static int spi_state_counter = 0; // Tracks which state we're up to, incrementing when spi_next_countdown==0.
-  static uint32_t vectors[6] = {0};
+
+  static vector<bool> bits;
+
   //NOTE: States:
   // 0 = SS and SCLK deasserted.
   // 1 = SS asserted.
   // 2 = First MOSI + SCLK deasserted.
   // 3 = First MOSI + SCLK asserted.
-  // Repeat above 2 states for remaining 143 bits (up to states 288,289)
-  // 290 = SCLK deasserted.
+  // Repeat above 2 states for remaining 73 bits (up to states 148 and 149)
+  // 150 = SCLK deasserted; i.e. 74*2 + 2
   if (0 == --spi_next_countdown) {
     spi_next_countdown = 5;
     switch (spi_state_counter) {
       case 0:
       {
-        // Take a snapshot of gView now:
-        vectors[0] = double2fixed(gView.px);
-        vectors[1] = double2fixed(gView.py);
-        vectors[2] = double2fixed(gView.fx);
-        vectors[3] = double2fixed(gView.fy);
-        vectors[4] = double2fixed(gView.vx);
-        vectors[5] = double2fixed(gView.vy);
+        // Take a snapshot of gView now, converting vectors into the SPI bit stream:
+        int p;
+        uint32_t v;
+        bits.clear();
+        for (int i=0; i<74; ++i) {
+          switch (i) {
+            case 0:   v = double2fixed(gView.px           ); p = 17; break;
+            case 15:  v = double2fixed(gView.py           ); p = 17; break;
+            case 30:  v = double2fixed(gView.fx * gView.sf); p = 13; break;
+            case 41:  v = double2fixed(gView.fy * gView.sf); p = 13; break;
+            case 52:  v = double2fixed(gView.vx * gView.sv); p = 13; break;
+            case 63:  v = double2fixed(gView.vy * gView.sv); p = 13; break;
+          }
+          bits.push_back(v & (1<<p));
+          --p;
+        }
         // Get SPI inputs ready:
         TB->m_core->i_ss_n = 1; // Deasserted.
         TB->m_core->i_sclk = 0; // Deasserted.
@@ -879,7 +777,7 @@ void update_spi_state() {
         TB->m_core->i_ss_n = 0; // Asserted.
         break;
       }
-      case 290:
+      case 150:
       {
         TB->m_core->i_sclk = 0; // Deasserted.
         break;
@@ -888,9 +786,7 @@ void update_spi_state() {
       {
         // Get a bit.
         int bit_index = (spi_state_counter>>1)-1;
-        int vindex = bit_index/24;
-        int vshift = bit_index%24;
-        TB->m_core->i_mosi = ((vectors[vindex]<<vshift)&0x800000) ? 1 : 0;
+        TB->m_core->i_mosi = bits[bit_index];
         if (spi_state_counter&1) {
           // Assert SCLK.
           TB->m_core->i_sclk = 1;
@@ -902,9 +798,8 @@ void update_spi_state() {
         break;
       }
     }
-    if (291 == ++spi_state_counter) {
+    if (151 == ++spi_state_counter) {
       spi_state_counter = 0;
-      // vectors[0]++;
     }
   }
 }
@@ -1201,14 +1096,16 @@ int main(int argc, char **argv) {
       s += TB->paused           ? "P" : ".";
       s += gGuides              ? "G" : ".";
       s += gHighlight           ? "H" : ".";
-      s += TB->log_vsync        ? "V" : ".";
-      s += gOverrideVectors     ? "O" : ".";
-      s += TB->examine_mode     ? "X" : ".";
+      // s += TB->log_vsync        ? "V" : ".";
+      // s += gOverrideVectors     ? "O" : ".";
+      // s += TB->examine_mode     ? "X" : ".";
       s += gLockInputs[LOCK_MAP]? "m" : ".";
+    #ifdef DESIGN_DIRECT_VECTOR_ACCESS
       s += gLockInputs[LOCK_L]  ? "<" : ".";
       s += gLockInputs[LOCK_F]  ? "^" : ".";
       s += gLockInputs[LOCK_B]  ? "v" : ".";
       s += gLockInputs[LOCK_R]  ? ">" : ".";
+    #endif
       s += gMouseCapture        ? "*" : ".";
       s += "] ";
 #ifdef INSPECT_INTERNAL
@@ -1221,6 +1118,8 @@ int main(int argc, char **argv) {
       s += " vX,Y=("
         + to_string(fixed2double(TB->m_core->DESIGN->vplaneX)) + ", "
         + to_string(fixed2double(TB->m_core->DESIGN->vplaneY)) + ") ";
+      s += " sf=" + to_string(gView.sf);
+      s += " sv=" + to_string(gView.sv);
 #endif//INSPECT_INTERNAL
       get_text_and_rect(renderer, 10, VFULL+10, s.c_str(), font, &text_texture, &rect);
       if (text_texture) {
