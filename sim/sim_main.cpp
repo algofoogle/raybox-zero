@@ -147,12 +147,15 @@ bool          gMouseCapture = false; // Not on by default in Linux, because of p
 
 // 'gView' is the current view state:
 typedef struct {
-  double px, py, fx, fy, vx, vy;
+  double px, py, fx, fy, vx, vy; // Standard vectors.
+  double sf, sv; // Optional vector scaling.
 } float_vectors_t;
 float_vectors_t gView = {
    1.5,  1.5, // player
    0.0,  1.0, // facing
   -0.5,  0.0, // vplane
+   1.0,       // scale facing
+   1.0        // scale vplane
 };
 
 //SMELL: @raybox leftovers:
@@ -402,6 +405,24 @@ void process_sdl_events() {
         case SDLK_END:    memset(&gLockInputs, 0, sizeof(gLockInputs)); break;
 
         default:
+
+          if (KMOD_CTRL & e.key.keysym.mod) {
+            // CTRL+arrow means we want to apply scaling to facing or vplane vectors:
+            bool hit = true;
+            switch (e.key.keysym.sym) {
+              case SDLK_UP:     gView.sf += 0.01; if (gView.sf > 1.99) gView.sf = 1.99; break;
+              case SDLK_DOWN:   gView.sf -= 0.01; if (gView.sf < 0.01) gView.sf = 0.01; break;
+              case SDLK_RIGHT:  gView.sv += 0.01; if (gView.sv > 1.99) gView.sv = 1.99; break;
+              case SDLK_LEFT:   gView.sv -= 0.01; if (gView.sv < 0.01) gView.sv = 0.01; break;
+              default:
+                hit = false;
+                break;
+            }
+            if (hit) {
+              printf("Vector scaling: sf = %5.2f  sv = %5.2f\n", gView.sf, gView.sv);
+            }
+          }
+          
           // The following keys are treated differently depending on whether we're in gOverrideVectors mode or not:
           if (gOverrideVectors) {
             // Override Vectors mode: Let the sim directly set our player position and viewpoint.
@@ -466,8 +487,10 @@ void recalc_view(const Uint8* k, int mouseX, int mouseY) {
   double r = key_rotate_speed;
   r *= gMotionMultiplier;
   if (fast) r *= 1.8;
-  if (k[SDL_SCANCODE_LEFT])   rotate_view( r);
-  if (k[SDL_SCANCODE_RIGHT])  rotate_view(-r);
+  if (!k[SDL_SCANCODE_LCTRL] && !k[SDL_SCANCODE_RCTRL]) { // Ignore arrows if CTRL is held (because it's used for vector scaling control).
+    if (k[SDL_SCANCODE_LEFT])   rotate_view( r);
+    if (k[SDL_SCANCODE_RIGHT])  rotate_view(-r);
+  }
   if (mouseDelta != 0)        rotate_view(-mouse_rotate_speed * double(mouseDelta));
   if (k[SDL_SCANCODE_W]) { gView.px += m * gView.fx;   gView.py += m * gView.fy; }
   if (k[SDL_SCANCODE_S]) { gView.px -= m * gView.fx;   gView.py -= m * gView.fy; }
@@ -734,12 +757,12 @@ void update_spi_state() {
         bits.clear();
         for (int i=0; i<74; ++i) {
           switch (i) {
-            case 0:   v = double2fixed(gView.px); p = 17; break;
-            case 15:  v = double2fixed(gView.py); p = 17; break;
-            case 30:  v = double2fixed(gView.fx); p = 13; break;
-            case 41:  v = double2fixed(gView.fy); p = 13; break;
-            case 52:  v = double2fixed(gView.vx); p = 13; break;
-            case 63:  v = double2fixed(gView.vy); p = 13; break;
+            case 0:   v = double2fixed(gView.px           ); p = 17; break;
+            case 15:  v = double2fixed(gView.py           ); p = 17; break;
+            case 30:  v = double2fixed(gView.fx * gView.sf); p = 13; break;
+            case 41:  v = double2fixed(gView.fy * gView.sf); p = 13; break;
+            case 52:  v = double2fixed(gView.vx * gView.sv); p = 13; break;
+            case 63:  v = double2fixed(gView.vy * gView.sv); p = 13; break;
           }
           bits.push_back(v & (1<<p));
           --p;
@@ -1073,14 +1096,16 @@ int main(int argc, char **argv) {
       s += TB->paused           ? "P" : ".";
       s += gGuides              ? "G" : ".";
       s += gHighlight           ? "H" : ".";
-      s += TB->log_vsync        ? "V" : ".";
-      s += gOverrideVectors     ? "O" : ".";
-      s += TB->examine_mode     ? "X" : ".";
+      // s += TB->log_vsync        ? "V" : ".";
+      // s += gOverrideVectors     ? "O" : ".";
+      // s += TB->examine_mode     ? "X" : ".";
       s += gLockInputs[LOCK_MAP]? "m" : ".";
+    #ifdef DESIGN_DIRECT_VECTOR_ACCESS
       s += gLockInputs[LOCK_L]  ? "<" : ".";
       s += gLockInputs[LOCK_F]  ? "^" : ".";
       s += gLockInputs[LOCK_B]  ? "v" : ".";
       s += gLockInputs[LOCK_R]  ? ">" : ".";
+    #endif
       s += gMouseCapture        ? "*" : ".";
       s += "] ";
 #ifdef INSPECT_INTERNAL
@@ -1093,6 +1118,8 @@ int main(int argc, char **argv) {
       s += " vX,Y=("
         + to_string(fixed2double(TB->m_core->DESIGN->vplaneX)) + ", "
         + to_string(fixed2double(TB->m_core->DESIGN->vplaneY)) + ") ";
+      s += " sf=" + to_string(gView.sf);
+      s += " sv=" + to_string(gView.sv);
 #endif//INSPECT_INTERNAL
       get_text_and_rect(renderer, 10, VFULL+10, s.c_str(), font, &text_texture, &rect);
       if (text_texture) {
