@@ -5,6 +5,9 @@
 // present on the 'side' and 'size' outputs.
 `include "fixed_point_params.v"
 
+`define UQ6_9    [5:-9]
+`define SQ2_9    [1:-9]
+
 module pov(
   input clk,
   input reset,
@@ -12,15 +15,15 @@ module pov(
   input load_if_ready, // Will go high at the moment that buffered data can go live.
   output `F playerX, playerY, facingX, facingY, vplaneX, vplaneY
 );
-/* verilator lint_off REALCVT */
+/* @@@erilator lint_off REALCVT */
   // Some good starting parameters...
-  localparam `F playerXstart  = `Qmn'($rtoi(`realF( 1.5))); // ...
-  localparam `F playerYstart  = `Qmn'($rtoi(`realF( 1.5))); // ...Player is starting in a safe bet; middle of map cell (1,1).
-  localparam `F facingXstart  = `Qmn'($rtoi(`realF( 0.0))); // ...
-  localparam `F facingYstart  = `Qmn'($rtoi(`realF( 1.0))); // ...Player is facing (0,1); "south" or "downwards" on map, i.e. birds-eye.
-  localparam `F vplaneXstart  = `Qmn'($rtoi(`realF(-0.5))); // Viewplane dir is (-0.5,0); "west" or "left" on map...
-  localparam `F vplaneYstart  = `Qmn'($rtoi(`realF( 0.0))); // ...makes FOV ~52deg. Too small, but makes maths easy for now.
-/* verilator lint_on REALCVT */
+  localparam `UQ6_9 playerInitX  = 15'($rtoi(`realF( 1.5))); // ...
+  localparam `UQ6_9 playerInitY  = 15'($rtoi(`realF( 1.5))); // ...Player is starting in a safe bet; middle of map cell (1,1).
+  localparam `SQ2_9 facingInitX  = 11'($rtoi(`realF( 0.0))); // ...
+  localparam `SQ2_9 facingInitY  = 11'($rtoi(`realF( 1.0))); // ...Player is facing (0,1); "south" or "downwards" on map, i.e. birds-eye.
+  localparam `SQ2_9 vplaneInitX  = 11'($rtoi(`realF(-0.5))); // Viewplane dir is (-0.5,0); "west" or "left" on map...
+  localparam `SQ2_9 vplaneInitY  = 11'($rtoi(`realF( 0.0))); // ...makes FOV ~52deg. Too small, but makes maths easy for now.
+/* @@@erilator lint_on REALCVT */
 
   reg ready; // Is ready_buffer valid?
 
@@ -28,39 +31,51 @@ module pov(
   // create a separate clocked section for each register target (as we do with SPI)?
   // e.g. ready <= reset ? 0 : spi_done;
 
-  reg `F playerXreg, playerYreg, facingXreg, facingYreg, vplaneXreg, vplaneYreg;
+  reg `UQ6_9 playerRX, playerRY;
+  reg `SQ2_9 facingRX, facingRY, vplaneRX, vplaneRY;
 
-  // Try truncating outputs to various Qm.n precisions...
+  //NOTE: If we have the following:
+  // - playerX/Y: UQ6.9 - 30 bits
+  // - facingX/Y: Q2.9 - 22 bits
+  // - vplaneX/Y: Q2.9 - 22 bits
+  // ...then SPI needs to receive/buffer 74 bits.
+  localparam totalBits = (15*2)+(11*2)+(11*2); // 74.
+  localparam finalBit = totalBits-1;
 
-  // Q7.9 made up of 6 bits of sign extension (collectively the Q7th), then Q6.9, then lower 3 bits 0.
-  // This is enough for the player moving within a 64x64 map to a granularity of 1/512 units (~0.002 of a block, which probably feels like about 3mm).
-  assign playerX = {{6{playerXreg[11]}},playerXreg[5:-9],3'b0};
-  assign playerY = {{6{playerYreg[11]}},playerYreg[5:-9],3'b0};
+  // The below outputs our more-truncated vectors (at various Qm.n precisions) as conventional `F (SQ12.12) ports...
 
-  // Q2.9 made up of 11 bits of sign extension (collectively the Q2nd), then Q1.9, then lower 3 bits 0.
-  // These have much smaller magnitude because normally each vector won't exceed 1.0... we allow a range of [-2.0,+2.0) because that's more than enough:
-  assign facingX = {{11{facingXreg[11]}},facingXreg[0:-9],3'b0};
-  assign facingY = {{11{facingYreg[11]}},facingYreg[0:-9],3'b0};
-  assign vplaneX = {{11{vplaneXreg[11]}},vplaneXreg[0:-9],3'b0};
-  assign vplaneY = {{11{vplaneYreg[11]}},vplaneYreg[0:-9],3'b0};
+  // playerX/Y are UQ6.9 made up of 6x zero MSBs, then Q6.9, then 3x zero LSBs.
+  // This is enough for the player moving within a 64x64 map to a granularity of 1/512 units.
+  // This granularity is ~0.002 of a block. Given a block 'feels' like about 1.8m wide this granularity is about ~3.5mm.
+  //NOTE: Sign bit not needed (hence 0) because player position should never be negative anyway? i.e. it's in the range [0,63]
+  assign playerX = { 6'b0, playerRX, 3'b0 };
+  assign playerY = { 6'b0, playerRY, 3'b0 };
+
+  // facing/vplaneX/Y are SQ2.9 made up of 11x sign extension MSBs (collectively the Q2nd), then Q1.9, then 3x zero LSBs.
+  // These have much smaller magnitude because normally each vector won't exceed 1.0...
+  // we allow a range of [-2.0,+2.0) because that's more than enough for some effects, FOV control (?) etc.
+  assign facingX = { {11{facingRX[1]}}, facingRX[0:-9], 3'b0 };
+  assign facingY = { {11{facingRY[1]}}, facingRY[0:-9], 3'b0 };
+  assign vplaneX = { {11{vplaneRX[1]}}, vplaneRX[0:-9], 3'b0 };
+  assign vplaneY = { {11{vplaneRY[1]}}, vplaneRY[0:-9], 3'b0 };
 
   always @(posedge clk) begin
     if (reset) begin
 
       ready <= 0;
       //SMELL: Could do this via ready_buffer instead?
-      {playerXreg,playerYreg} <= {playerXstart,playerYstart};
-      {facingXreg,facingYreg} <= {facingXstart,facingYstart};
-      {vplaneXreg,vplaneYreg} <= {vplaneXstart,vplaneYstart};
+      {playerRX, playerRY} <= {playerInitX, playerInitY}; // 15b x 2 = 30b
+      {facingRX, facingRY} <= {facingInitX, facingInitY}; // 11b x 2 = 22b
+      {vplaneRX, vplaneRY} <= {vplaneInitX, vplaneInitY}; // 11b x 2 = 22b
 
     end else begin
 
       if (load_if_ready && ready) begin
         // Load buffered vectors into live vector registers:
         {
-          playerXreg, playerYreg,
-          facingXreg, facingYreg,
-          vplaneXreg, vplaneYreg
+          playerRX, playerRY,
+          facingRX, facingRY,
+          vplaneRX, vplaneRY
         } <= ready_buffer;
       end
 
@@ -98,14 +113,14 @@ module pov(
   wire mosi = mosi_buffer[1];
   //SMELL: Do we actually need to sync MOSI? It should be stable when we check it at the SCLK rising edge.
 
-  // Expect each complete SPI frame to be 144 bits, made up of (in order, 24 bits each, MSB first):
-  // playerX, playerY,
-  // facingX, facingY,
-  // vplaneX, vplaneY.
-  reg [7:0] spi_counter; // Enough to do 144 counts.
-  reg [143:0] spi_buffer; // Receives the SPI bit stream.
+  // Expect each complete SPI frame to be 74 bits, made up of (in order, MSB first):
+  // playerX, playerY, // 15b x 2 = 30b
+  // facingX, facingY, // 11b x 2 = 22b
+  // vplaneX, vplaneY. // 11b x 2 = 22b
+  reg [6:0] spi_counter; // Should be sized to totalBits. Here, it's enough to do 74 counts (0..73)
+  reg [finalBit:0] spi_buffer; // Receives the SPI bit stream.
   reg spi_done;
-  wire spi_frame_end = (spi_counter == 143); // Indicates whether we've reached the SPI frame end or not.
+  wire spi_frame_end = (spi_counter == finalBit); // Indicates whether we've reached the SPI frame end or not.
   always @(posedge clk) begin
     if (!ss_active) begin
       // When /SS is not asserted, reset the SPI bit stream counter:
@@ -115,10 +130,10 @@ module pov(
       // SPI bit stream counter wraps around after the expected number of bits, so that the master can
       // theoretically keep sending frames while /SS is asserted.
       spi_counter <= spi_frame_end ? 0 : (spi_counter + 1);
-      spi_buffer <= {spi_buffer[142:0], mosi};
+      spi_buffer <= {spi_buffer[finalBit-1:0], mosi};
     end
   end
 
-  reg [143:0] ready_buffer; // Last buffered (complete) SPI bit stream that is ready for next loading as vector data.
+  reg [finalBit:0] ready_buffer; // Last buffered (complete) SPI bit stream that is ready for next loading as vector data.
 
 endmodule
