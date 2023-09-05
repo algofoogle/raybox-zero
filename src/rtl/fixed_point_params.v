@@ -16,16 +16,16 @@
 // DON'T FORGET! When changing `Qm or `Qn, you also need to update the LZCs (inc. `SZ)
 // and the equivalent values in sim_main.cpp if using the sim.
 
-// These values are for "Distance fixed-point"; a feature specific to the tracer storing visual distance values.
-// Because this (probably) needs to go into on-chip memory, we constrain it to hopefully the minimum it needs to be
-// (which right now is 16 bits).
-//NOTE: Some sort of floating-point could probably work better, and in that case we've observed that probably 7~9 bits
-// would be sufficient, plus an exponent. This could even be calculated for us by the `reciprocal` module's LZC.
-`define DI          7                   // Integer part of possible visual distance. Supports 0..127, but realistically probably a max of 91 in a 64x64 map.
-`define DF          9                   // Fractional part of visual dist. Supports 1/512 precision (i.e. 1/2**9).
-`define DII         (`DI-1)
-`define DFI         (-`DF)
-`define Dbits       (`DI+`DF)
+// // These values are for "Distance fixed-point"; a feature specific to the tracer storing visual distance values.
+// // Because this (probably) needs to go into on-chip memory, we constrain it to hopefully the minimum it needs to be
+// // (which right now is 16 bits).
+// //NOTE: Some sort of floating-point could probably work better, and in that case we've observed that probably 7~9 bits
+// // would be sufficient, plus an exponent. This could even be calculated for us by the `reciprocal` module's LZC.
+// `define DI          7                   // Integer part of possible visual distance. Supports 0..127, but realistically probably a max of 91 in a 64x64 map.
+// `define DF          9                   // Fractional part of visual dist. Supports 1/512 precision (i.e. 1/2**9).
+// `define DII         (`DI-1)
+// `define DFI         (-`DF)
+// `define Dbits       (`DI+`DF)
 
 //SMELL: Base all of these hardcoded numbers on Qm and Qn values:
 `define F           signed [`QMI:-`Qn]  // `Qm-1:0 is M (int), -1:-`Qn is N (frac).

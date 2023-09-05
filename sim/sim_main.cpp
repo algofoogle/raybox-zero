@@ -136,6 +136,7 @@ bool          gHighlight = true;
 bool          gGuides = false;
 bool          gOverrideVectors = false;
 bool          gSwapMouseXY = false;
+bool          gRotateView = false;
 int           gMouseX, gMouseY;
 double        gMotionMultiplier = 1.0;
 #ifdef WINDOWS
@@ -393,6 +394,10 @@ void process_sdl_events() {
           TB->examine_mode = true;
           TB->examine_condition_met = false;
           TB->pause(false); // Unpause.
+          break;
+        case SDLK_p:
+          gRotateView = !gRotateView;
+          printf("View is%s rotated\n", gRotateView ? "" : " NOT");
           break;
         case SDLK_f:
           printf("Stepping by 1 frame is not yet implemented!\n");
@@ -833,7 +838,7 @@ int main(int argc, char **argv) {
       SDL_CreateWindow(
           " Verilator VGA simulation: " S2(VDESIGN),
           SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-          WINDOW_WIDTH, WINDOW_HEIGHT,
+          WINDOW_WIDTH, WINDOW_WIDTH,//WINDOW_HEIGHT,
           0
       );
   SDL_Renderer* renderer =
@@ -1077,7 +1082,19 @@ int main(int argc, char **argv) {
     overlay_display_area_frame(framebuffer, 0, v_shift);
 
     SDL_UpdateTexture( texture, NULL, framebuffer, WINDOW_WIDTH * 4 );
-    SDL_RenderCopy( renderer, texture, NULL, NULL );
+    SDL_Rect dr;
+    dr.x = 0; dr.y = 100;
+    dr.w = WINDOW_WIDTH; dr.h = WINDOW_HEIGHT;
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderFillRect(renderer, NULL);
+    if (gRotateView) {
+      // Rotated orientation.
+      SDL_RenderCopyEx( renderer, texture, NULL, &dr, -90, NULL, SDL_FLIP_NONE );
+    } else {
+      // Normal orientation.
+      SDL_RenderCopy( renderer, texture, NULL, &dr );
+    }
+
 // #ifdef INSPECT_INTERNAL
 //     printf("%06X %06X %06X %06X %06X %06X\n",
 //       TB->m_core->DESIGN->playerX,
@@ -1121,7 +1138,7 @@ int main(int argc, char **argv) {
       s += " sf=" + to_string(gView.sf);
       s += " sv=" + to_string(gView.sv);
 #endif//INSPECT_INTERNAL
-      get_text_and_rect(renderer, 10, VFULL+10, s.c_str(), font, &text_texture, &rect);
+      get_text_and_rect(renderer, 10, 10, s.c_str(), font, &text_texture, &rect);
       if (text_texture) {
         SDL_RenderCopy(renderer, text_texture, NULL, &rect);
         SDL_DestroyTexture(text_texture);

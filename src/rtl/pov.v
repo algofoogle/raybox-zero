@@ -15,7 +15,6 @@ module pov(
   input load_if_ready, // Will go high at the moment that buffered data can go live.
   output `F playerX, playerY, facingX, facingY, vplaneX, vplaneY
 );
-/* @@@erilator lint_off REALCVT */
   // Some good starting parameters...
   localparam `UQ6_9 playerInitX  = 15'($rtoi(`realF( 1.5))); // ...
   localparam `UQ6_9 playerInitY  = 15'($rtoi(`realF( 1.5))); // ...Player is starting in a safe bet; middle of map cell (1,1).
@@ -23,7 +22,6 @@ module pov(
   localparam `SQ2_9 facingInitY  = 11'($rtoi(`realF( 1.0))); // ...Player is facing (0,1); "south" or "downwards" on map, i.e. birds-eye.
   localparam `SQ2_9 vplaneInitX  = 11'($rtoi(`realF(-0.5))); // Viewplane dir is (-0.5,0); "west" or "left" on map...
   localparam `SQ2_9 vplaneInitY  = 11'($rtoi(`realF( 0.0))); // ...makes FOV ~52deg. Too small, but makes maths easy for now.
-/* @@@erilator lint_on REALCVT */
 
   reg ready; // Is ready_buffer valid?
 
@@ -31,6 +29,7 @@ module pov(
   // create a separate clocked section for each register target (as we do with SPI)?
   // e.g. ready <= reset ? 0 : spi_done;
 
+  // Registered versions of the vectors, before they get padded up to `F (SQ12.12) format on output ports.
   reg `UQ6_9 playerRX, playerRY;
   reg `SQ2_9 facingRX, facingRY, vplaneRX, vplaneRY;
 

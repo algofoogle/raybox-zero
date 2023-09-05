@@ -14,8 +14,6 @@ module map_rom #(
   localparam ROW_COUNT = (1<<MAP_HEIGHT_BITS);
   localparam MAX_COL = COL_COUNT-1;
   localparam MAX_ROW = ROW_COUNT-1;
-  localparam MIDCOL1 = (1<<(MAP_WIDTH_BITS-1))-1;
-  localparam MIDCOL2 = MIDCOL1+1;
 
   assign o_val =
     i_col == 0 || i_col == MAX_COL || // Left and right borders.
