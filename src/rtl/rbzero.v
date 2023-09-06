@@ -56,6 +56,7 @@ module rbzero(
     // Inputs:
     .side     (traced_side),
     .size     (traced_size),
+    .texu     (traced_texu),
     .hpos     (hpos),
     // Outputs:
     .rgb      (wall_rgb),
@@ -150,6 +151,7 @@ module rbzero(
   // --- Row-level ray caster/tracer: ---
   wire        traced_side;
   wire [10:0] traced_size;  // Calculated from traced_vdist, in this module.
+  wire [5:0]  traced_texu;  // Texture 'u' coordinate value.
   wall_tracer #(
     .MAP_WIDTH_BITS(MAP_WIDTH_BITS),
     .MAP_HEIGHT_BITS(MAP_HEIGHT_BITS)
@@ -177,7 +179,8 @@ module rbzero(
     .o_state  (trace_state), //DEBUG.
 `endif//TRACE_STATE_DEBUG
     .o_side   (traced_side),
-    .o_size   (traced_size)
+    .o_size   (traced_size),
+    .o_tex_u  (traced_texu)
   );
 
 `ifdef TRACE_STATE_DEBUG

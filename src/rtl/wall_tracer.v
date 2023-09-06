@@ -44,7 +44,8 @@ module wall_tracer #(
 
   // Tracing result, per line:
   output reg                    o_side,
-  output reg [10:0]             o_size // Wall half-size.
+  output reg [10:0]             o_size, // Wall half-size.
+  output reg [5:0]              o_tex_u // Texture 'u' coordinate (i.e. how far along the wall the hit was).
 );
 
   //SMELL: Still need to define the function of 'tex'
@@ -133,21 +134,20 @@ module wall_tracer #(
   reg `UF trackDistX;
   reg `UF trackDistY;
 
-  // // Get fractional part [0,1) of where the ray hits the wall,
-  // // i.e. how far along the individual wall cell the hit occurred,
-  // // which will then be used to determine the wall texture stripe.
-  // //TODO: Surely there's a way to optimise this. For starters, I think we only
-  // // need one multiplier, which uses `side` to determine its multiplicand.
-  // //NOTE: visualWallDist is also a function of 'side'... can we do any tricks with that?
-  // wire `F2 rayFullHitX = visualWallDist*rayDirX;
-  // wire `F2 rayFullHitY = visualWallDist*rayDirY;
-  // wire `F wallPartial = side
-  //     ? playerX + `FF(rayFullHitX)
-  //     : playerY + `FF(rayFullHitY);
-  // // Use the wall hit fractional value to determine the wall texture offset
-  // // in the range [0,63]:
-  // assign tex = wallPartial[-1:-6];
-  // wire [5:0] tex; //SMELL: Placeholder for now. Later would form part of the registered traced result outputs.
+  // Get fractional part [0,1) of where the ray hits the wall,
+  // i.e. how far along the individual wall cell the hit occurred,
+  // which will then be used to determine the wall texture stripe.
+  //TODO: Surely there's a way to optimise this. For starters, I think we only
+  // need one multiplier, which uses `side` to determine its multiplicand.
+  //NOTE: visualWallDist is also a function of 'side'... can we do any tricks with that?
+  wire `F2 rayFullHitX = visualWallDist*rayDirX;
+  wire `F2 rayFullHitY = visualWallDist*rayDirY;
+  wire `F wallPartial = side
+      ? playerX + `FF(rayFullHitX)
+      : playerY + `FF(rayFullHitY);
+  wire texu_mirror = side ? ryi : ~rxi;
+  //NOTE: The FSM TraceDone step will use a fractional part of
+  // wallPartial to determine the wall texture offset.
 
   //SMELL: Do these need to be signed? They should only ever be positive, anyway.
   // Get integer player position:
@@ -324,23 +324,19 @@ module wall_tracer #(
           //SMELL: This state is not required.
           state <= SizePrep;
         end
-        SizePrep: begin
-          rcp_sel <= RCP_VDIST;
-          state <= SizeWait;
-        end
-        SizeWait: begin
-          state <= SizeLoad;
-        end
-        SizeLoad: begin
-          //SMELL: This state is not required.
-          state <= TraceDone;
-        end
+        SizePrep: begin state <= SizeWait;  rcp_sel <= RCP_VDIST; end
+        SizeWait: begin state <= SizeLoad;  end // Do nothing; just wait for reciprocal to settle.
+        SizeLoad: begin state <= TraceDone; end //SMELL: This state is not required.
         TraceDone: begin
           // No more work to do, so hang around in this state waiting for hmax...
           if (hmax) begin
             // Upon hmax, present our new result and start the next line.
             o_size <= rcp_out[2:-8];
             o_side <= side;
+            // Use the wall hit fractional value (6 bits of it) to determine the
+            // wall texture offset in the range [0,63]...
+            // By changing this we can change one axis of texture resolution or tiling.
+            o_tex_u <= wallPartial[-1:-6] ^ {6{texu_mirror}}; // Mirror when needed for correct texture orientation.
             // Increment rayAddend:
             rayAddendX <= rayAddendX + vplaneX;
             rayAddendY <= rayAddendY + vplaneY;
