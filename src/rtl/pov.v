@@ -5,7 +5,7 @@
 // present on the 'side' and 'size' outputs.
 `include "fixed_point_params.v"
 
-`define UQ6_9    [5:-9] // UQ6.9, able to represent player position in range [0,63) with 1/512 resolution.
+`define UQ6_9    [5:-9] // UQ6.9, able to represent player position in range [0,64) with 1/512 resolution.
 `define SQ2_9    [1:-9] // SQ2.9, able to represent facing/vplane in range [-2.0,2.0) with 1/512 resolution.
 
 module pov(
@@ -29,7 +29,7 @@ module pov(
   // create a separate clocked section for each register target (as we do with SPI)?
   // e.g. ready <= reset ? 0 : spi_done;
 
-  // Registered versions of the vectors, before they get padded up to `F (SQ12.12) format on output ports.
+  // Registered versions of the vectors, before they get padded up to `F (SQ10.10) format on output ports.
   reg `UQ6_9 playerRX, playerRY;
   reg `SQ2_9 facingRX, facingRY, vplaneRX, vplaneRY;
 
@@ -41,12 +41,12 @@ module pov(
   localparam totalBits = (15*2)+(11*2)+(11*2); // 74.
   localparam finalBit = totalBits-1;
 
-  // The below outputs our more-truncated vectors (at various Qm.n precisions) as conventional `F (SQ12.12) ports...
+  // The below outputs our more-truncated vectors (at various Qm.n precisions) as conventional `F (SQ10.10) ports...
 
   // playerX/Y are UQ6.9 made up of 6x zero MSBs, then Q6.9, then 3x zero LSBs.
   // This is enough for the player moving within a 64x64 map to a granularity of 1/512 units.
   // This granularity is ~0.002 of a block. Given a block 'feels' like about 1.8m wide this granularity is about ~3.5mm.
-  //NOTE: Sign bit not needed (hence 0) because player position should never be negative anyway? i.e. it's in the range [0,63]
+  //NOTE: Sign bit not needed (hence 0) because player position should never be negative anyway? i.e. it's in the range [0,64)
   localparam PadUQ6_9Hi = `Qm-6;
   localparam PadUQ6_9Lo = `Qn-9;
   assign playerX = { {PadUQ6_9Hi{1'b0}}, playerRX, {PadUQ6_9Lo{1'b0}} };

@@ -1,4 +1,4 @@
-// Single-step fixed-point reciprocal approximation for Q12.12, modified from:
+// Single-step fixed-point reciprocal approximation for arbitrary SQm.n (SQ12.12 default), modified from:
 // https://github.com/algofoogle/raybox/blob/main/src/rtl/reciprocal.v
 // ...which is in turn adapted from:
 // https://github.com/ameetgohil/reciprocal-sv/blob/master/rtl/reciprocal.sv
@@ -37,7 +37,7 @@ module reciprocal #(
   initial begin
     //NOTE: In Quartus, at compile-time, this should hopefully spit out the params from above
     // in the compilation log, and in OpenLane it should be in logs/synthesis/1-synthesis.log:
-    $display("reciprocal params for Q%0d.%0d:  n1466=%X, n10012=%X, nSat=%X", M, N, n1466, n10012, nSat);
+    $display("reciprocal params for SQ%0d.%0d:  n1466=%X, n10012=%X, nSat=%X", M, N, n1466, n10012, nSat);
   end
 
   /*

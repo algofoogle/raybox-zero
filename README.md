@@ -98,22 +98,19 @@ These are some possible pinouts on TT04 or even more-constrained targets:
 
 *   Basic row renderer (without texture mapping)
 *   VGA RGB mux
-*   LZC (hard-coded Q12.12)
-*   Reciprocal approximator for Q12.12
-
-### Required
-
+*   LZC (hard-coded Q10.10)
+*   Reciprocal approximator for Q10.10
 *   tracer logic and FSM
 *   map
-*   view vectors (and SPI slave controller?)
-*   shared multiplier?
+*   view vectors (and SPI slave controller)
+*   shared multiplier
+*   debug overlay
 
 ### Optional
 
 *   texture SPI RAM master and local memory
 *   external control pins
 *   debugging IO
-*   debug overlay
 *   temporal ordered dither
 
 ## Game ideas

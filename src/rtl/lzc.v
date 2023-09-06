@@ -1,6 +1,6 @@
 //NOTE: This is based on this:
 // https://github.com/algofoogle/raybox/blob/main/src/rtl/lzc_b.v
-//...in this case, hard-coded for 19-bit inputs, i.e. Q10.10.
+//...in this case, hard-coded for 20-bit inputs, i.e. Q10.10.
 
 `default_nettype none
 `timescale 1ns / 1ps
@@ -11,7 +11,7 @@
 
 module lzc(
   input `INRANGE i_data,
-  output [4:0] o_lzc      // 0..18 is normal.
+  output [4:0] o_lzc      // 0..20 is normal.
 );
 
   function [4:0] f_lzc(input `INRANGE data);
