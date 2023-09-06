@@ -5,8 +5,8 @@
 // present on the 'side' and 'size' outputs.
 `include "fixed_point_params.v"
 
-`define UQ6_9    [5:-9]
-`define SQ2_9    [1:-9]
+`define UQ6_9    [5:-9] // UQ6.9, able to represent player position in range [0,64) with 1/512 resolution.
+`define SQ2_9    [1:-9] // SQ2.9, able to represent facing/vplane in range [-2.0,2.0) with 1/512 resolution.
 
 module pov(
   input clk,
@@ -29,7 +29,7 @@ module pov(
   // create a separate clocked section for each register target (as we do with SPI)?
   // e.g. ready <= reset ? 0 : spi_done;
 
-  // Registered versions of the vectors, before they get padded up to `F (SQ12.12) format on output ports.
+  // Registered versions of the vectors, before they get padded up to `F (SQ10.10) format on output ports.
   reg `UQ6_9 playerRX, playerRY;
   reg `SQ2_9 facingRX, facingRY, vplaneRX, vplaneRY;
 
@@ -41,22 +41,26 @@ module pov(
   localparam totalBits = (15*2)+(11*2)+(11*2); // 74.
   localparam finalBit = totalBits-1;
 
-  // The below outputs our more-truncated vectors (at various Qm.n precisions) as conventional `F (SQ12.12) ports...
+  // The below outputs our more-truncated vectors (at various Qm.n precisions) as conventional `F (SQ10.10) ports...
 
   // playerX/Y are UQ6.9 made up of 6x zero MSBs, then Q6.9, then 3x zero LSBs.
   // This is enough for the player moving within a 64x64 map to a granularity of 1/512 units.
   // This granularity is ~0.002 of a block. Given a block 'feels' like about 1.8m wide this granularity is about ~3.5mm.
-  //NOTE: Sign bit not needed (hence 0) because player position should never be negative anyway? i.e. it's in the range [0,63]
-  assign playerX = { 6'b0, playerRX, 3'b0 };
-  assign playerY = { 6'b0, playerRY, 3'b0 };
+  //NOTE: Sign bit not needed (hence 0) because player position should never be negative anyway? i.e. it's in the range [0,64)
+  localparam PadUQ6_9Hi = `Qm-6;
+  localparam PadUQ6_9Lo = `Qn-9;
+  assign playerX = { {PadUQ6_9Hi{1'b0}}, playerRX, {PadUQ6_9Lo{1'b0}} };
+  assign playerY = { {PadUQ6_9Hi{1'b0}}, playerRY, {PadUQ6_9Lo{1'b0}} };
 
   // facing/vplaneX/Y are SQ2.9 made up of 11x sign extension MSBs (collectively the Q2nd), then Q1.9, then 3x zero LSBs.
   // These have much smaller magnitude because normally each vector won't exceed 1.0...
   // we allow a range of [-2.0,+2.0) because that's more than enough for some effects, FOV control (?) etc.
-  assign facingX = { {11{facingRX[1]}}, facingRX[0:-9], 3'b0 };
-  assign facingY = { {11{facingRY[1]}}, facingRY[0:-9], 3'b0 };
-  assign vplaneX = { {11{vplaneRX[1]}}, vplaneRX[0:-9], 3'b0 };
-  assign vplaneY = { {11{vplaneRY[1]}}, vplaneRY[0:-9], 3'b0 };
+  localparam PadSQ2_9Hi = `Qm-1; // Not 2, because of sign bit repetition.
+  localparam PadSQ2_9Lo = `Qn-9;
+  assign facingX = { {PadSQ2_9Hi{facingRX[1]}}, facingRX[0:-9], {PadSQ2_9Lo{1'b0}} };
+  assign facingY = { {PadSQ2_9Hi{facingRY[1]}}, facingRY[0:-9], {PadSQ2_9Lo{1'b0}} };
+  assign vplaneX = { {PadSQ2_9Hi{vplaneRX[1]}}, vplaneRX[0:-9], {PadSQ2_9Lo{1'b0}} };
+  assign vplaneY = { {PadSQ2_9Hi{vplaneRY[1]}}, vplaneRY[0:-9], {PadSQ2_9Lo{1'b0}} };
 
   always @(posedge clk) begin
     if (reset) begin

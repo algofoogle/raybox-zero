@@ -479,19 +479,31 @@ void rotate_view(double a) {
 void recalc_view(const Uint8* k, int mouseX, int mouseY) {
   //SMELL: Actual travel distance should be based on time elapsed, which will require an extra argument.
   const double key_rotate_speed   = 0.01;
-  const double mouse_rotate_speed = 0.001;
-  const double move_quantum       = pow(2.0, -9.0); // This borrows from `playerMove` in the design, and in Q12.12 it is the raw value: 8
+  double mouse_rotate_speed = 0.001;
+  const double move_quantum       = pow(2.0, -9.0); // This borrows from `playerMove` in the design, and in Q10.10 it is the raw value: 2
   const double playerCrawl        = move_quantum *  4.0;
   const double playerWalk         = move_quantum * 10.0; // Should be 0.01953125
   const double playerRun          = move_quantum * 18.0;
   const double playerMove         = playerWalk;
+  bool slow = k[SDL_SCANCODE_LALT];
   bool fast = k[SDL_SCANCODE_LSHIFT];
   int mouseDelta = gSwapMouseXY ? mouseY : mouseX;
-  double m = fast ? playerRun : playerMove;
+  double m =  slow ?  playerCrawl :
+              fast ?  playerRun :
+                      playerMove;
   m *= gMotionMultiplier;
   double r = key_rotate_speed;
   r *= gMotionMultiplier;
-  if (fast) r *= 1.8;
+  if (slow) {
+    // When ALT key is held, scale motion AND mouse rotation speed to 40%.
+    r *= 0.4;
+    mouse_rotate_speed *= 0.4;
+  }
+  else if (fast)
+  {
+    // When SHIFT key is held, scale motion speed to 180%.
+    r *= 1.8;
+  }
   if (!k[SDL_SCANCODE_LCTRL] && !k[SDL_SCANCODE_RCTRL]) { // Ignore arrows if CTRL is held (because it's used for vector scaling control).
     if (k[SDL_SCANCODE_LEFT])   rotate_view( r);
     if (k[SDL_SCANCODE_RIGHT])  rotate_view(-r);

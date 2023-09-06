@@ -173,12 +173,14 @@ module wall_tracer #(
   reg `F stepDistY;  // ...may Y direction...
   // ...which are values generated combinationally by the `reciprocal` instances below.
 
+  localparam PadVdistHi = `Qm-7;
+  localparam PadVdistLo = `Qn-9;
   // Shared reciprocal input source selection; value we want to find the reciprocal of:
   reg [1:0] rcp_sel; // This muxes between rayDirX, rayDirY, vdist.
   wire `F rcp_in =
     (rcp_sel==RCP_RDX) ?  rayDirX :
     (rcp_sel==RCP_RDY) ?  rayDirY :
-                          {5'b0,vdist,3'b0};
+                          { {PadVdistHi{1'b0}}, vdist, {PadVdistLo{1'b0}} };
   wire `F rcp_out; // Output; reciprocal of rcp_in.
   wire    rcp_sat; // These capture the "saturation" (i.e. overflow) state of our reciprocal calculator.
   //NOTE: rcp_sat is not needed currently, but we might use it as we improve the design,
