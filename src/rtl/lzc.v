@@ -1,6 +1,6 @@
 //NOTE: This is based on this:
 // https://github.com/algofoogle/raybox/blob/main/src/rtl/lzc_b.v
-//...in this case, hard-coded for 19-bit inputs, i.e. Q9.10.
+//...in this case, hard-coded for 19-bit inputs, i.e. Q10.10.
 
 `default_nettype none
 `timescale 1ns / 1ps
@@ -16,7 +16,7 @@ module lzc(
 
   function [4:0] f_lzc(input `INRANGE data);
     casez (i_data)
-      //SMELL: This is probably a sloppy way to do this, and it is currently hard-coded for 19-bit inputs only:
+      //SMELL: This is probably a sloppy way to do this, and it is currently hard-coded for 20-bit inputs only:
       20'b1???????????????????:  f_lzc =  0;
       20'b01??????????????????:  f_lzc =  1;
       20'b001?????????????????:  f_lzc =  2;
