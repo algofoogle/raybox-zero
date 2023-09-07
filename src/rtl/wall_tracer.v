@@ -71,10 +71,12 @@ module wall_tracer #(
   localparam SizeWait     = 10;
   localparam SizeLoad     = 11;
 
+  // States that share the multiplier, for working out texture coordinates stuff:
   localparam CalcTexU     = 12;
+  localparam CalcTexVInit = 13;
 
   // Final trace state, where it waits for hmax before presenting the result:
-  localparam TraceDone    = 13;
+  localparam TraceDone    = 15;
 
   // Symbols representing different data sources for the reciprocal:
   localparam [1:0] RCP_RDX    = 2'd0; // rayDirX.
@@ -197,6 +199,7 @@ module wall_tracer #(
     .o_data (rcp_out),
     .o_sat  (rcp_sat)
   );
+  wire [10:0] size = rcp_out[2:-8];
 
   // Generate the initial tracking distances, as a portion of the full
   // step distances, relative to where our player is (fractionally) in the map cell:
@@ -212,12 +215,14 @@ module wall_tracer #(
     (state==TracePrepX) ? stepDistX:
     (state==TracePrepY) ? stepDistY:
     (state==CalcTexU)   ? ( side ? rayDirX : rayDirY ):
-                          0; //SMELL: DO NOTHING FOR NOW, later will be for texVinit.
+                          ({9'd0,size}-20'd320);
+                          //((rcp_out - 20'd320));//HALF_SIZE); // CalcTexVInit: rcp_out is full-range 'size'.
   wire `F mul_in_b =
     (state==TracePrepX) ? partialX:
     (state==TracePrepY) ? partialY:
-    (state==CalcTexU)   ? visualWallDist:
-                          0; //SMELL: DO NOTHING FOR NOW, later will be for texVinit.
+                          visualWallDist; // CalcTexU or CalcTexVInit.
+    // (state==CalcTexU)   ? visualWallDist:
+    //                       0; // CalcTexVInit:
 
   wire `F2 mul_out = mul_in_a * mul_in_b;
   //NOTE: Try making these unsigned, since I think we're always going to be using them for non-negative values.
@@ -252,8 +257,11 @@ module wall_tracer #(
     wire do_reset = vsync;
   `endif//RESET_TO_KNOWN
 
+  int line_counter; // DEBUG.
+
   always @(posedge clk) begin
     if (do_reset) begin
+      line_counter = 0; // DEBUG.
       // While VSYNC is asserted, reset FSM to start a new frame.
       state <= SDXPrep;
 
@@ -281,6 +289,7 @@ module wall_tracer #(
         o_side <= 0;
         o_texu <= 0;
         o_texa <= 0;
+        o_texVinit <= 0;
         side <= 0;
         texu <= 0;
         rcp_sel <= RCP_RDX; // Reciprocal's data source is initially rayDirX.
@@ -293,23 +302,23 @@ module wall_tracer #(
       case (state)
 
         // Get stepDistX from rayDirX:
-        SDXPrep: begin      state <= SDXWait;     rcp_sel <= RCP_RDX; end
-        SDXWait: begin      state <= SDXLoad;     end // Do nothing; just wait for reciprocal to settle.
-        SDXLoad: begin      state <= SDYPrep;     stepDistX <= rcp_out; end
+        SDXPrep: begin      state <= SDXWait;       rcp_sel <= RCP_RDX; end
+        SDXWait: begin      state <= SDXLoad;       end // Do nothing; just wait for reciprocal to settle.
+        SDXLoad: begin      state <= SDYPrep;       stepDistX <= rcp_out; end
 
         // Get stepDistY from rayDirY:
-        SDYPrep: begin      state <= SDYWait;     rcp_sel <= RCP_RDY; end
-        SDYWait: begin      state <= SDYLoad;     end // Do nothing; just wait for reciprocal to settle.
-        SDYLoad: begin      state <= TracePrepX;  stepDistY <= rcp_out; end
+        SDYPrep: begin      state <= SDYWait;       rcp_sel <= RCP_RDY; end
+        SDYWait: begin      state <= SDYLoad;       end // Do nothing; just wait for reciprocal to settle.
+        SDYLoad: begin      state <= TracePrepX;    stepDistY <= rcp_out; end
 
-        TracePrepX: begin   state <= TracePrepY;  trackDistX <= `FF(mul_out);
+        TracePrepX: begin   state <= TracePrepY;    trackDistX <= `FF(mul_out);
           //NOTE: track init comes from stepDist, comes from rayDir, comes from rayAddend.
           // Get the cell the player's currently in:
           mapX <= playerMapX;
           mapY <= playerMapY;
         end
 
-        TracePrepY: begin   state <= TraceStep;   trackDistY <= `FF(mul_out); end //NOTE: mul inputs (and hence output) react to 'state'.
+        TracePrepY: begin   state <= TraceStep;     trackDistY <= `FF(mul_out); end //NOTE: mul inputs (and hence output) react to 'state'.
 
         TraceStep: begin
           if (i_map_val==0) begin
@@ -334,11 +343,13 @@ module wall_tracer #(
         //   //SMELL: This state is not required.
         //   state <= SizePrep;
         // end
-        SizePrep: begin     state <= SizeWait;    rcp_sel <= RCP_VDIST; end
-        SizeWait: begin     state <= SizeLoad;    end // Do nothing; just wait for reciprocal to settle.
-        SizeLoad: begin     state <= CalcTexU;    end //SMELL: This state is not required; rcp_out is used in TraceDone.
+        SizePrep: begin     state <= SizeWait;      rcp_sel <= RCP_VDIST; end
+        SizeWait: begin     state <= SizeLoad;      end // Do nothing; just wait for reciprocal to settle.
+        SizeLoad: begin     state <= CalcTexU;      end
+        //SMELL: SizeWait and SizeLoad not needed if other states slot in here, meaning rcp_out is not needed until later.
 
-        CalcTexU: begin     state <= TraceDone;   texu <= wallPartial[-1:-6] ^ {6{texu_mirror}}; end // wallPartial depends on `FF(mul_out).
+        CalcTexU: begin     state <= CalcTexVInit;  texu <= wallPartial[-1:-6] ^ {6{texu_mirror}}; end // wallPartial depends on `FF(mul_out).
+        CalcTexVInit: begin state <= TraceDone;     end // Used by shmul to determine inputs for calculating o_texVinit.
         //SMELL: Multiplier is not in use after TracePrepX/Y so it doesn't actually need its own state... could be used in parallel, in other states.
 
         // CalcTexAccInit: begin
@@ -352,8 +363,9 @@ module wall_tracer #(
         TraceDone: begin
           // No more work to do, so hang around in this state waiting for hmax...
           if (hmax) begin
+            line_counter = line_counter + 1;
             // Upon hmax, present our new result and start the next line.
-            o_size <= rcp_out[2:-8];
+            o_size <= size;
             o_side <= side;
             // Use the wall hit fractional value (6 bits of it) to determine the
             // wall texture offset in the range [0,63]...
@@ -361,6 +373,10 @@ module wall_tracer #(
             // o_texu <= wallPartial[-1:-6] ^ {6{texu_mirror}}; // Mirror when needed for correct texture orientation.
             o_texu <= texu;
             o_texa <= visualWallDist;
+            o_texVinit <= (size < 11'd320) ? 0 : `FF(mul_out)<<10; //HALF_SIZE
+            // if (size >= 11'd320 && line_counter == 10) begin
+            //   $display("mul_out=%b  texa=%b", `FF(mul_out)<<1, visualWallDist);
+            // end
             //SMELL: o_tex_u probably doesn't need to be a reg on its port because wallPartial will
             // soon be determined JIT by shmul...?
             // Increment rayAddend:
