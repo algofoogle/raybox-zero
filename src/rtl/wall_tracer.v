@@ -44,8 +44,10 @@ module wall_tracer #(
 
   // Tracing result, per line:
   output reg                    o_side,
-  output reg [10:0]             o_size, // Wall half-size.
-  output reg [5:0]              o_tex_u // Texture 'u' coordinate (i.e. how far along the wall the hit was).
+  output reg [10:0]             o_size,   // Wall half-size.
+  output reg [5:0]              o_texu,   // Texture 'u' coordinate (i.e. how far along the wall the hit was).
+  output reg `F                 o_texa    // Addend for texv coord; actually visualWalLDist: equiv to o_size rcp, used for texture scaling.
+
 );
 
   //SMELL: Still need to define the function of 'tex'
@@ -264,6 +266,8 @@ module wall_tracer #(
         // keep it in case it needs to be reused?
         o_size <= 0;
         o_side <= 0;
+        o_texu <= 0;
+        o_texa <= 0;
         side <= 0;
         rcp_sel <= RCP_RDX; // Reciprocal's data source is initially rayDirX.
         visualWallDist <= 0;
@@ -336,7 +340,10 @@ module wall_tracer #(
             // Use the wall hit fractional value (6 bits of it) to determine the
             // wall texture offset in the range [0,63]...
             // By changing this we can change one axis of texture resolution or tiling.
-            o_tex_u <= wallPartial[-1:-6] ^ {6{texu_mirror}}; // Mirror when needed for correct texture orientation.
+            o_texu <= wallPartial[-1:-6] ^ {6{texu_mirror}}; // Mirror when needed for correct texture orientation.
+            o_texa <= visualWallDist;
+            //SMELL: o_tex_u probably doesn't need to be a reg on its port because wallPartial will
+            // soon be determined JIT by shmul...?
             // Increment rayAddend:
             rayAddendX <= rayAddendX + vplaneX;
             rayAddendY <= rayAddendY + vplaneY;

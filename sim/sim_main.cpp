@@ -115,6 +115,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 {
   // char* nothing = "nothing";
   // return main(1, &nothing);
+  SetProcessDPIAware(); // Prevent window scaling, so we get a pixel-perfect SDL display.
   printf("DEBUG: WinMain command-line: '%s'\n", lpCmdLine);
   return main(__argc, __argv); // See: https://stackoverflow.com/a/40107581
   return 0;
@@ -287,9 +288,8 @@ void process_sdl_events() {
             //SMELL: Not implemented. Used to load a known set of vectors.
             break;
           }
-        case SDLK_q:
+        // case SDLK_q:
         case SDLK_ESCAPE:
-          // ESC or Q key pressed, for Quit
           gQuit = true;
           break;
         case SDLK_SPACE:
