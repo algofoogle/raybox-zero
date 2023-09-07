@@ -182,15 +182,17 @@ module wall_tracer #(
   reg `F stepDistY;  // ...may Y direction...
   // ...which are values generated combinationally by the `reciprocal` instances below.
 
-  localparam PadVdistHi = `Qm-7;
-  localparam PadVdistLo = `Qn-9;
   // Shared reciprocal input source selection; value we want to find the reciprocal of:
   reg [1:0] rcp_sel; // This muxes between rayDirX, rayDirY, vdist.
   //SMELL: We probably don't need a reg for this, because we can go by state instead?
   wire `F rcp_in =
     (rcp_sel==RCP_RDX) ?  rayDirX :
     (rcp_sel==RCP_RDY) ?  rayDirY :
-                          { {PadVdistHi{1'b0}}, vdist, {PadVdistLo{1'b0}} }; //SMELL: Is this necessary or can/should we use visualWallDist directly?
+                          visualWallDist;
+                          //{ {PadVdistHi{1'b0}}, vdist, {PadVdistLo{1'b0}} }; //SMELL: Is this necessary or can/should we use visualWallDist directly?
+  // localparam PadVdistHi = `Qm-7;
+  // localparam PadVdistLo = `Qn-9;
+
   wire `F rcp_out; // Output; reciprocal of rcp_in.
   wire    rcp_sat; // These capture the "saturation" (i.e. overflow) state of our reciprocal calculator.
   //NOTE: rcp_sat is not needed currently, but we might use it as we improve the design,
@@ -206,7 +208,7 @@ module wall_tracer #(
   // Generate the initial tracking distances, as a portion of the full
   // step distances, relative to where our player is (fractionally) in the map cell:
   //SMELL: These only need to capture the middle half of the result,
-  // i.e. if we're using Q12.12, our result should still be the [11:-12] bits
+  // e.g. if we're using Q12.12, our result should still be the [11:-12] bits
   // extracted from the product:
   //SMELL: Use a case instead?
   //NOTE: The input muxes here are reactive to the state in which the RESULT of mul_out is used,
@@ -257,11 +259,11 @@ module wall_tracer #(
     wire do_reset = vsync;
   `endif//RESET_TO_KNOWN
 
-  int line_counter; // DEBUG.
+  // int line_counter; // DEBUG.
 
   always @(posedge clk) begin
     if (do_reset) begin
-      line_counter = 0; // DEBUG.
+      // line_counter = 0; // DEBUG.
       // While VSYNC is asserted, reset FSM to start a new frame.
       state <= SDXPrep;
 
@@ -358,13 +360,13 @@ module wall_tracer #(
         TraceDone: begin
           // No more work to do, so hang around in this state waiting for hmax...
           if (hmax) begin
-            line_counter = line_counter + 1;
+            // line_counter = line_counter + 1; // DEBUG.
             // Upon hmax, present our new result and start the next line.
             o_size <= size;
             o_side <= side;
             o_texu <= texu;
             o_texa <= visualWallDist;
-            o_texVinit <= (size < HALF_SIZE[10:0]) ? 0 : {mul_out[1:-8],10'b0};//`FF(mul_out)<<8;
+            o_texVinit <= {mul_out[1:-8],10'b0};//`FF(mul_out)<<8;
             // Increment rayAddend:
             rayAddendX <= rayAddendX + vplaneX;
             rayAddendY <= rayAddendY + vplaneY;

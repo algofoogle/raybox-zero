@@ -53,7 +53,8 @@ module rbzero(
   wire        wall_en;              // Asserted for the duration of the textured wall being visible on screen.
   wire [5:0]  wall_rgb;             // Colour of the current wall pixel being scanned.
   reg `F      texV;                 // Note big 'V': Fixed-point accumulator for working out texv per pixel. //SMELL: Wasted excess precision.
-  wire [5:0]  texv = texV[8:3];     // At vdist of 1.0, a 64p texture is stretched to 512p, hence texv is 64/512 (>>3) of int(texV).
+  wire `F     texVV = texV + traced_texVinit;
+  wire [5:0]  texv = texVV[8:3];     // At vdist of 1.0, a 64p texture is stretched to 512p, hence texv is 64/512 (>>3) of int(texV).
   //NOTE: Would it be possible to do primitive texture 'filtering' using 50/50 checker dither for texxture sub-pixels?
   row_render row_render(
     // Inputs:
@@ -66,18 +67,11 @@ module rbzero(
     .rgb      (wall_rgb),
     .hit      (wall_en)
   );
-  //NOTE: The wall is 512 pixels tall at a vdist of 1 'unit'
-  // (which in [6:-9] is 16'b0000001.000000000).
-  // Thus, each texel scales up by 512/64 = 8, or the inverse: its lookup scales down by 8.
+  // texV scans the texture 'v' coordinate range with a step size of 'traced_texa'.
+  //NOTE: Because of 'texVV = texV + traced_texVinit' above, texV might be relative to
+  // a positive, 0, or negative starting point as calculated by wall_tracer.
   //SMELL: Move this into some other module, e.g. row_render?
-  always @(posedge clk) begin
-    if (reset || hmax) begin //SMELL: Use hmax instead of hsync?? Or just use !wall_en?
-      texV <= traced_texVinit; //SMELL: Init this to actual wall scan starting point (in case the wall is bigger than the screen).
-    end else if (wall_en) begin
-      // While wall pixels are being painted, keep incrementing our texv accumulator.
-      texV <= texV + traced_texa;
-    end
-  end
+  always @(posedge clk) texV <= hmax ? 0 : texV + traced_texa;
 
   // --- Point-Of-View data, i.e. view vectors: ---
   wire `F playerX /* verilator public */;
