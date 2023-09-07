@@ -72,9 +72,6 @@ module rbzero(
   //SMELL: Move this into some other module, e.g. row_render?
   always @(posedge clk) begin
     if (reset || hmax) begin //SMELL: Use hmax instead of hsync?? Or just use !wall_en?
-      // if (vpos==1) begin
-      //   $display("traced_texVinit = %X", traced_texVinit);
-      // end
       texV <= traced_texVinit; //SMELL: Init this to actual wall scan starting point (in case the wall is bigger than the screen).
     end else if (wall_en) begin
       // While wall pixels are being painted, keep incrementing our texv accumulator.

@@ -51,6 +51,8 @@ module wall_tracer #(
   output reg `F           o_texVinit  // Initial texV (if o_size exceeds screen HALF_SIZE).
 );
 
+  localparam `F HALF_SIZE_CLIP = HALF_SIZE[19:0]<<2;
+
   // States for getting stepDistX = 1.0/rayDirX:
   localparam SDXPrep      = 0;
   localparam SDXWait      = 1;
@@ -215,14 +217,12 @@ module wall_tracer #(
     (state==TracePrepX) ? stepDistX:
     (state==TracePrepY) ? stepDistY:
     (state==CalcTexU)   ? ( side ? rayDirX : rayDirY ):
-                          ({9'd0,size}-20'd320);
-                          //((rcp_out - 20'd320));//HALF_SIZE); // CalcTexVInit: rcp_out is full-range 'size'.
+                          (rcp_out-HALF_SIZE_CLIP); // CalcTexVInit.
+
   wire `F mul_in_b =
     (state==TracePrepX) ? partialX:
     (state==TracePrepY) ? partialY:
                           visualWallDist; // CalcTexU or CalcTexVInit.
-    // (state==CalcTexU)   ? visualWallDist:
-    //                       0; // CalcTexVInit:
 
   wire `F2 mul_out = mul_in_a * mul_in_b;
   //NOTE: Try making these unsigned, since I think we're always going to be using them for non-negative values.
@@ -348,17 +348,12 @@ module wall_tracer #(
         SizeLoad: begin     state <= CalcTexU;      end
         //SMELL: SizeWait and SizeLoad not needed if other states slot in here, meaning rcp_out is not needed until later.
 
+        // Use the wall hit fractional value (6 bits of it) to determine the
+        // wall texture offset in the range [0,63]...
+        // By changing this we could change one axis of texture resolution or tiling.
         CalcTexU: begin     state <= CalcTexVInit;  texu <= wallPartial[-1:-6] ^ {6{texu_mirror}}; end // wallPartial depends on `FF(mul_out).
         CalcTexVInit: begin state <= TraceDone;     end // Used by shmul to determine inputs for calculating o_texVinit.
         //SMELL: Multiplier is not in use after TracePrepX/Y so it doesn't actually need its own state... could be used in parallel, in other states.
-
-        // CalcTexAccInit: begin
-        //   if o_size < half_width
-        //     tai = 0
-        //   else
-        //     tai = (o_size-half_width) * visualWallDist
-        //   endif
-        // end
 
         TraceDone: begin
           // No more work to do, so hang around in this state waiting for hmax...
@@ -367,18 +362,9 @@ module wall_tracer #(
             // Upon hmax, present our new result and start the next line.
             o_size <= size;
             o_side <= side;
-            // Use the wall hit fractional value (6 bits of it) to determine the
-            // wall texture offset in the range [0,63]...
-            // By changing this we can change one axis of texture resolution or tiling.
-            // o_texu <= wallPartial[-1:-6] ^ {6{texu_mirror}}; // Mirror when needed for correct texture orientation.
             o_texu <= texu;
             o_texa <= visualWallDist;
-            o_texVinit <= (size < 11'd320) ? 0 : `FF(mul_out)<<10; //HALF_SIZE
-            // if (size >= 11'd320 && line_counter == 10) begin
-            //   $display("mul_out=%b  texa=%b", `FF(mul_out)<<1, visualWallDist);
-            // end
-            //SMELL: o_tex_u probably doesn't need to be a reg on its port because wallPartial will
-            // soon be determined JIT by shmul...?
+            o_texVinit <= (size < HALF_SIZE[10:0]) ? 0 : {mul_out[1:-8],10'b0};//`FF(mul_out)<<8;
             // Increment rayAddend:
             rayAddendX <= rayAddendX + vplaneX;
             rayAddendY <= rayAddendY + vplaneY;
