@@ -15,13 +15,25 @@ module pov(
   input load_if_ready, // Will go high at the moment that buffered data can go live.
   output `F playerX, playerY, facingX, facingY, vplaneX, vplaneY
 );
+
   // Some good starting parameters...
+`ifdef QUARTUS
+  localparam SCALER = 1<<9; // The vectors below use 9 fractional bits.
+  localparam real FSCALER = SCALER;
+  localparam `UQ6_9 playerInitX  =  1.5 * FSCALER;  // 15'b000001_100000000;
+  localparam `UQ6_9 playerInitY  =  1.5 * FSCALER;  // 15'b000001_100000000;
+  localparam `SQ2_9 facingInitX  =  0.0 * FSCALER;  // 11'b____00_000000000;
+  localparam `SQ2_9 facingInitY  =  1.0 * FSCALER;  // 11'b_____1_000000000;
+  localparam `SQ2_9 vplaneInitX  = -0.5 * FSCALER;  // 11'b____11_100000000;
+  localparam `SQ2_9 vplaneInitY  =  0.0 * FSCALER;  // 11'b____00_000000000;
+`else
   localparam `UQ6_9 playerInitX  = 15'($rtoi(`realF( 1.5))); // ...
   localparam `UQ6_9 playerInitY  = 15'($rtoi(`realF( 1.5))); // ...Player is starting in a safe bet; middle of map cell (1,1).
   localparam `SQ2_9 facingInitX  = 11'($rtoi(`realF( 0.0))); // ...
   localparam `SQ2_9 facingInitY  = 11'($rtoi(`realF( 1.0))); // ...Player is facing (0,1); "south" or "downwards" on map, i.e. birds-eye.
   localparam `SQ2_9 vplaneInitX  = 11'($rtoi(`realF(-0.5))); // Viewplane dir is (-0.5,0); "west" or "left" on map...
   localparam `SQ2_9 vplaneInitY  = 11'($rtoi(`realF( 0.0))); // ...makes FOV ~52deg. Too small, but makes maths easy for now.
+`endif
 
   reg ready; // Is ready_buffer valid?
 

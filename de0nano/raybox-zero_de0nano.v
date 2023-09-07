@@ -1,6 +1,8 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
+`define QUARTUS
+
 // Wrapper for raybox_zero module, targeting DE0-Nano board:
 module raybox_zero_de0nano(
   input           CLOCK_50, // Onboard 50MHz clock
@@ -67,7 +69,7 @@ module raybox_zero_de0nano(
   end
 
   // //NOTE: We might not need this metastability avoidance for our simple (and not-time-critical) inputs:
-  stable_sync reset   (.clk(clock_25), .d(!KEY[0]), .q(reset     ));
+  stable_sync sync_reset   (.clk(clock_25), .d(!KEY[0]), .q(reset     ));
   // stable_sync new_game(.clk(clock_25), .d( KEY[1]), .q(new_game_n));
   // stable_sync up_key  (.clk(clock_25), .d(   K[4]), .q(up_key_n  ));
   // stable_sync pause   (.clk(clock_25), .d(   K[3]), .q(pause_n   ));

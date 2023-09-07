@@ -23,11 +23,16 @@ module reciprocal #(
   //SMELL: Wackiness to work around Quartus bug: https://community.intel.com/t5/Intel-Quartus-Prime-Software/BUG/td-p/1483047
   localparam SCALER = 1<<N;
   localparam real FSCALER = SCALER;
+`ifdef QUARTUS
+  `define ROUNDING_FIX -0.5
+  localparam [M-1:-N] n1466  = 1.466 *FSCALER+`ROUNDING_FIX;
+  localparam [M-1:-N] n10012 = 1.0012*FSCALER+`ROUNDING_FIX;
+`else
   localparam [M-1:-N] n1466 = `Qmn'($rtoi(1.466*FSCALER));    // 1.466 in QM.N
-
   // Find raw fixed-point value representing 1.0012:
   // localparam integer nd = 1.0012*(2.0**N);
   localparam [M-1:-N] n10012 = `Qmn'($rtoi(1.0012*FSCALER));  // 1.0012 in QM.N
+`endif
 /* verilator lint_on REALCVT */
 
   localparam [M-1:-N] nSat = ~(1<<(M+N-1));   // Max positive integer (i.e. saturation).
