@@ -59,8 +59,8 @@ module rbzero(
     // Inputs:
     .side     (traced_side),
     .size     (traced_size),
-    .texu     (traced_texu),
-    .texv     (texv),
+    .texu     (traced_texu),        //SMELL: Need to clamp texu/v so they don't wrap due to fixed-point precision loss.
+    .texv     (texv),               //...for texv, we could simply extend to [6:0] and check bit 6.
     .hpos     (hpos),
     // Outputs:
     .rgb      (wall_rgb),
