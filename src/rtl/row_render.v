@@ -28,14 +28,16 @@ module row_render #(
     // Blue bricks:
     wall == 2 ? (side ?
                   ( // Light side.
-                    (texv[2:0]==7 || (texu[4:1]==3&&texv[3]==0) || (texu[4:1]==12&&texv[3]==1)) ? 6'b10_10_10 : // Mortar.
-                    (texv[2:0]==6) ? 6'b11_01_00 : // Top sheen.
-                    (texv[2:0]==0) ? 6'b01_00_00 : // Bottom shade.
+                    ((texu[4:0]==6&&texv[3]==0) || (texu[4:0]==24&&texv[3]==1)) ? 6'b10_10_10 : // Mortar
+                    (texv[2:0]==0) ? (texu[0] ? 6'b01_01_01 : 6'b10_10_10) : // Brick shadow.
+                    (texv[2:0]==7) ? 6'b11_01_00 : // Top sheen.
+                    (texv[2:0]==1) ? 6'b01_00_00 : // Bottom shade.
                     6'b11_00_00
                   ):( // Dark side.
-                    (texv[2:0]==7 || (texu[4:1]==3&&texv[3]==0) || (texu[4:1]==12&&texv[3]==1)) ? 6'b01_01_01 : // Mortar.
-                    (texv[2:0]==6) ? 6'b11_00_00 : // Top sheen.
-                    (texv[2:0]==0) ? 6'b00_00_00 : // Bottom shade.
+                    ((texu[4:0]==6&&texv[3]==0) || (texu[4:0]==24&&texv[3]==1)) ? 6'b01_01_01 : // Mortar
+                    (texv[2:0]==0) ? (texu[0] ? 6'b00_00_00 : 6'b01_01_01) : // Brick shadow.
+                    (texv[2:0]==7) ? 6'b11_00_00 : // Top sheen.
+                    (texv[2:0]==1) ? 6'b00_00_00 : // Bottom shade.
                     6'b10_00_00
                   )
                 ):
