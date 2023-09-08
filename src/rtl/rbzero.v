@@ -2,6 +2,7 @@
 `timescale 1ns / 1ps
 
 `include "fixed_point_params.v"
+`include "helpers.v"
 
 //SMELL: These should probably be defined by the target (e.g. TT04 or FPGA) rather than inline here:
 // `define USE_MAP_OVERLAY
@@ -15,6 +16,10 @@ module rbzero(
   input               i_sclk,
   input               i_mosi,
   input               i_ss_n,
+  // SPI interface for everything else:
+  input               i_reg_sclk,
+  input               i_reg_mosi,
+  input               i_reg_ss_n,
   // Debug/demo signals:
   input               i_debug,
   input               i_inc_px,
@@ -75,7 +80,7 @@ module rbzero(
     .size     (traced_size),
     .texu     (traced_texu),        //SMELL: Need to clamp texu/v so they don't wrap due to fixed-point precision loss.
     .texv     (texv),
-    .leak     (6'd0), // Unused as yet. For positive values up to 32, it could be used to make it look like everything is submerged in the floor (e.g. water).
+    .leak     (floor_leak),
     // .over     (texVV[9]), //DEBUG: texture overflow.
     .hpos     (hpos),
     // Outputs:
@@ -111,6 +116,24 @@ module rbzero(
     .facingX(facingX), .facingY(facingY),
     .vplaneX(vplaneX), .vplaneY(vplaneY)
   );
+
+  spi_registers spi_registers(
+    .clk      (clk),
+    .reset    (reset),
+
+    .i_sclk   (i_reg_sclk),
+    .i_mosi   (i_reg_mosi),
+    .i_ss_n   (i_reg_ss_n),
+
+    .sky      (color_sky),
+    .floor    (color_floor),
+    .leak     (floor_leak),
+
+    .load_new (visible_frame_end)
+  );
+  wire `RGB   color_sky     /* verilator public */;
+  wire `RGB   color_floor   /* verilator public */;
+  wire [5:0]  floor_leak    /* verilator public */;
 
   // --- Map ROM: ---
   wire [MAP_WBITS-1:0] tracer_map_col;
@@ -225,9 +248,8 @@ module rbzero(
 
   // --- Combined pixel colour driver/mux: ---
   wire [5:0] bg = hpos < HALF_SIZE
-    // ? 6'b11_00_00   // Blue... water?
-    ? 6'b10_10_10   // Light grey for left (or bottom) side.
-    : 6'b01_01_01;  // Dark grey.
+    ? color_floor   // Default is light grey for left (or bottom) side.
+    : color_sky;    // Default is dark grey for right (or top) side.
   vga_mux vga_mux(
     .visible  (visible),
 

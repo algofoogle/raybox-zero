@@ -1,8 +1,6 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
-//NOTE: The falling edge of 'run' should cause the current traced values to
-// present on the 'side' and 'size' outputs.
 `include "fixed_point_params.v"
 
 `define UQ6_9    [5:-9] // UQ6.9, able to represent player position in range [0,64) with 1/512 resolution.

@@ -140,6 +140,9 @@ bool          gSwapMouseXY = false;
 bool          gRotateView = false;
 bool          gEnableSPI = false;
 int           gMouseX, gMouseY;
+int           gColorSky = 0;
+int           gColorFloor = 0;
+int           gLeak = 0;
 double        gMotionMultiplier = 1.0;
 #ifdef WINDOWS
 bool          gMouseCapture = true;
@@ -766,6 +769,145 @@ void render_text(SDL_Renderer* renderer, TTF_Font* font, int x, int y, string s)
   }
 }
 
+
+void update_game_state() {
+  static int frame = 0;
+  gColorSky   += 3; if (gColorSky>63)   gColorSky   -= 64;
+  gColorFloor += 5; if (gColorFloor>63) gColorFloor -= 64;
+  ++frame;
+  gLeak = 8 + int(8.0 * sin(double(frame)/10.0));
+}
+
+
+enum {
+  CMD_SKY = 0,
+  CMD_FLOOR,
+  CMD_LEAK,
+  CMD__MAX,
+};
+
+
+void push_bits_onto_stack(vector<bool>& bits, uint32_t data, int num_bits) {
+  for (int i=num_bits-1; i>=0; --i) {
+    bits.push_back(data & (1<<i));
+  }
+}
+
+
+int update_spi_registers_state() {
+  static int spi_next_countdown = 5; // For now run at one fifth of the clock. Later, we could add some jitter.
+  static int spi_state_counter = 0; // Tracks which state we're up to, incrementing when spi_next_countdown==0.
+
+  static vector<bool> bits;
+  static bool frame_end = true;
+
+  const int first_register = CMD_SKY;
+  const int last_register = CMD_LEAK;
+
+  static int register_counter = first_register;
+
+  static int hits = 0;
+
+  //NOTE: States:
+  // 0 = SS and SCLK deasserted.
+  // 1 = SS asserted.
+  // 2 = First MOSI + SCLK deasserted.
+  // 3 = First MOSI + SCLK asserted.
+  // Repeat above 2 states for remaining data bits.
+  // Finally: SCLK deasserted; i.e. data_bits*2 + 2
+
+  if (0 == --spi_next_countdown) {
+
+    if (frame_end) {
+      frame_end = false;
+      spi_state_counter = 0;
+    } else {
+      ++spi_state_counter;
+    }
+
+    spi_next_countdown = 5 + (rand() % 5); // Add some jitter.
+    switch (spi_state_counter) {
+      case 0:
+      {
+        bits.clear();
+        // Which register are we going to write to now?
+        push_bits_onto_stack(bits, register_counter, 4);
+        switch (register_counter) {
+          case CMD_SKY:
+            push_bits_onto_stack(bits, gColorSky, 6);
+            break;
+          case CMD_FLOOR:
+            push_bits_onto_stack(bits, gColorFloor, 6);
+            break;
+          case CMD_LEAK:
+            push_bits_onto_stack(bits, gLeak, 6);
+            break;
+          default:
+            printf("ERROR: Unknown register: %d\n", register_counter);
+            break;
+        }
+        // Get SPI inputs ready; start off with both deasserted:
+        TB->m_core->i_reg_ss_n = 1; // Deasserted.
+        TB->m_core->i_reg_sclk = 0; // Deasserted.
+        break;
+      }
+      case 1:
+      {
+        // Assert /SS:
+        TB->m_core->i_reg_ss_n = 0; // Asserted.
+        break;
+      }
+      default:
+      {
+        // Get a bit.
+        int bit_index = (spi_state_counter>>1)-1;
+        if (bit_index < bits.size()) {
+          // Present the bit at MOSI:
+          TB->m_core->i_reg_mosi = bits[bit_index];
+          if (0==(spi_state_counter&1)) {
+            // Deassert SCLK.
+            TB->m_core->i_reg_sclk = 0;
+          } else {
+            // Assert SCLK.
+            TB->m_core->i_reg_sclk = 1;
+          }
+        } else  {
+          // No bits left.
+          // Deassert SCLK one last time:
+          TB->m_core->i_reg_sclk = 0; // Deasserted.
+          frame_end = true;
+
+          // Select the next register for our next loop:
+
+          if (register_counter++ >= last_register) {
+            // Go back to start.
+            register_counter = first_register;
+            // Set spi_next_countdown to a big number to inject a pause:
+            spi_next_countdown = 1000 + (rand() % 1000);
+          }
+
+        }
+        break;
+      }
+    }
+    hits++;
+    // if (hits>81900 && hits<83000) {
+    //   printf("Hits:%d\tEnd:%d\tStep:%d\t/SS:%d\tCLK:%d\tMOSI:%d\n",
+    //     hits,
+    //     frame_end,
+    //     spi_state_counter,
+    //     TB->m_core->i_reg_ss_n,
+    //     TB->m_core->i_reg_sclk,
+    //     TB->m_core->i_reg_mosi
+    //   );
+    // }
+  }
+  return hits;
+
+}
+
+
+
 // This gets called right next to every TB->tick() call.
 // It has its own counters to keep track of when to update SPI inputs to TB.
 // Currently it's designed to constantly stream in the current vector states
@@ -786,7 +928,7 @@ void update_spi_state() {
   // Repeat above 2 states for remaining 73 bits (up to states 148 and 149)
   // 150 = SCLK deasserted; i.e. 74*2 + 2
   if (0 == --spi_next_countdown) {
-    spi_next_countdown = 5;
+    spi_next_countdown = 5 + (rand() % 5); // Jitter.
     switch (spi_state_counter) {
       case 0:
       {
@@ -983,6 +1125,7 @@ int main(int argc, char **argv) {
 
     int old_reset = TB->m_core->reset;
     handle_control_inputs(false); // false = ACTIVE mode; add in actual HID=>signal input changes.
+    update_game_state();
     if (old_reset != TB->m_core->reset) {
       // Reset state changed, so we probably need to resync:
       h_adjust = HBP*2;
@@ -1007,8 +1150,18 @@ int main(int argc, char **argv) {
 
       bool hsync_stopped = false;
       bool vsync_stopped = false;
-      if (gEnableSPI) update_spi_state();
+      int hits = 0;
+      if (gEnableSPI) {
+        update_spi_state();
+        hits = update_spi_registers_state();
+      }
       TB->tick();      hsync_stopped |= TB->hsync_stopped();      vsync_stopped |= TB->vsync_stopped();
+
+      // if (TB->m_core->DESIGN->color_sky == 0x36 && hits <84000) {
+      //   printf("========================= HITS:%d\n", hits);
+      //   throw std::invalid_argument("BORK");
+      // }
+
 #ifdef USE_SPEAKER
       TB->examine_condition_met |= TB->m_core->speaker;
 #endif // USE_SPEAKER

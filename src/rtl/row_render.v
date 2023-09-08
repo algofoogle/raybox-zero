@@ -18,6 +18,7 @@ module row_render #(
   localparam HALF_SIZE = H_VIEW/2;
   //SMELL: Instead of combo logic, could use a register and check for enter/leave:
   assign hit =
+    (hpos < HALF_SIZE || texv != 6'd0 ) & // Fix texture overflow.
     (texv >= leak) & ( // If we are 'leaking' it means the background is visible instead of the texture, up to the 'leak' point. Can be used to fake 'wading'.
       (size > HALF_SIZE) ||
       ((HALF_SIZE-size <= {1'b0,hpos}) && ({1'b0,hpos} <= HALF_SIZE+size))
