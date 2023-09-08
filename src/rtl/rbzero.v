@@ -22,6 +22,11 @@ module rbzero(
   // VGA outputs:
   output wire         hsync_n, vsync_n,
   output wire [5:0]   rgb,
+
+  // Other outputs:
+  output wire         o_hblank, // Asserted for the duration of the horizontal blanking interval.
+  output wire         o_vblank, // Asserted for the duration of the vertical blanking interval.
+
   // hpos and vpos are currently supplied so a top module can do dithering,
   // but otherwise they're not really required, or even just bit-0 of each would do:
   output wire [9:0]   hpos,
@@ -88,6 +93,8 @@ module rbzero(
   wire `F vplaneX /* verilator public */;
   wire `F vplaneY /* verilator public */;
   wire visible_frame_end = (hpos==799 && vpos==479); // The moment when SPI-loaded vector data could be used.
+  assign o_hblank = hpos >= 640;
+  assign o_vblank = vpos >= 480;
   pov pov(
     .clk      (clk),
     .reset    (reset),

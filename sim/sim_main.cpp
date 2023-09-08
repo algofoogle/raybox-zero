@@ -156,10 +156,18 @@ typedef struct {
 float_vectors_t gView = {
   // 13.50, 11.75, // player
   // -1.00,  0.00, // facing
-  //  0.00, -0.50, // vplane -- Larger magnitude means squashed view (narrower blocks). 0.5625 feels more like Wolf3D.
-  10.203125, 13.871094, // player
-  -0.677734, -0.734375, // facing
-   0.367188, -0.339844, // vplane -- Larger magnitude means squashed view (narrower blocks). 0.5625 feels more like Wolf3D.
+  //  0.00, -0.50, // vplane
+
+  // playerX/Y:
+  11.500000,
+  10.500000,
+  // facingX/Y -- Increasing magnitude means narrower FOV (i.e. more zoomed).
+   0.720137,
+  -0.693832,
+  // vplaneX/Y -- Larger magnitude means squashed view (narrower blocks). 0.5 is default square aspect. 0.5625 feels more like Wolf3D.
+   0.346916,
+   0.360069,
+  // Sim's scaling factor:
    1.00,       // scale facing
    1.00        // scale vplane
 };
