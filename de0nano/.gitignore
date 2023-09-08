@@ -1,0 +1,19 @@
+*.rpt
+*.done
+*.smsg
+*.summary
+*.jdi
+*.bak
+*.qws
+
+db/
+incremental_db/
+output_files/
+
+# Is this needed or not?
+# Doesn't really have anything in it, and appears to be a compile-time file.
+*.sld
+
+# .pin doesn't need to be kept, but I think it's handy
+# for people cloning this repo to get to know it:
+# *.pin

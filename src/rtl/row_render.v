@@ -2,7 +2,7 @@
 `timescale 1ns / 1ps
 
 module row_render #(
-  localparam H_VIEW = 640
+  parameter H_VIEW = 640
 ) (
   input wire side,
   input wire [10:0] size, // Supports 0..2047; remember this is mirrored, too.
