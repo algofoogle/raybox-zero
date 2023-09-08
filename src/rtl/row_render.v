@@ -14,20 +14,27 @@ module row_render #(
 );
   localparam HALF_SIZE = H_VIEW/2;
   //SMELL: Instead of combo logic, could use a register and check for enter/leave:
-  assign hit =
-    (size > HALF_SIZE) ||
-    ((HALF_SIZE-size <= {1'b0,hpos}) && ({1'b0,hpos} <= HALF_SIZE+size));
-  //SMELL: For now, just arbitrarily assign a colour based on side. Later, do textures.
-  assign rgb = {texu[0],side,texu[2],side,texu[4],side} ^ {texv[0],1'b0,texv[2],1'b0,texv[4],1'b0};
-  
-  // wire check = texu[0]^texv[0];
-  // assign rgb =
-  //   side  ?   { 2'b11, check,1'b0, 2'b00 } :
-  //             { 2'b10, 1'b0,check, 2'b00 };
-    // { texu[2],1'b0, texu[1],1'b0, texu[0],1'b0 } >> side;
-    // texu == 0   ? 6'b11_10_00 :
-    // texu == 63  ? 6'b01_00_00 :
-    // side        ? 6'b11_00_00 :
-    //               6'b10_00_00;
 
+  reg [5:0] wall_texture [0:4095];
+
+  initial $readmemb("src/rtl/blue-wall-bgr222.hex", wall_texture, 0, 1000);
+
+  assign hit =
+  (
+    // Wall always hit if size exceeds screen:
+    (size > HALF_SIZE) ||
+    // Otherwise, wall is hit if we're within the range of the wall size, mirrored either side of screen middle:
+    ((HALF_SIZE-size <= {1'b0,hpos}) && ({1'b0,hpos} <= HALF_SIZE+size))
+  );
+  
+  // // Texture with light/dark sides:
+  // wire [5:0] texel = wall_texture[{side,texu,~texv}];
+
+  // Single texture, darkened for shaded side:
+  wire [5:0] texel = wall_texture[{texu,~texv}];
+  assign rgb = side ? texel : ((texel & 6'b10_10_10)>>1);
+  
+  //SMELL: For now, just calculate wall texture colour from texture coords, taking light/dark sides into account:
+  //{texu[0],side,texu[2],side,texu[4],side} ^ {texv[0],1'b0,texv[2],1'b0,texv[4],1'b0};
+  
 endmodule
