@@ -153,11 +153,11 @@ typedef struct {
   double sf, sv; // Optional vector scaling.
 } float_vectors_t;
 float_vectors_t gView = {
-   1.5,  1.5, // player
-   0.0,  1.0, // facing
-  -0.5,  0.0, // vplane
-   1.0,       // scale facing
-   1.0        // scale vplane
+  13.50, 11.75, // player
+  -1.00,  0.00, // facing
+   0.00, -0.50, // vplane -- Larger magnitude means squashed view (narrower blocks). 0.5625 feels more like Wolf3D.
+   1.00,       // scale facing
+   1.00        // scale vplane
 };
 
 //SMELL: @raybox leftovers:

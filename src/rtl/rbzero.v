@@ -4,7 +4,7 @@
 `include "fixed_point_params.v"
 
 //SMELL: These should probably be defined by the target (e.g. TT04 or FPGA) rather than inline here:
-// `define USE_MAP_OVERLAY
+`define USE_MAP_OVERLAY
 // `define USE_DEBUG_OVERLAY
 // `define TRACE_STATE_DEBUG  // Trace state is represented visually per each line on-screen.
 
@@ -28,7 +28,9 @@ module rbzero(
   localparam HALF_SIZE = H_VIEW/2;
   localparam MAP_WBITS = 4;
   localparam MAP_HBITS = 4;
+`ifdef USE_MAP_OVERLAY
   localparam MAP_SCALE = 3;
+`endif//USE_MAP_OVERLAY
 
   // --- VGA sync driver: ---
   wire hsync, vsync;
@@ -58,6 +60,7 @@ module rbzero(
   //NOTE: Would it be possible to do primitive texture 'filtering' using 50/50 checker dither for texxture sub-pixels?
   row_render row_render(
     // Inputs:
+    .wall     (traced_wall),
     .side     (traced_side),
     .size     (traced_size),
     .texu     (traced_texu),        //SMELL: Need to clamp texu/v so they don't wrap due to fixed-point precision loss.
@@ -96,7 +99,7 @@ module rbzero(
   // --- Map ROM: ---
   wire [MAP_WBITS-1:0] tracer_map_col;
   wire [MAP_HBITS-1:0] tracer_map_row;
-  wire tracer_map_val;
+  wire [1:0] tracer_map_val;
   map_rom #(
     .MAP_WBITS(MAP_WBITS),
     .MAP_HBITS(MAP_HBITS)
@@ -114,7 +117,7 @@ module rbzero(
   //@@@ This must be eliminated because it's blatant waste.
   wire [MAP_WBITS-1:0] overlay_map_col;
   wire [MAP_HBITS-1:0] overlay_map_row;
-  wire overlay_map_val;
+  wire [1:0] overlay_map_val;
   map_rom #(
     .MAP_WBITS(MAP_WBITS),
     .MAP_HBITS(MAP_HBITS)
@@ -159,6 +162,7 @@ module rbzero(
 
 
   // --- Row-level ray caster/tracer: ---
+  wire [1:0]  traced_wall;
   wire        traced_side;
   wire [10:0] traced_size;  // Calculated from traced_vdist, in this module.
   wire [5:0]  traced_texu;  // Texture 'u' coordinate value.
@@ -191,6 +195,7 @@ module rbzero(
 `ifdef TRACE_STATE_DEBUG
     .o_state  (trace_state), //DEBUG.
 `endif//TRACE_STATE_DEBUG
+    .o_wall   (traced_wall),
     .o_side   (traced_side),
     .o_size   (traced_size),
     .o_texu   (traced_texu),

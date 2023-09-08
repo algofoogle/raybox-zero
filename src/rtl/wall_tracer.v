@@ -3,17 +3,16 @@
 
 `include "fixed_point_params.v"
 
-// wall_tracer with SHARED RECIPROCAL IMPLEMENTATION
-
 //NOTE: I tend to use 'row' and 'line' interchangeably in these comments,
 // because 'line' is usually in the context of the screen (i.e. a scanline)
 // and 'row' means the same thing but in the context of a traced wall slice.
 
-// How should this FSM work?
+// How does this FSM work?
 // - Sometime during VBLANK, load initial state for being able to trace the
 //   first row (top-most) but also for tracing all rows.
 // - Stop tracing after the final row (or don't; save on logic?)
 // - Advance one row at a time.
+// - When needed, control inputs to the shared reciprocal and shared multiplier.
 
 `define RESET_TO_KNOWN  // Include explicit reset logic, to avoid unknown states in simulation?
 //NOTE: This will generate extra logic, but means greater predictability. If my design is right,
@@ -37,14 +36,15 @@ module wall_tracer #(
   // Interface to map ROM:
   output [MAP_WBITS-1:0]  o_map_col,
   output [MAP_HBITS-1:0]  o_map_row,
-  input                   i_map_val,
+  input [1:0]             i_map_val,
 
 `ifdef TRACE_STATE_DEBUG
   output [3:0]            o_state,
 `endif//TRACE_STATE_DEBUG
 
   // Tracing result, per line:
-  output reg              o_side,
+  output reg [1:0]        o_wall,     // Wall ID that we hit (per map).
+  output reg              o_side,     // Light or dark side?
   output reg [10:0]       o_size,     // Wall half-size.
   output reg [5:0]        o_texu,     // Texture 'u' coordinate (i.e. how far along the wall the hit was).
   output reg `F           o_texa,     // Addend for texv coord; actually visualWallDist: equiv to o_size rcp, used for texture scaling.
@@ -145,14 +145,9 @@ module wall_tracer #(
   // Get fractional part [0,1) of where the ray hits the wall,
   // i.e. how far along the individual wall cell the hit occurred,
   // which will then be used to determine the wall texture stripe.
-  //TODO: Surely there's a way to optimise this. For starters, I think we only
-  // need one multiplier, which uses `side` to determine its multiplicand.
-  //NOTE: visualWallDist is also a function of 'side'... can we do any tricks with that?
-  // wire `F2 rayFullHitX = visualWallDist*rayDirX;
-  // wire `F2 rayFullHitY = visualWallDist*rayDirY;
-  // wire `F wallPartial = side
-  //     ? playerX + `FF(rayFullHitX)
-  //     : playerY + `FF(rayFullHitY);
+  //TODO: visualWallDist is also a function of 'side'... can we do any tricks with that?
+  //NOTE: When wallPartial actually gets used, the inputs to the multiplier (hence driving mul_out)
+  // are visualWallDist as the multiplier, with multiplicand being either rayDirX or Y depending on side.
   wire `F wallPartial = `FF(mul_out) + (side ? playerX : playerY);
   wire texu_mirror = side ? ryi : ~rxi;
   //NOTE: The FSM TraceDone step will use a fractional part of
@@ -182,14 +177,19 @@ module wall_tracer #(
   reg `F stepDistY;  // ...may Y direction...
   // ...which are values generated combinationally by the `reciprocal` instances below.
 
+  reg `F visualWallDist;
+  // wire [6:-9] vdist = visualWallDist[6:-9]; // Do we actually need this anymore?
+  // //HACK: Range [6:-9] are enough bits to get the precision and limits we want for distance,
+  // // i.e. UQ7.9 allows distance to have 1/512 precision and range of [0,127).
+
   // Shared reciprocal input source selection; value we want to find the reciprocal of:
-  reg [1:0] rcp_sel; // This muxes between rayDirX, rayDirY, vdist.
+  reg [1:0] rcp_sel; // This muxes between rayDirX, rayDirY, vdist (or visualWallDist).
   //SMELL: We probably don't need a reg for this, because we can go by state instead?
   wire `F rcp_in =
     (rcp_sel==RCP_RDX) ?  rayDirX :
     (rcp_sel==RCP_RDY) ?  rayDirY :
                           visualWallDist;
-                          //{ {PadVdistHi{1'b0}}, vdist, {PadVdistLo{1'b0}} }; //SMELL: Is this necessary or can/should we use visualWallDist directly?
+  //{ {PadVdistHi{1'b0}}, vdist, {PadVdistLo{1'b0}} }; //SMELL: Is this necessary or can/should we use visualWallDist directly?
   // localparam PadVdistHi = `Qm-7;
   // localparam PadVdistLo = `Qn-9;
 
@@ -239,17 +239,10 @@ module wall_tracer #(
   // way to deal with this using wires.
   //TODO: Optimise.
 
-  reg `F visualWallDist;
-  wire [6:-9] vdist = visualWallDist[6:-9]; // Do we actually need this anymore?
-
-  //HACK: Range [6:-9] are enough bits to get the precision and limits we want for distance,
-  // i.e. UQ7.9 allows distance to have 1/512 precision and range of [0,127).
-  //TODO: Explain this, i.e. it's used by a texture mapper to work out scaling.
-  //TODO: Consider replacing with an exponent (floating-point-like) alternative?
-
   // Used to indicate whether X/Y-stepping is the next target:
   wire needStepX = trackDistX < trackDistY; //NOTE: UNSIGNED comparison per def'n of trackX/Ydist.
 
+  reg [1:0] wall;
   reg side;
   reg [3:0] state; //SMELL: Size this according to actual no. of states.
 
@@ -296,6 +289,7 @@ module wall_tracer #(
         texu <= 0;
         rcp_sel <= RCP_RDX; // Reciprocal's data source is initially rayDirX.
         visualWallDist <= 0;
+        wall <= 0;
         // stepDistX <= 0;
         // stepDistY <= 0; //SMELL: Uncomment these?
       `endif//RESET_TO_KNOWN
@@ -337,6 +331,7 @@ module wall_tracer #(
               side <= 1;
             end
           end else begin
+            wall <= i_map_val;
             state <= SizePrep; //TraceHit;
           end
         end
@@ -362,6 +357,7 @@ module wall_tracer #(
           if (hmax) begin
             // line_counter = line_counter + 1; // DEBUG.
             // Upon hmax, present our new result and start the next line.
+            o_wall <= wall;
             o_size <= size;
             o_side <= side;
             o_texu <= texu;
