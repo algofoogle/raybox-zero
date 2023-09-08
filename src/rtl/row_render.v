@@ -10,19 +10,22 @@ module row_render #(
   input wire  [9:0] hpos, // Current horizontal trace position.
   input wire  [5:0] texu, // Texture 'u' coordinate, 0..63
   input wire  [5:0] texv, // Texture 'v' coordinate, 0..63
+  input wire  [5:0] leak, // How far up the wall does the 'floor leak'? 0 is normal (no leak).
+  // input wire        over, //DEBUG: Visualise texture overflow.
   output wire [5:0] rgb,  //NOTE: BBGGRR bit order.
-  output wire hit         // Are we in this row or not?    
+  output wire hit         // Are we in this row or not?
 );
   localparam HALF_SIZE = H_VIEW/2;
   //SMELL: Instead of combo logic, could use a register and check for enter/leave:
   assign hit =
-    (size > HALF_SIZE) ||
-    ((HALF_SIZE-size <= {1'b0,hpos}) && ({1'b0,hpos} <= HALF_SIZE+size));
+    (texv >= leak) & ( // If we are 'leaking' it means the background is visible instead of the texture, up to the 'leak' point. Can be used to fake 'wading'.
+      (size > HALF_SIZE) ||
+      ((HALF_SIZE-size <= {1'b0,hpos}) && ({1'b0,hpos} <= HALF_SIZE+size))
+    );
   //SMELL: For now, just arbitrarily assign a colour based on side. Later, do textures.
 
-  // wire [5:0] texuo = texu-5;
-
   assign rgb =
+    // over ? 6'b00_00_11 : //DEBUG.
     // Fancy colourful XOR pattern:
     wall == 1 ? ({texu[0],side,texu[2],side,texu[4],side} ^ {texv[0],1'b0,texv[2],1'b0,texv[4],1'b0}): // Fancy.
     // Blue bricks:
