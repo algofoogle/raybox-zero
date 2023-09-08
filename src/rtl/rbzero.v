@@ -15,8 +15,10 @@ module rbzero(
   input               i_sclk,
   input               i_mosi,
   input               i_ss_n,
-  // Debug signals:
+  // Debug/demo signals:
   input               i_debug,
+  input               i_inc_px,
+  input               i_inc_py,
   // VGA outputs:
   output wire         hsync_n, vsync_n,
   output wire [5:0]   rgb,
@@ -92,6 +94,8 @@ module rbzero(
     .i_sclk   (i_sclk),
     .i_mosi   (i_mosi),
     .i_ss_n   (i_ss_n),
+    .i_inc_px (i_inc_px),
+    .i_inc_py (i_inc_py),
     .load_if_ready(visible_frame_end),
     .playerX(playerX), .playerY(playerY),
     .facingX(facingX), .facingY(facingY),

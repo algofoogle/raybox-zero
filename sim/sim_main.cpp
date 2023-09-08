@@ -138,6 +138,7 @@ bool          gGuides = false;
 bool          gOverrideVectors = false;
 bool          gSwapMouseXY = false;
 bool          gRotateView = false;
+bool          gEnableSPI = false;
 int           gMouseX, gMouseY;
 double        gMotionMultiplier = 1.0;
 #ifdef WINDOWS
@@ -153,9 +154,12 @@ typedef struct {
   double sf, sv; // Optional vector scaling.
 } float_vectors_t;
 float_vectors_t gView = {
-  13.50, 11.75, // player
-  -1.00,  0.00, // facing
-   0.00, -0.50, // vplane -- Larger magnitude means squashed view (narrower blocks). 0.5625 feels more like Wolf3D.
+  // 13.50, 11.75, // player
+  // -1.00,  0.00, // facing
+  //  0.00, -0.50, // vplane -- Larger magnitude means squashed view (narrower blocks). 0.5625 feels more like Wolf3D.
+  10.203125, 13.871094, // player
+  -0.677734, -0.734375, // facing
+   0.367188, -0.339844, // vplane -- Larger magnitude means squashed view (narrower blocks). 0.5625 feels more like Wolf3D.
    1.00,       // scale facing
    1.00        // scale vplane
 };
@@ -295,6 +299,10 @@ void process_sdl_events() {
           break;
         case SDLK_SPACE:
           TB->pause(!TB->paused);
+          break;
+        case SDLK_e:
+          gEnableSPI = !gEnableSPI;
+          printf("SPI transmissions are %s\n", gEnableSPI ? "ENABLED" : "disabled");
           break;
         case SDLK_g:
           gGuides = !gGuides;
@@ -563,6 +571,8 @@ void handle_control_inputs(bool prepare) {
     TB->m_core->reset     |= keystate[SDL_SCANCODE_R];
     TB->m_core->i_debug   = gLockInputs[LOCK_DEBUG]; // | keystate[SDL_SCANCODE_GRAVE];
     // TB->m_core->show_map  |= keystate[SDL_SCANCODE_TAB ] | gLockInputs[LOCK_MAP];
+    TB->m_core->i_inc_px  = keystate[SDL_SCANCODE_LEFTBRACKET];
+    TB->m_core->i_inc_py  = keystate[SDL_SCANCODE_RIGHTBRACKET];
 
     #ifdef DESIGN_DIRECT_VECTOR_ACCESS
       TB->m_core->moveF     |= keystate[SDL_SCANCODE_W   ] | gLockInputs[LOCK_F];
@@ -935,6 +945,8 @@ int main(int argc, char **argv) {
   // }
   printf("Cold start...\n");
 
+  printf("------ NOTE: SPI transmissions are %s. Press E key to toggle.\n", gEnableSPI ? "ENABLED" : "disabled");
+
   int h = 0;
   int v = 0;
 
@@ -987,7 +999,8 @@ int main(int argc, char **argv) {
 
       bool hsync_stopped = false;
       bool vsync_stopped = false;
-      update_spi_state(); TB->tick();      hsync_stopped |= TB->hsync_stopped();      vsync_stopped |= TB->vsync_stopped();
+      if (gEnableSPI) update_spi_state();
+      TB->tick();      hsync_stopped |= TB->hsync_stopped();      vsync_stopped |= TB->vsync_stopped();
 #ifdef USE_SPEAKER
       TB->examine_condition_met |= TB->m_core->speaker;
 #endif // USE_SPEAKER

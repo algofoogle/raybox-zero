@@ -12,6 +12,7 @@ module pov(
   input clk,
   input reset,
   input i_sclk, i_ss_n, i_mosi, // SPI input.
+  input i_inc_px, i_inc_py, // Demo overrides for incrementing playerX/Y. If either is asserted, SPI loads are masked out and 'ready' is cleared.
   input load_if_ready, // Will go high at the moment that buffered data can go live.
   output `F playerX, playerY, facingX, facingY, vplaneX, vplaneY
 );
@@ -20,19 +21,27 @@ module pov(
 `ifdef QUARTUS
   localparam SCALER = 1<<9; // The vectors below use 9 fractional bits.
   localparam real FSCALER = SCALER;
-  localparam `UQ6_9 playerInitX  = 13.50 * FSCALER;
-  localparam `UQ6_9 playerInitY  = 11.75 * FSCALER;
-  localparam `SQ2_9 facingInitX  = -1.00 * FSCALER;
-  localparam `SQ2_9 facingInitY  =  0.00 * FSCALER;
-  localparam `SQ2_9 vplaneInitX  =  0.00 * FSCALER;
-  localparam `SQ2_9 vplaneInitY  = -0.50 * FSCALER;
+  localparam `UQ6_9 playerInitX  = 10.203125 * FSCALER;
+  localparam `UQ6_9 playerInitY  = 13.871094 * FSCALER;
+  localparam `SQ2_9 facingInitX  = -0.677734 * FSCALER;
+  localparam `SQ2_9 facingInitY  = -0.734375 * FSCALER;
+  localparam `SQ2_9 vplaneInitX  =  0.367188 * FSCALER;
+  localparam `SQ2_9 vplaneInitY  = -0.339844 * FSCALER;
 `else
-  localparam `UQ6_9 playerInitX  = 15'($rtoi(`realF(13.50))); // ...
-  localparam `UQ6_9 playerInitY  = 15'($rtoi(`realF(11.75))); // ...Player is starting in a safe bet; middle of map cell (1,1).
-  localparam `SQ2_9 facingInitX  = 11'($rtoi(`realF(-1.00))); // ...
-  localparam `SQ2_9 facingInitY  = 11'($rtoi(`realF( 0.00))); // ...Player is facing (-1,0)
-  localparam `SQ2_9 vplaneInitX  = 11'($rtoi(`realF( 0.00))); // Viewplane dir is (0,-0.5)
-  localparam `SQ2_9 vplaneInitY  = 11'($rtoi(`realF(-0.50))); // ...makes FOV ~52deg. Too small, but makes maths easy for now.
+  // An interesting starting position for demo purposes:
+  //NOTE: >>1 below is because realF() assumes 10 fractional bits, but we're only using 9:
+  localparam `UQ6_9 playerInitX  = 15'($rtoi(`realF(10.203125))>>1);
+  localparam `UQ6_9 playerInitY  = 15'($rtoi(`realF(13.871094))>>1);
+  localparam `SQ2_9 facingInitX  = 11'($rtoi(`realF(-0.677734))>>1);
+  localparam `SQ2_9 facingInitY  = 11'($rtoi(`realF(-0.734375))>>1);
+  localparam `SQ2_9 vplaneInitX  = 11'($rtoi(`realF( 0.367188))>>1);
+  localparam `SQ2_9 vplaneInitY  = 11'($rtoi(`realF(-0.339844))>>1);
+  // localparam `UQ6_9 playerInitX  = 15'($rtoi(`realF(13.50))>>1); // ...
+  // localparam `UQ6_9 playerInitY  = 15'($rtoi(`realF(11.75))>>1); // ...Player is starting in a safe bet; middle of map cell (1,1).
+  // localparam `SQ2_9 facingInitX  = 11'($rtoi(`realF(-1.00))>>1); // ...
+  // localparam `SQ2_9 facingInitY  = 11'($rtoi(`realF( 0.00))>>1); // ...Player is facing (-1,0)
+  // localparam `SQ2_9 vplaneInitX  = 11'($rtoi(`realF( 0.00))>>1); // Viewplane dir is (0,-0.5)
+  // localparam `SQ2_9 vplaneInitY  = 11'($rtoi(`realF(-0.50))>>1); // ...makes FOV ~52deg. Too small, but makes maths easy for now.
 `endif
 
   reg ready; // Is ready_buffer valid?
@@ -74,6 +83,10 @@ module pov(
   assign vplaneX = { {PadSQ2_9Hi{vplaneRX[1]}}, vplaneRX[0:-9], {PadSQ2_9Lo{1'b0}} };
   assign vplaneY = { {PadSQ2_9Hi{vplaneRY[1]}}, vplaneRY[0:-9], {PadSQ2_9Lo{1'b0}} };
 
+  wire manual_inc       = i_inc_px | i_inc_py;
+  wire apply_manual_inc = load_if_ready & manual_inc;
+  wire do_spi_load      = load_if_ready & ready;
+
   always @(posedge clk) begin
     if (reset) begin
 
@@ -85,19 +98,20 @@ module pov(
 
     end else begin
 
-      if (load_if_ready && ready) begin
+      if (apply_manual_inc) begin
+        // Frame end, and an override is in effect...
+        ready <= 0; // Cancel any existing SPI load.
+        if (i_inc_px) playerRX <= playerRX - 15'b1;
+        if (i_inc_py) playerRY <= playerRY - 15'b1;
+      end else if (do_spi_load) begin
         // Load buffered vectors into live vector registers:
-        {
-          playerRX, playerRY,
-          facingRX, facingRY,
-          vplaneRX, vplaneRY
-        } <= ready_buffer;
+        { playerRX, playerRY,   facingRX, facingRY,   vplaneRX, vplaneRY } <= ready_buffer;
       end
 
       if (spi_done) begin
         // Last bit was clocked in, so copy the whole spi_buffer into our ready_buffer:
         ready_buffer <= spi_buffer;
-        ready <= 1;
+        if (!apply_manual_inc) ready <= 1; // Signal that the ready_buffer is valid, but only if apply_manual_inc isn't happening at the same time.
         spi_done <= 0;
       end else if (ss_active && sclk_rise && spi_frame_end) begin
         // Last bit is being clocked in...
