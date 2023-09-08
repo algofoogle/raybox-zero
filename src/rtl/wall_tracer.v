@@ -32,6 +32,7 @@ module wall_tracer #(
   input                   vsync,  // High: hold FSM in reset. Low; let FSM run.
   input                   hmax,   // High: Present last trace result on o_size and start next line.
   input `F playerX, playerY, facingX, facingY, vplaneX, vplaneY,
+  input [5:0]             otherx, othery,
 
   // Interface to map ROM:
   output [MAP_WBITS-1:0]  o_map_col,
@@ -317,7 +318,11 @@ module wall_tracer #(
         TracePrepY: begin   state <= TraceStep;     trackDistY <= `FF(mul_out); end //NOTE: mul inputs (and hence output) react to 'state'.
 
         TraceStep: begin
-          if (i_map_val==0) begin
+          if (o_map_col == otherx[4:0] && o_map_row == othery[4:0]) begin
+            // Hit the 'other' block.
+            wall <= 0;
+            state <= SizePrep;
+          end else if (i_map_val==0) begin
             //SMELL: Can we explicitly set different states to match which trace/step we're doing?
             if (needStepX) begin
               mapX <= rxi ? mapX+1'b1 : mapX-1'b1;

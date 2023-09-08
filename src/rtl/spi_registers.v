@@ -13,6 +13,7 @@ module spi_registers(
 
   output reg `RGB   sky, floor,
   output reg [5:0]  leak,
+  output reg [5:0]  otherx, othery, // Other map cell
 
   input             load_new // Will go high at the moment that buffered data can go live.
 );
@@ -20,9 +21,10 @@ module spi_registers(
   reg spi_done;
 
   // Value in waiting: | Is value ready to be presented? //
-  reg `RGB  new_sky;    reg got_new_sky;
-  reg `RGB  new_floor;  reg got_new_floor;
-  reg [5:0] new_leak;   reg got_new_leak;
+  reg `RGB    new_sky;    reg got_new_sky;
+  reg `RGB    new_floor;  reg got_new_floor;
+  reg [5:0]   new_leak;   reg got_new_leak;
+  reg [11:0]  new_other;  reg got_new_other; // otherx and othery combined.
   //-------------------|---------------------------------//
 
 
@@ -32,23 +34,28 @@ module spi_registers(
       
       spi_done <= 0;
       // Load default values, and flag that we have no ready values in waiting.
-      sky   <= 6'b01_01_01; got_new_sky   <= 0;
-      floor <= 6'b10_10_10; got_new_floor <= 0;
-      leak  <= 6'd0;        got_new_leak  <= 0;
+      sky     <= 6'b01_01_01; got_new_sky     <= 0;
+      floor   <= 6'b10_10_10; got_new_floor   <= 0;
+      leak    <= 6'd0;        got_new_leak    <= 0;
+
+      otherx  <= 6'd0;        got_new_other   <= 0;
+      othery  <= 6'd0;
 
     end else begin
 
       if (load_new) begin
-        if (got_new_sky   ) begin sky   <= new_sky;   got_new_sky   <= 0; end
-        if (got_new_floor ) begin floor <= new_floor; got_new_floor <= 0; end
-        if (got_new_leak  ) begin leak  <= new_leak;  got_new_leak  <= 0; end
+        if (got_new_sky   ) begin sky             <= new_sky;   got_new_sky     <= 0; end
+        if (got_new_floor ) begin floor           <= new_floor; got_new_floor   <= 0; end
+        if (got_new_leak  ) begin leak            <= new_leak;  got_new_leak    <= 0; end
+        if (got_new_other ) begin {otherx,othery} <= new_other; got_new_other   <= 0; end
       end
 
       if (spi_done) begin
         spi_done <= 0;
-        if (spi_cmd == CMD_SKY  ) begin   new_sky   <= spi_buffer`RGB;  got_new_sky    <= 1;  end
-        if (spi_cmd == CMD_FLOOR) begin   new_floor <= spi_buffer`RGB;  got_new_floor  <= 1;  end
-        if (spi_cmd == CMD_LEAK ) begin   new_leak  <= spi_buffer[5:0]; got_new_leak   <= 1;  end
+        if (spi_cmd == CMD_SKY  ) begin   new_sky   <= spi_buffer`RGB;    got_new_sky   <= 1;   end
+        if (spi_cmd == CMD_FLOOR) begin   new_floor <= spi_buffer`RGB;    got_new_floor <= 1;   end
+        if (spi_cmd == CMD_LEAK ) begin   new_leak  <= spi_buffer[5:0];   got_new_leak  <= 1;   end
+        if (spi_cmd == CMD_OTHER) begin   new_other <= spi_buffer[11:0];  got_new_other <= 1;   end
       end else if (ss_active && sclk_rise && spi_frame_end) begin
         // Last bit is being clocked in...
         spi_done <= 1;
@@ -82,9 +89,10 @@ module spi_registers(
 
   localparam CMD_SKY    = 0;  localparam LEN_SKY    =  6; // Set sky colour (6b data)
   localparam CMD_FLOOR  = 1;  localparam LEN_FLOOR  =  6; // Set floor colour (6b data)
-  localparam CMD_LEAK   = 2;  localparam LEN_LEAK   =  6;
+  localparam CMD_LEAK   = 2;  localparam LEN_LEAK   =  6; // Set floor 'leak' (in texels; 6b data)
+  localparam CMD_OTHER  = 3;  localparam LEN_OTHER  = 12; // Set 'other wall cell' position: X and Y, both 6b each, for a total of 12b.
 
-  localparam SPI_BUFFER_SIZE = 6;
+  localparam SPI_BUFFER_SIZE = 12;
   localparam SPI_BUFFER_LIMIT = SPI_BUFFER_SIZE-1;
 
   localparam SPI_CMD_BITS = 4;
@@ -94,7 +102,8 @@ module spi_registers(
       SPI_CMD_BITS + (
         (spi_cmd == CMD_SKY   ) ? LEN_SKY:
         (spi_cmd == CMD_FLOOR ) ? LEN_FLOOR:
-                                  LEN_LEAK
+        (spi_cmd == CMD_LEAK  ) ? LEN_LEAK:
+                                  LEN_OTHER
       ) - 1
     );
   reg [SPI_CMD_BITS-1:0] spi_cmd;

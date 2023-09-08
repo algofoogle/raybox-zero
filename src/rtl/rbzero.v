@@ -40,8 +40,8 @@ module rbzero(
 
   localparam H_VIEW = 640;
   localparam HALF_SIZE = H_VIEW/2;
-  localparam MAP_WBITS = 4;
-  localparam MAP_HBITS = 4;
+  localparam MAP_WBITS = 5;
+  localparam MAP_HBITS = 5;
 `ifdef USE_MAP_OVERLAY
   localparam MAP_SCALE = 3;
 `endif//USE_MAP_OVERLAY
@@ -128,12 +128,16 @@ module rbzero(
     .sky      (color_sky),
     .floor    (color_floor),
     .leak     (floor_leak),
+    .otherx   (otherx),
+    .othery   (othery),
 
     .load_new (visible_frame_end)
   );
   wire `RGB   color_sky     /* verilator public */;
   wire `RGB   color_floor   /* verilator public */;
   wire [5:0]  floor_leak    /* verilator public */;
+  wire [5:0]  otherx        /* verilator public */;
+  wire [5:0]  othery        /* verilator public */;
 
   // --- Map ROM: ---
   wire [MAP_WBITS-1:0] tracer_map_col;
@@ -226,6 +230,8 @@ module rbzero(
     .playerX(playerX), .playerY(playerY),
     .facingX(facingX), .facingY(facingY),
     .vplaneX(vplaneX), .vplaneY(vplaneY),
+    .otherx   (otherx),
+    .othery   (othery),
     // Map ROM access:
     .o_map_col(tracer_map_col),
     .o_map_row(tracer_map_row),
