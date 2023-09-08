@@ -23,7 +23,8 @@ MAIN_VSOURCES = \
 	src/rtl/row_render.v \
 	src/rtl/lzc.v \
 	src/rtl/reciprocal.v \
-	src/rtl/wall_tracer.v
+	src/rtl/wall_tracer.v \
+	src/rtl/spi_registers.v
 
 # Extra source specific to the simualtion target:
 SIM_VSOURCES = \
