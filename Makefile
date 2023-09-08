@@ -152,7 +152,9 @@ clean_sim: clean sim
 
 clean_sim_random: clean sim_random
 
+csr: clean_sim_random
+
 # This tells make that 'test' and 'clean' are themselves not artefacts to make,
 # but rather tasks to always run:
-.PHONY: test clean sim sim_ones sim_random sim_seed show_results clean_sim clean_sim_random clean_build
+.PHONY: test clean sim sim_ones sim_random sim_seed show_results clean_sim clean_sim_random clean_build csr
 

@@ -24,55 +24,61 @@
 
 
 module wall_tracer #(
-  parameter MAP_WIDTH_BITS = 4,
-  parameter MAP_HEIGHT_BITS = 4
+  parameter MAP_WBITS     = 4,
+  parameter MAP_HBITS     = 4,
+  parameter HALF_SIZE     = 320 // Half the visible screen width.
 ) (
-  input                         clk,
-  input                         reset,  //SMELL: Not used. Should we??
-  input                         vsync,  // High: hold FSM in reset. Low; let FSM run.
-  input                         hmax,   // High: Present last trace result on o_size and start next line.
+  input                   clk,
+  input                   reset,  //SMELL: Not used. Should we??
+  input                   vsync,  // High: hold FSM in reset. Low; let FSM run.
+  input                   hmax,   // High: Present last trace result on o_size and start next line.
   input `F playerX, playerY, facingX, facingY, vplaneX, vplaneY,
 
   // Interface to map ROM:
-  output [MAP_WIDTH_BITS-1:0]   o_map_col,
-  output [MAP_HEIGHT_BITS-1:0]  o_map_row,
-  input                         i_map_val,
+  output [MAP_WBITS-1:0]  o_map_col,
+  output [MAP_HBITS-1:0]  o_map_row,
+  input                   i_map_val,
 
 `ifdef TRACE_STATE_DEBUG
-  output [3:0]                  o_state,
+  output [3:0]            o_state,
 `endif//TRACE_STATE_DEBUG
 
   // Tracing result, per line:
-  output reg                    o_side,
-  output reg [10:0]             o_size // Wall half-size.
+  output reg              o_side,
+  output reg [10:0]       o_size,     // Wall half-size.
+  output reg [5:0]        o_texu,     // Texture 'u' coordinate (i.e. how far along the wall the hit was).
+  output reg `F           o_texa,     // Addend for texv coord; actually visualWallDist: equiv to o_size rcp, used for texture scaling.
+  output reg `F           o_texVinit  // Initial texV (if o_size exceeds screen HALF_SIZE).
 );
 
-  //SMELL: Still need to define the function of 'tex'
+  localparam `F HALF_SIZE_CLIP = HALF_SIZE[19:0]<<2;
 
   // States for getting stepDistX = 1.0/rayDirX:
-  localparam SDXPrep    = 0;
-  localparam SDXWait    = 1;
-  localparam SDXLoad    = 2;
+  localparam SDXPrep      = 0;
+  localparam SDXWait      = 1;
+  localparam SDXLoad      = 2;
 
   // States for getting stepDistY = 1.0/rayDirY:
-  localparam SDYPrep    = 3;
-  localparam SDYWait    = 4;
-  localparam SDYLoad    = 5;
+  localparam SDYPrep      = 3;
+  localparam SDYWait      = 4;
+  localparam SDYLoad      = 5;
 
   // States for main line trace process:
-  localparam TracePrepX = 6;
-  localparam TracePrepY = 8; // Out of order, but doesn't matter.
-  localparam TraceStep  = 7;
-  // localparam TraceTest  = 8;
-  localparam TraceHit   = 9;
+  localparam TracePrepX   = 6;
+  localparam TracePrepY   = 7;
+  localparam TraceStep    = 8;
 
   // States for wall rendered size reciprocal:
-  localparam SizePrep   = 10;
-  localparam SizeWait   = 11;
-  localparam SizeLoad   = 12;
+  localparam SizePrep     = 9;
+  localparam SizeWait     = 10;
+  localparam SizeLoad     = 11;
+
+  // States that share the multiplier, for working out texture coordinates stuff:
+  localparam CalcTexU     = 12;
+  localparam CalcTexVInit = 13;
 
   // Final trace state, where it waits for hmax before presenting the result:
-  localparam TraceDone  = 13;
+  localparam TraceDone    = 15;
 
   // Symbols representing different data sources for the reciprocal:
   localparam [1:0] RCP_RDX    = 2'd0; // rayDirX.
@@ -133,21 +139,24 @@ module wall_tracer #(
   reg `UF trackDistX;
   reg `UF trackDistY;
 
-  // // Get fractional part [0,1) of where the ray hits the wall,
-  // // i.e. how far along the individual wall cell the hit occurred,
-  // // which will then be used to determine the wall texture stripe.
-  // //TODO: Surely there's a way to optimise this. For starters, I think we only
-  // // need one multiplier, which uses `side` to determine its multiplicand.
-  // //NOTE: visualWallDist is also a function of 'side'... can we do any tricks with that?
+  // Holds texture 'u' coordinate value until it needs to be presented at output:
+  reg [5:0] texu;
+
+  // Get fractional part [0,1) of where the ray hits the wall,
+  // i.e. how far along the individual wall cell the hit occurred,
+  // which will then be used to determine the wall texture stripe.
+  //TODO: Surely there's a way to optimise this. For starters, I think we only
+  // need one multiplier, which uses `side` to determine its multiplicand.
+  //NOTE: visualWallDist is also a function of 'side'... can we do any tricks with that?
   // wire `F2 rayFullHitX = visualWallDist*rayDirX;
   // wire `F2 rayFullHitY = visualWallDist*rayDirY;
   // wire `F wallPartial = side
   //     ? playerX + `FF(rayFullHitX)
   //     : playerY + `FF(rayFullHitY);
-  // // Use the wall hit fractional value to determine the wall texture offset
-  // // in the range [0,63]:
-  // assign tex = wallPartial[-1:-6];
-  // wire [5:0] tex; //SMELL: Placeholder for now. Later would form part of the registered traced result outputs.
+  wire `F wallPartial = `FF(mul_out) + (side ? playerX : playerY);
+  wire texu_mirror = side ? ryi : ~rxi;
+  //NOTE: The FSM TraceDone step will use a fractional part of
+  // wallPartial to determine the wall texture offset.
 
   //SMELL: Do these need to be signed? They should only ever be positive, anyway.
   // Get integer player position:
@@ -173,14 +182,17 @@ module wall_tracer #(
   reg `F stepDistY;  // ...may Y direction...
   // ...which are values generated combinationally by the `reciprocal` instances below.
 
-  localparam PadVdistHi = `Qm-7;
-  localparam PadVdistLo = `Qn-9;
   // Shared reciprocal input source selection; value we want to find the reciprocal of:
   reg [1:0] rcp_sel; // This muxes between rayDirX, rayDirY, vdist.
+  //SMELL: We probably don't need a reg for this, because we can go by state instead?
   wire `F rcp_in =
     (rcp_sel==RCP_RDX) ?  rayDirX :
     (rcp_sel==RCP_RDY) ?  rayDirY :
-                          { {PadVdistHi{1'b0}}, vdist, {PadVdistLo{1'b0}} };
+                          visualWallDist;
+                          //{ {PadVdistHi{1'b0}}, vdist, {PadVdistLo{1'b0}} }; //SMELL: Is this necessary or can/should we use visualWallDist directly?
+  // localparam PadVdistHi = `Qm-7;
+  // localparam PadVdistLo = `Qn-9;
+
   wire `F rcp_out; // Output; reciprocal of rcp_in.
   wire    rcp_sat; // These capture the "saturation" (i.e. overflow) state of our reciprocal calculator.
   //NOTE: rcp_sat is not needed currently, but we might use it as we improve the design,
@@ -191,34 +203,44 @@ module wall_tracer #(
     .o_data (rcp_out),
     .o_sat  (rcp_sat)
   );
+  wire [10:0] size = rcp_out[2:-8];
 
   // Generate the initial tracking distances, as a portion of the full
   // step distances, relative to where our player is (fractionally) in the map cell:
   //SMELL: These only need to capture the middle half of the result,
-  // i.e. if we're using Q12.12, our result should still be the [11:-12] bits
+  // e.g. if we're using Q12.12, our result should still be the [11:-12] bits
   // extracted from the product:
-  wire `F mul_in_a = (state==TracePrepX) ? stepDistX : stepDistY;
-  wire `F mul_in_b = (state==TracePrepX) ?  partialX :  partialY;
+  //SMELL: Use a case instead?
+  //NOTE: The input muxes here are reactive to the state in which the RESULT of mul_out is used,
+  // so (for example) we set mul_in_a to stepDistX WHILE state==TracePrepX, because that state will
+  // then directly sample the resulting mul_out value 'within' the TracePrepX state
+  // (or more-accurately, as it leaves that state).
+  wire `F mul_in_a =
+    (state==TracePrepX) ? stepDistX:
+    (state==TracePrepY) ? stepDistY:
+    (state==CalcTexU)   ? ( side ? rayDirX : rayDirY ):
+                          (rcp_out-HALF_SIZE_CLIP); // CalcTexVInit.
+
+  wire `F mul_in_b =
+    (state==TracePrepX) ? partialX:
+    (state==TracePrepY) ? partialY:
+                          visualWallDist; // CalcTexU or CalcTexVInit.
+
   wire `F2 mul_out = mul_in_a * mul_in_b;
   //NOTE: Try making these unsigned, since I think we're always going to be using them for non-negative values.
-  // wire `F2 trackInitX = stepDistX * partialX;
-  // wire `F2 trackInitY = stepDistY * partialY;
-  // //TODO: This could again share 1 multiplier, given a state ID for each of X and Y.
 
   // Map cell we're testing:
   reg `I mapX, mapY;
   // Send the current tested map cell to the map ROM:
-  assign o_map_col = mapX[MAP_WIDTH_BITS-1:0];
-  assign o_map_row = mapY[MAP_HEIGHT_BITS-1:0];
+  assign o_map_col = mapX[MAP_WBITS-1:0];
+  assign o_map_row = mapY[MAP_HBITS-1:0];
   //SMELL: Either mapX/Y or map_col/row seem redundant. However, maybe mapX/Y are defined
   // as full `I range to be compatible with comparisons/assignments? Maybe there's a better
   // way to deal with this using wires.
   //TODO: Optimise.
 
   reg `F visualWallDist;
-  // wire `F visualWallDist = side ? trackDistY-stepDistY : trackDistX-stepDistX;
-  assign vdist = visualWallDist[6:-9]; //HACK:
-  wire [6:-9] vdist;
+  wire [6:-9] vdist = visualWallDist[6:-9]; // Do we actually need this anymore?
 
   //HACK: Range [6:-9] are enough bits to get the precision and limits we want for distance,
   // i.e. UQ7.9 allows distance to have 1/512 precision and range of [0,127).
@@ -237,8 +259,11 @@ module wall_tracer #(
     wire do_reset = vsync;
   `endif//RESET_TO_KNOWN
 
+  // int line_counter; // DEBUG.
+
   always @(posedge clk) begin
     if (do_reset) begin
+      // line_counter = 0; // DEBUG.
       // While VSYNC is asserted, reset FSM to start a new frame.
       state <= SDXPrep;
 
@@ -264,42 +289,38 @@ module wall_tracer #(
         // keep it in case it needs to be reused?
         o_size <= 0;
         o_side <= 0;
+        o_texu <= 0;
+        o_texa <= 0;
+        o_texVinit <= 0;
         side <= 0;
+        texu <= 0;
         rcp_sel <= RCP_RDX; // Reciprocal's data source is initially rayDirX.
         visualWallDist <= 0;
         // stepDistX <= 0;
-        // stepDistY <= 0;
+        // stepDistY <= 0; //SMELL: Uncomment these?
       `endif//RESET_TO_KNOWN
 
     end else begin
       case (state)
 
         // Get stepDistX from rayDirX:
-        SDXPrep: begin  state <= SDXWait;   rcp_sel <= RCP_RDX; end
-        SDXWait: begin  state <= SDXLoad;   end // Do nothing; just wait for reciprocal to settle.
-        SDXLoad: begin  state <= SDYPrep;   stepDistX <= rcp_out; end
+        SDXPrep: begin      state <= SDXWait;       rcp_sel <= RCP_RDX; end
+        SDXWait: begin      state <= SDXLoad;       end // Do nothing; just wait for reciprocal to settle.
+        SDXLoad: begin      state <= SDYPrep;       stepDistX <= rcp_out; end
 
         // Get stepDistY from rayDirY:
-        SDYPrep: begin  state <= SDYWait;   rcp_sel <= RCP_RDY; end
-        SDYWait: begin  state <= SDYLoad;   end // Do nothing; just wait for reciprocal to settle.
-        SDYLoad: begin  state <= TracePrepX; stepDistY <= rcp_out; end
+        SDYPrep: begin      state <= SDYWait;       rcp_sel <= RCP_RDY; end
+        SDYWait: begin      state <= SDYLoad;       end // Do nothing; just wait for reciprocal to settle.
+        SDYLoad: begin      state <= TracePrepX;    stepDistY <= rcp_out; end
 
-        TracePrepX: begin
+        TracePrepX: begin   state <= TracePrepY;    trackDistX <= `FF(mul_out);
+          //NOTE: track init comes from stepDist, comes from rayDir, comes from rayAddend.
           // Get the cell the player's currently in:
           mapX <= playerMapX;
           mapY <= playerMapY;
-
-          //SMELL: Could we get better precision with these trackers, by scaling?
-          trackDistX <= `FF(mul_out);
-          //NOTE: track init comes from stepDist, comes from rayDir, comes from rayAddend.
-
-          state <= TracePrepY;
         end
 
-        TracePrepY: begin
-          trackDistY <= `FF(mul_out); //NOTE: mul inputs (and hence output) react to 'state'.
-          state <= TraceStep;
-        end
+        TracePrepY: begin   state <= TraceStep;     trackDistY <= `FF(mul_out); end //NOTE: mul inputs (and hence output) react to 'state'.
 
         TraceStep: begin
           if (i_map_val==0) begin
@@ -316,31 +337,36 @@ module wall_tracer #(
               side <= 1;
             end
           end else begin
-            state <= TraceHit;
+            state <= SizePrep; //TraceHit;
           end
         end
-        TraceHit: begin
-          // Tracing stops because we hit something.
-          //SMELL: This state is not required.
-          state <= SizePrep;
-        end
-        SizePrep: begin
-          rcp_sel <= RCP_VDIST;
-          state <= SizeWait;
-        end
-        SizeWait: begin
-          state <= SizeLoad;
-        end
-        SizeLoad: begin
-          //SMELL: This state is not required.
-          state <= TraceDone;
-        end
+        // TraceHit: begin
+        //   // Tracing stops because we hit something.
+        //   //SMELL: This state is not required.
+        //   state <= SizePrep;
+        // end
+        SizePrep: begin     state <= SizeWait;      rcp_sel <= RCP_VDIST; end
+        SizeWait: begin     state <= SizeLoad;      end // Do nothing; just wait for reciprocal to settle.
+        SizeLoad: begin     state <= CalcTexU;      end
+        //SMELL: SizeWait and SizeLoad not needed if other states slot in here, meaning rcp_out is not needed until later.
+
+        // Use the wall hit fractional value (6 bits of it) to determine the
+        // wall texture offset in the range [0,63]...
+        // By changing this we could change one axis of texture resolution or tiling.
+        CalcTexU: begin     state <= CalcTexVInit;  texu <= wallPartial[-1:-6] ^ {6{texu_mirror}}; end // wallPartial depends on `FF(mul_out).
+        CalcTexVInit: begin state <= TraceDone;     end // Used by shmul to determine inputs for calculating o_texVinit.
+        //SMELL: Multiplier is not in use after TracePrepX/Y so it doesn't actually need its own state... could be used in parallel, in other states.
+
         TraceDone: begin
           // No more work to do, so hang around in this state waiting for hmax...
           if (hmax) begin
+            // line_counter = line_counter + 1; // DEBUG.
             // Upon hmax, present our new result and start the next line.
-            o_size <= rcp_out[2:-8];
+            o_size <= size;
             o_side <= side;
+            o_texu <= texu;
+            o_texa <= visualWallDist;
+            o_texVinit <= {mul_out[1:-8],10'b0};//`FF(mul_out)<<8;
             // Increment rayAddend:
             rayAddendX <= rayAddendX + vplaneX;
             rayAddendY <= rayAddendY + vplaneY;

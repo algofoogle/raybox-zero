@@ -26,8 +26,8 @@ module rbzero(
 
   localparam H_VIEW = 640;
   localparam HALF_SIZE = H_VIEW/2;
-  localparam MAP_WIDTH_BITS = 4;
-  localparam MAP_HEIGHT_BITS = 4;
+  localparam MAP_WBITS = 4;
+  localparam MAP_HBITS = 4;
   localparam MAP_SCALE = 3;
 
   // --- VGA sync driver: ---
@@ -50,17 +50,28 @@ module rbzero(
   );
 
   // --- Row-level renderer: ---
-  wire wall_en;
-  wire [5:0] wall_rgb;
+  wire        wall_en;              // Asserted for the duration of the textured wall being visible on screen.
+  wire [5:0]  wall_rgb;             // Colour of the current wall pixel being scanned.
+  reg `F      texV;                 // Note big 'V': Fixed-point accumulator for working out texv per pixel. //SMELL: Wasted excess precision.
+  wire `F     texVV = texV + traced_texVinit;
+  wire [5:0]  texv = texVV[8:3];     // At vdist of 1.0, a 64p texture is stretched to 512p, hence texv is 64/512 (>>3) of int(texV).
+  //NOTE: Would it be possible to do primitive texture 'filtering' using 50/50 checker dither for texxture sub-pixels?
   row_render row_render(
     // Inputs:
     .side     (traced_side),
     .size     (traced_size),
+    .texu     (traced_texu),        //SMELL: Need to clamp texu/v so they don't wrap due to fixed-point precision loss.
+    .texv     (texv),               //...for texv, we could simply extend to [6:0] and check bit 6.
     .hpos     (hpos),
     // Outputs:
     .rgb      (wall_rgb),
     .hit      (wall_en)
   );
+  // texV scans the texture 'v' coordinate range with a step size of 'traced_texa'.
+  //NOTE: Because of 'texVV = texV + traced_texVinit' above, texV might be relative to
+  // a positive, 0, or negative starting point as calculated by wall_tracer.
+  //SMELL: Move this into some other module, e.g. row_render?
+  always @(posedge clk) texV <= hmax ? 0 : texV + traced_texa;
 
   // --- Point-Of-View data, i.e. view vectors: ---
   wire `F playerX /* verilator public */;
@@ -83,12 +94,12 @@ module rbzero(
   );
 
   // --- Map ROM: ---
-  wire [MAP_WIDTH_BITS-1:0] tracer_map_col;
-  wire [MAP_HEIGHT_BITS-1:0] tracer_map_row;
+  wire [MAP_WBITS-1:0] tracer_map_col;
+  wire [MAP_HBITS-1:0] tracer_map_row;
   wire tracer_map_val;
   map_rom #(
-    .MAP_WIDTH_BITS(MAP_WIDTH_BITS),
-    .MAP_HEIGHT_BITS(MAP_HEIGHT_BITS)
+    .MAP_WBITS(MAP_WBITS),
+    .MAP_HBITS(MAP_HBITS)
   ) map_rom (
     .i_col(tracer_map_col),
     .i_row(tracer_map_row),
@@ -101,12 +112,12 @@ module rbzero(
   //SMELL: We only want one map ROM instance, but for now this is just a hack to avoid
   // contention when both the tracer and map overlay need to read from the map ROM.
   //@@@ This must be eliminated because it's blatant waste.
-  wire [MAP_WIDTH_BITS-1:0] overlay_map_col;
-  wire [MAP_HEIGHT_BITS-1:0] overlay_map_row;
+  wire [MAP_WBITS-1:0] overlay_map_col;
+  wire [MAP_HBITS-1:0] overlay_map_row;
   wire overlay_map_val;
   map_rom #(
-    .MAP_WIDTH_BITS(MAP_WIDTH_BITS),
-    .MAP_HEIGHT_BITS(MAP_HEIGHT_BITS)
+    .MAP_WBITS(MAP_WBITS),
+    .MAP_HBITS(MAP_HBITS)
   ) map_rom_overlay(
     .i_col(overlay_map_col),
     .i_row(overlay_map_row),
@@ -117,8 +128,8 @@ module rbzero(
   wire [5:0] map_rgb;
   map_overlay #(
     .MAP_SCALE(MAP_SCALE),
-    .MAP_WIDTH_BITS(MAP_WIDTH_BITS),
-    .MAP_HEIGHT_BITS(MAP_HEIGHT_BITS)
+    .MAP_WBITS(MAP_WBITS),
+    .MAP_HBITS(MAP_HBITS)
   ) map_overlay(
     .hpos(hpos), .vpos(vpos),
     .playerX(playerX), .playerY(playerY),
@@ -150,9 +161,13 @@ module rbzero(
   // --- Row-level ray caster/tracer: ---
   wire        traced_side;
   wire [10:0] traced_size;  // Calculated from traced_vdist, in this module.
+  wire [5:0]  traced_texu;  // Texture 'u' coordinate value.
+  wire `F     traced_texa;
+  wire `F     traced_texVinit;
   wall_tracer #(
-    .MAP_WIDTH_BITS(MAP_WIDTH_BITS),
-    .MAP_HEIGHT_BITS(MAP_HEIGHT_BITS)
+    .MAP_WBITS(MAP_WBITS),
+    .MAP_HBITS(MAP_HBITS),
+    .HALF_SIZE(HALF_SIZE)
   ) wall_tracer(
     // Inputs:
     .clk      (clk),
@@ -177,7 +192,10 @@ module rbzero(
     .o_state  (trace_state), //DEBUG.
 `endif//TRACE_STATE_DEBUG
     .o_side   (traced_side),
-    .o_size   (traced_size)
+    .o_size   (traced_size),
+    .o_texu   (traced_texu),
+    .o_texa   (traced_texa),
+    .o_texVinit(traced_texVinit)
   );
 
 `ifdef TRACE_STATE_DEBUG

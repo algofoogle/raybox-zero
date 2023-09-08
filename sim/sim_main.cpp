@@ -38,8 +38,8 @@ using namespace std;
 //#define USE_SPEAKER
 
 //SMELL: These must be set to the same numbers in fixed_point_params.v:
-#define Qm  12
-#define Qn  12
+#define Qm  10
+#define Qn  10
 
 // #define USE_POWER_PINS //NOTE: This is automatically set in the Makefile, now.
 #define INSPECT_INTERNAL //NOTE: This is automatically set in the Makefile, now.
@@ -115,6 +115,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 {
   // char* nothing = "nothing";
   // return main(1, &nothing);
+  SetProcessDPIAware(); // Prevent window scaling, so we get a pixel-perfect SDL display.
   printf("DEBUG: WinMain command-line: '%s'\n", lpCmdLine);
   return main(__argc, __argv); // See: https://stackoverflow.com/a/40107581
   return 0;
@@ -287,9 +288,8 @@ void process_sdl_events() {
             //SMELL: Not implemented. Used to load a known set of vectors.
             break;
           }
-        case SDLK_q:
+        // case SDLK_q:
         case SDLK_ESCAPE:
-          // ESC or Q key pressed, for Quit
           gQuit = true;
           break;
         case SDLK_SPACE:
@@ -774,12 +774,12 @@ void update_spi_state() {
         bits.clear();
         for (int i=0; i<74; ++i) {
           switch (i) {
-            case 0:   v = double2fixed(gView.px           ); p = 17; break;
-            case 15:  v = double2fixed(gView.py           ); p = 17; break;
-            case 30:  v = double2fixed(gView.fx * gView.sf); p = 13; break;
-            case 41:  v = double2fixed(gView.fy * gView.sf); p = 13; break;
-            case 52:  v = double2fixed(gView.vx * gView.sv); p = 13; break;
-            case 63:  v = double2fixed(gView.vy * gView.sv); p = 13; break;
+            case 0:   v = double2fixed(gView.px           ); p = Qn+5; break;
+            case 15:  v = double2fixed(gView.py           ); p = Qn+5; break;
+            case 30:  v = double2fixed(gView.fx * gView.sf); p = Qn+1; break;
+            case 41:  v = double2fixed(gView.fy * gView.sf); p = Qn+1; break;
+            case 52:  v = double2fixed(gView.vx * gView.sv); p = Qn+1; break;
+            case 63:  v = double2fixed(gView.vy * gView.sv); p = Qn+1; break;
           }
           bits.push_back(v & (1<<p));
           --p;
