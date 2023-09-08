@@ -17,7 +17,7 @@ module row_render #(
 
   reg [5:0] wall_texture [0:4095];
 
-  initial $readmemb("src/rtl/blue-wall-bgr222.hex", wall_texture, 0, 1000);
+  initial $readmemb("src/rtl/blue-wall-single-bgr222.mem", wall_texture);
 
   assign hit =
   (
