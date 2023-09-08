@@ -27,7 +27,8 @@ module raybox_zero_de0nano(
 //=======================================================
 
   // K4..K1 external buttons board (K4 is top, K1 is bottom):
-  wire [4:1] K = {gpio1[23], gpio1[21], gpio1[19], gpio1[17]};
+  //NOTE: These buttons are active LOW, so we invert them here to make them active HIGH:
+  wire [4:1] K = ~{gpio1[23], gpio1[21], gpio1[19], gpio1[17]};
 
   reg qr, qg, qb; // Register RGB outputs.
 
@@ -79,7 +80,8 @@ module raybox_zero_de0nano(
   wire [5:0] rgb;
   // Because actual hardware is only using MSB of each colour channel, attenuate that output
   // (i.e. mask it out for some pixels) to create a pattern dither:
-  wire alt = 0; //fr0;
+  reg alt; //fr0;
+  always @(posedge clock_25) if (hpos==0 && vpos==0) alt <= ~alt; // Temporal dithering, i.e. flip patterns on odd frames.
   wire dither_hi = (px0^py0)^alt;
   wire dither_lo = (px0^alt)&(py0^alt);
   wire [1:0] rr = rgb[1:0];
@@ -124,18 +126,26 @@ module raybox_zero_de0nano(
   };
 
   // These are our unsynchronised inputs (i.e. different clock domain):
-  wire i_sclk = pico_gpio[28];
-  wire i_mosi = pico_gpio[27];
-  wire i_ss_n = pico_gpio[26];
+  wire i_sclk     = pico_gpio[28];
+  wire i_mosi     = pico_gpio[27];
+  wire i_ss_n     = pico_gpio[26];
+  wire i_debug    = pico_gpio[22] | K[4];
+  wire i_inc_px   = K[1];
+  wire i_inc_py   = K[2];
+  wire any_reset  = pico_gpio[21] | reset; // Reset can come from syncronised KEY[0] or from PicoDeo GPIO 21.
 
   rbzero game(
     // --- Inputs: ---
     .clk        (clock_25),
-    .reset      (reset),
+    .reset      (any_reset),
     // SPI:
     .i_sclk     (i_sclk),
     .i_mosi     (i_mosi),
     .i_ss_n     (i_ss_n),
+    // Debug/Demo:
+    .i_debug    (i_debug),
+    .i_inc_px   (i_inc_px),
+    .i_inc_py   (i_inc_py),
 
     // --- Outputs: ---
     .hsync_n    (hsync),

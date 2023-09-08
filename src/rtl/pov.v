@@ -21,21 +21,38 @@ module pov(
 `ifdef QUARTUS
   localparam SCALER = 1<<9; // The vectors below use 9 fractional bits.
   localparam real FSCALER = SCALER;
-  localparam `UQ6_9 playerInitX  = 10.203125 * FSCALER;
-  localparam `UQ6_9 playerInitY  = 13.871094 * FSCALER;
-  localparam `SQ2_9 facingInitX  = -0.677734 * FSCALER;
-  localparam `SQ2_9 facingInitY  = -0.734375 * FSCALER;
-  localparam `SQ2_9 vplaneInitX  =  0.367188 * FSCALER;
-  localparam `SQ2_9 vplaneInitY  = -0.339844 * FSCALER;
+  // An interesting starting position for demo purposes:
+  localparam `UQ6_9 playerInitX  = 11.500000 * FSCALER;
+  localparam `UQ6_9 playerInitY  = 10.500000 * FSCALER;
+  localparam `SQ2_9 facingInitX  =  0.720137 * FSCALER;
+  localparam `SQ2_9 facingInitY  = -0.693832 * FSCALER;
+  localparam `SQ2_9 vplaneInitX  =  0.346916 * FSCALER;
+  localparam `SQ2_9 vplaneInitY  =  0.360069 * FSCALER;
+  // // Good forwards/backwards view:
+  // localparam `UQ6_9 playerInitX  = 10.203125 * FSCALER;
+  // localparam `UQ6_9 playerInitY  = 13.871094 * FSCALER;
+  // localparam `SQ2_9 facingInitX  = -0.677734 * FSCALER;
+  // localparam `SQ2_9 facingInitY  = -0.734375 * FSCALER;
+  // localparam `SQ2_9 vplaneInitX  =  0.367188 * FSCALER;
+  // localparam `SQ2_9 vplaneInitY  = -0.339844 * FSCALER;
 `else
   // An interesting starting position for demo purposes:
   //NOTE: >>1 below is because realF() assumes 10 fractional bits, but we're only using 9:
-  localparam `UQ6_9 playerInitX  = 15'($rtoi(`realF(10.203125))>>1);
-  localparam `UQ6_9 playerInitY  = 15'($rtoi(`realF(13.871094))>>1);
-  localparam `SQ2_9 facingInitX  = 11'($rtoi(`realF(-0.677734))>>1);
-  localparam `SQ2_9 facingInitY  = 11'($rtoi(`realF(-0.734375))>>1);
-  localparam `SQ2_9 vplaneInitX  = 11'($rtoi(`realF( 0.367188))>>1);
-  localparam `SQ2_9 vplaneInitY  = 11'($rtoi(`realF(-0.339844))>>1);
+  localparam `UQ6_9 playerInitX  = 15'($rtoi(`realF(11.500000))>>1);
+  localparam `UQ6_9 playerInitY  = 15'($rtoi(`realF(10.500000))>>1);
+  localparam `SQ2_9 facingInitX  = 11'($rtoi(`realF( 0.720137))>>1);
+  localparam `SQ2_9 facingInitY  = 11'($rtoi(`realF(-0.693832))>>1);
+  localparam `SQ2_9 vplaneInitX  = 11'($rtoi(`realF( 0.346916))>>1);
+  localparam `SQ2_9 vplaneInitY  = 11'($rtoi(`realF( 0.360069))>>1);
+
+  // // Good forwards/backwards view:
+  // localparam `UQ6_9 playerInitX  = 15'($rtoi(`realF(10.203125))>>1);
+  // localparam `UQ6_9 playerInitY  = 15'($rtoi(`realF(13.871094))>>1);
+  // localparam `SQ2_9 facingInitX  = 11'($rtoi(`realF(-0.677734))>>1);
+  // localparam `SQ2_9 facingInitY  = 11'($rtoi(`realF(-0.734375))>>1);
+  // localparam `SQ2_9 vplaneInitX  = 11'($rtoi(`realF( 0.367188))>>1);
+  // localparam `SQ2_9 vplaneInitY  = 11'($rtoi(`realF(-0.339844))>>1);
+
   // localparam `UQ6_9 playerInitX  = 15'($rtoi(`realF(13.50))>>1); // ...
   // localparam `UQ6_9 playerInitY  = 15'($rtoi(`realF(11.75))>>1); // ...Player is starting in a safe bet; middle of map cell (1,1).
   // localparam `SQ2_9 facingInitX  = 11'($rtoi(`realF(-1.00))>>1); // ...
