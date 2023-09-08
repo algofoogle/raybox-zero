@@ -5,7 +5,7 @@
 
 //SMELL: These should probably be defined by the target (e.g. TT04 or FPGA) rather than inline here:
 // `define USE_MAP_OVERLAY
-// `define USE_DEBUG_OVERLAY
+`define USE_DEBUG_OVERLAY
 // `define TRACE_STATE_DEBUG  // Trace state is represented visually per each line on-screen.
 
 module rbzero(
@@ -15,6 +15,8 @@ module rbzero(
   input               i_sclk,
   input               i_mosi,
   input               i_ss_n,
+  // Debug signals:
+  input               i_debug,
   // VGA outputs:
   output wire         hsync_n, vsync_n,
   output wire [5:0]   rgb,
@@ -215,7 +217,7 @@ module rbzero(
     .visible  (visible),
 
 `ifdef USE_DEBUG_OVERLAY
-    .debug_en (debug_en), .debug_rgb(debug_rgb),
+    .debug_en (debug_en & i_debug), .debug_rgb(debug_rgb),
 `else//!USE_DEBUG_OVERLAY
     .debug_en (1'b0), .debug_rgb(6'd0),
 `endif//USE_DEBUG_OVERLAY

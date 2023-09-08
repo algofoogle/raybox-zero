@@ -167,6 +167,7 @@ enum {
   LOCK_L,
   LOCK_R,
   LOCK_MAP,
+  LOCK_DEBUG,
   LOCK__MAX
 };
 bool gLockInputs[LOCK__MAX] = {0};
@@ -436,6 +437,8 @@ void process_sdl_events() {
           else {
             // Not in Override Vectors mode; let the design handle motion.
             switch (e.key.keysym.sym) {
+              case SDLK_BACKQUOTE: //NOTE: As a scancode, the backtick is SDL_SCANCODE_GRAVE.
+                gLockInputs[LOCK_DEBUG] ^= 1; break;
 #ifdef DESIGN_DIRECT_VECTOR_ACCESS
               // Toggle map input:
               case SDLK_INSERT: gLockInputs[LOCK_MAP] ^= 1; break;
@@ -558,6 +561,7 @@ void handle_control_inputs(bool prepare) {
 
     // TB->m_core->show_debug = 1;
     TB->m_core->reset     |= keystate[SDL_SCANCODE_R];
+    TB->m_core->i_debug   = gLockInputs[LOCK_DEBUG]; // | keystate[SDL_SCANCODE_GRAVE];
     // TB->m_core->show_map  |= keystate[SDL_SCANCODE_TAB ] | gLockInputs[LOCK_MAP];
 
     #ifdef DESIGN_DIRECT_VECTOR_ACCESS
@@ -1128,7 +1132,8 @@ int main(int argc, char **argv) {
       // s += TB->log_vsync        ? "V" : ".";
       // s += gOverrideVectors     ? "O" : ".";
       // s += TB->examine_mode     ? "X" : ".";
-      s += gLockInputs[LOCK_MAP]? "m" : ".";
+      // s += gLockInputs[LOCK_MAP]? "m" : ".";
+      s += gLockInputs[LOCK_DEBUG]? "D" : ".";
     #ifdef DESIGN_DIRECT_VECTOR_ACCESS
       s += gLockInputs[LOCK_L]  ? "<" : ".";
       s += gLockInputs[LOCK_F]  ? "^" : ".";
