@@ -1,8 +1,11 @@
 # Raybox Zero
 
-While [Raybox] is my main HDL ray caster, this project is an attempt to do a minimalist version that might be able to fit on TT04.
+This project is an attempt to do a minimalist ray caster (Wolf3D-like) VGA renderer in hardware, as a sort of primitive GPU, to be made as part of a community ASIC (silicon chip) via the [Tiny Tapeout] program.
 
-![raybox-zero running in Verilator](doc/raybox-zero-verilator.png)
+![raybox-zero running on both an FPGA and in the software simulator](doc/fpga-vs-sim.jpg)
+
+This is the baby cousin to my main [Raybox] HDL ray caster design, but has other features that are not yet in Raybox.
+
 
 ## Running Verilator simulation on Windows
 
@@ -18,7 +21,15 @@ Other than that, I can run the simulator with:
 make clean_sim
 ```
 
+When it's running, be sure to press the 'E' key to enable SPI control, or else you won't get any keyboard/mouse control over it.
+
+NOTE: You can press the 'O' key to toggle your mouse orientiation to suit this landscape view (i.e. enabling up/down looking), or you can press 'P' to toggle portrait mode, and then use it like a normal 'first person shooter' view -- equivalent to physically turning your VGA monitor on its side.
+
 You can also run `make clean_sim_random` which will start all uninitialised registers/memories with randomised data, but to get the random seed it relies on the 'Windows Time' service, so make sure that is started first.
+
+This is an old screenshot before textures were implemented:
+
+![raybox-zero running in Verilator](doc/raybox-zero-verilator.png)
 
 
 ## Running Verilator simulation on Linux
@@ -37,6 +48,8 @@ Then build and run the simulation with:
 ```bash
 make clean_sim
 ```
+
+NOTE: As described for the Windows version above, be sure to use the 'E', 'O', and 'P' keys!
 
 
 ## Running on 8bitworkshop
@@ -105,13 +118,13 @@ These are some possible pinouts on TT04 or even more-constrained targets:
 *   view vectors (and SPI slave controller)
 *   shared multiplier
 *   debug overlay
+*   external control pins
 
 ### Optional
 
 *   texture SPI RAM master and local memory
-*   external control pins
 *   debugging IO
-*   temporal ordered dither
+*   temporal ordered dither -- done in de0nano wrapper
 
 ## Game ideas
 
@@ -151,3 +164,4 @@ These are some possible pinouts on TT04 or even more-constrained targets:
 
 
 [Raybox]: https://github.com/algofoogle/raybox
+[Tiny Tapeout]: https://tinytapeout.com
