@@ -1,10 +1,15 @@
 # Raybox Zero
 
-This project is an attempt to do a minimalist ray caster (Wolf3D-like) VGA renderer in hardware, as a sort of primitive GPU, to be made as part of a community ASIC (silicon chip) via the [Tiny Tapeout] program.
+This project is an attempt to do a minimalist ray caster (Wolf3D-like) VGA renderer in hardware, as a sort of primitive GPU, to be made as part of a community ASIC (silicon chip) via the [Tiny Tapeout] program. (See [tt04-raybox-zero])
 
 ![raybox-zero running on both an FPGA and in the software simulator](doc/fpga-vs-sim.jpg)
 
 This is the baby cousin to my main [Raybox] HDL ray caster design, but has other features that are not yet in Raybox.
+
+
+## Controlling the design
+
+To find out how to control the hardware implementation of this design, see [tt04-raybox-zero].
 
 
 ## Running Verilator simulation on Windows
@@ -165,3 +170,4 @@ These are some possible pinouts on TT04 or even more-constrained targets:
 
 [Raybox]: https://github.com/algofoogle/raybox
 [Tiny Tapeout]: https://tinytapeout.com
+[tt04-raybox-zero]: https://github.com/algofoogle/tt04-raybox-zero
