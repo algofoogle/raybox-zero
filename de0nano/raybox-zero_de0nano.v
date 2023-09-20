@@ -1,6 +1,10 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
+//NOTE: ONE of the following two DAC options should be defined:
+//`define RGB1_DAC  // Target Anton's original RGB111 VGA DAC adapter with dithering.
+`define RGB3_DAC  // Target Anton's RGB333 VGA DAC adapter.
+
 `define QUARTUS
 
 // Wrapper for raybox_zero module, targeting DE0-Nano board:
@@ -17,37 +21,63 @@ module raybox_zero_de0nano(
   input   [1:0]   gpio1_IN  // GPIO1 input-only pins
 );
 
-//=======================================================
-//  PARAMETER declarations
-//=======================================================
-
-
-//=======================================================
-//  REG/WIRE declarations
-//=======================================================
-
   // K4..K1 external buttons board (K4 is top, K1 is bottom):
   //NOTE: These buttons are active LOW, so we invert them here to make them active HIGH:
   wire [4:1] K = ~{gpio1[23], gpio1[21], gpio1[19], gpio1[17]};
 
-  reg qr, qg, qb; // Register RGB outputs.
+  //SMELL: This is a bad way to do clock dividing.
+  // Can we instead use the built-in FPGA clock divider?
+  reg clock_25; // VGA pixel clock of 25MHz is good enough. 25.175MHz is ideal (640x480x59.94)
+  always @(posedge CLOCK_50) clock_25 <= ~clock_25;
 
-  wire r;
-  wire g;
-  wire b;
-  wire hsync;
-  wire vsync;
-  // wire speaker;
+  // RGB222 outputs directly from the rbzero design:
+  wire [5:0] rgb;
+  // HSYNC and VSYNC out of rbzero design:
+  wire hsync, vsync;  //NOTE: Inverted polarity; LOW during sync.
+  // Pixel X/Y coming from rbzero, really only used if we're doing RGB1_DAC with dithering:
+  wire [9:0] hpos, vpos;
+  wire px0 = hpos[0]; // Bit 0 of VGA pixel X position.
+  wire py0 = vpos[0]; // Bit 0 of VGA pixel Y position.
 
+  // Standard RESET coming from DE0-Nano's KEY0
+  // (but note also 'any_reset' and its relatinoship to PicoDeo):
   wire reset;
-  // wire new_game_n;
-  // wire up_key_n;
-  // wire pause_n;
-  // wire down_key_n;
+  //NOTE: We might not need this metastability avoidance for our simple (and not-time-critical) inputs:
+  stable_sync sync_reset (.clk(clock_25), .d(!KEY[0]), .q(reset));
 
-//=======================================================
-//  Structural coding
-//=======================================================
+`ifdef RGB1_DAC
+  `ifdef RGB3_DAC
+    //SMELL: $error not supported by Quartus unless we use SystemVerilog,
+    // but at least this has the same effect of breaking the build:
+    $error("Don't define RGB1_DAC and RGB3_DAC at the same time!");
+  `endif
+`endif
+
+`ifdef RGB1_DAC
+
+  // Implementation for Anton's older RGB111 VGA DAC adapter with dithering.
+  /*
+  Here's the pinout of the RGB111 DAC board as it applies to the DE0-Nano GPIO1 header:
+    SIL header socket uses only LHS pins:
+              |
+              v
+           |     |     | 
+           +-----+-----+ 
+      GND  | GND |VCCS |  (NC)
+           +-----+-----+ 
+    VSYNC  | io7 | io6 |  (NC)
+           +-----+-----+ 
+    HSYNC  | io5 | io4 |  (NC)
+           +-----+-----+ 
+        B  | io3 | io2 |  (NC)
+           +-----+-----+ 
+        G  | io1 | IN1 |  (NC)
+           +-----+-----+ 
+        R  | io0 | IN0 |  (NC)
+           +-----+-----+ * PIN 1 of DE0-Nano GPIO1 header.
+  */
+  reg qr, qg, qb; // Register RGB outputs.
+  wire r, g, b;
 
   assign gpio1[0] = qr;
   assign gpio1[1] = qg;
@@ -55,32 +85,14 @@ module raybox_zero_de0nano(
 
   assign gpio1[5] = hsync;
   assign gpio1[7] = vsync;
-  // assign gpio1[9] = speaker;  // Sound the speaker on GPIO_19.
-  // assign LED[7]   = speaker;  // Also visualise speaker on LED7.
-
-  //SMELL: This is a bad way to do clock dividing.
-  // Can we instead use the built-in FPGA clock divider?
-  reg clock_25; // VGA pixel clock of 25MHz is good enough. 25.175MHz is ideal (640x480x59.94)
-  always @(posedge CLOCK_50) clock_25 <= ~clock_25;
 
   // Register RGB outputs, to avoid any combo logic propagation quirks
   // (which I don't think we need to worry about for HSYNC, VSYNC, and speaker because skew on those is fine):
-  always @(posedge clock_25) begin
-    {qr, qg, qb} <= {r, g, b};
-  end
+  always @(posedge clock_25) {qr,qg,qb} <= {r,g,b};
 
-  // //NOTE: We might not need this metastability avoidance for our simple (and not-time-critical) inputs:
-  stable_sync sync_reset   (.clk(clock_25), .d(!KEY[0]), .q(reset     ));
-  // stable_sync new_game(.clk(clock_25), .d( KEY[1]), .q(new_game_n));
-  // stable_sync up_key  (.clk(clock_25), .d(   K[4]), .q(up_key_n  ));
-  // stable_sync pause   (.clk(clock_25), .d(   K[3]), .q(pause_n   ));
-  // stable_sync down_key(.clk(clock_25), .d(   K[1]), .q(down_key_n));
-
-
-  wire [5:0] rgb;
-  // Because actual hardware is only using MSB of each colour channel, attenuate that output
+  // Because actual RGB1_DAC hardware is only using MSB of each colour channel, attenuate that output
   // (i.e. mask it out for some pixels) to create a pattern dither:
-  reg alt; //fr0;
+  reg alt;
   always @(posedge clock_25) if (hpos==0 && vpos==0) alt <= ~alt; // Temporal dithering, i.e. flip patterns on odd frames.
   wire dither_hi = (px0^py0)^alt;
   wire dither_lo = (px0^alt)&(py0^alt);
@@ -90,6 +102,70 @@ module raybox_zero_de0nano(
   assign r = (rr==2'b11) ? 1'b1 : (rr==2'b10) ? dither_hi : (rr==2'b01) ? dither_lo : 1'b0;
   assign g = (gg==2'b11) ? 1'b1 : (gg==2'b10) ? dither_hi : (gg==2'b01) ? dither_lo : 1'b0;
   assign b = (bb==2'b11) ? 1'b1 : (bb==2'b10) ? dither_hi : (bb==2'b01) ? dither_lo : 1'b0;
+
+`elsif RGB3_DAC
+
+  // Implementation for Anton's newer RGB333 VGA DAC adapter,
+  // though we only need to use the upper 2 bits of each channel since that's all rbzero gives us.
+  /*
+  Here's the pinout of the RGB333 DAC board as it applies to the DE0-Nano GPIO1 header:
+           |     |     | 
+           +-----+-----+ 
+       G0  |io13 |io12 |  B0
+           +-----+-----+ 
+       G1  |io11 |io10 |  B1
+           +-----+-----+ 
+       G2  | io9 | io8 |  B2
+           +-----+-----+ 
+      GND  | GND |VCCS |  VCC_SYS
+           +-----+-----+ 
+    HSYNC  | io7 | io6 |  (NC)
+           +-----+-----+ 
+    VSYNC  | io5 | io4 |  (NC)
+           +-----+-----+ 
+       R0  | io3 | io2 |  (NC)
+           +-----+-----+ 
+       R1  | io1 | IN1 |  (NC)
+           +-----+-----+ 
+       R2  | io0 | IN0 |  (NC)
+           +-----+-----+ * PIN 1 of DE0-Nano GPIO1 header.
+  NOTE: Compared to RGB1_DAC, HSYNC and VSYNC are swapped.
+  NOTE: NC pins are populated in the header as long pass-through pins so they can be used for other purposes.
+  */
+
+  reg [5:0] qrgb;
+  // Register RGB outputs, to avoid any combo logic propagation quirks
+  // (which I don't think we need to worry about for HSYNC, VSYNC, and speaker because skew on those is fine):
+  always @(posedge clock_25) qrgb <= rgb;
+
+  // Red:
+  assign gpio1[  3] = 1'b0;   // Unused by rbzero; set to 0.
+  assign gpio1[  1] = qrgb[0];
+  assign gpio1[  0] = qrgb[1];
+  // Green:
+  assign gpio1[ 13] = 1'b0;   // Unused by rbzero; set to 0.
+  assign gpio1[ 11] = qrgb[2];
+  assign gpio1[  9] = qrgb[3];
+  // Blue:
+  assign gpio1[ 12] = 1'b0;   // Unused by rbzero; set to 0.
+  assign gpio1[ 10] = qrgb[4];
+  assign gpio1[  8] = qrgb[5];
+  // HSYNC/VSYNC:
+  assign gpio1[  7] = hsync;
+  assign gpio1[  5] = vsync;
+
+  // Just for safety; these are the bidir pins attached to (but not used by) the DAC board:
+  assign gpio1[  2] = 1'bz;
+  assign gpio1[  4] = 1'bz;
+  assign gpio1[  6] = 1'bz;
+
+`else
+
+  //SMELL: $error not supported by Quartus unless we use SystemVerilog,
+  // but at least this has the same effect of breaking the build:
+  $error("Neither RGB1_DAC nor RGB3_DAC have been defined!");
+
+`endif
 
   // Pico to DE0-Nano GPIO mapping: https://github.com/algofoogle/journal/blob/master/0094-2023-06-12.md#pin-mapping-chart
   wire [29:0] pico_gpio = {
@@ -156,12 +232,8 @@ module raybox_zero_de0nano(
     .vpos       (vpos)
   );
 
-  wire [9:0] hpos, vpos;
-  wire px0 = hpos[0]; // Bit 0 of VGA pixel X position.
-  wire py0 = vpos[0]; // Bit 0 of VGA pixel Y position.
-
-
 endmodule
+
 
 // Metastability avoidance; two chained DFFs:
 module stable_sync(

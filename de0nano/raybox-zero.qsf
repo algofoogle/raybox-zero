@@ -224,8 +224,12 @@ set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
 set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
-set_global_assignment -name SDC_FILE raybox-zero.sdc
-set_global_assignment -name VERILOG_FILE raybox-zero_de0nano.v
+
+
+
+set_global_assignment -name VERILOG_FILE ../src/rtl/spi_registers.v
+set_global_assignment -name SDC_FILE "raybox-zero.sdc"
+set_global_assignment -name VERILOG_FILE "raybox-zero_de0nano.v"
 set_global_assignment -name VERILOG_FILE ../src/rtl/debug_overlay.v
 set_global_assignment -name VERILOG_FILE ../src/rtl/fixed_point_params.v
 set_global_assignment -name VERILOG_FILE ../src/rtl/lzc.v
@@ -238,7 +242,4 @@ set_global_assignment -name VERILOG_FILE ../src/rtl/row_render.v
 set_global_assignment -name VERILOG_FILE ../src/rtl/vga_mux.v
 set_global_assignment -name VERILOG_FILE ../src/rtl/vga_sync.v
 set_global_assignment -name VERILOG_FILE ../src/rtl/wall_tracer.v
-
-
-
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
