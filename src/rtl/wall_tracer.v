@@ -52,7 +52,7 @@ module wall_tracer #(
   output reg `F           o_texVinit  // Initial texV (if o_size exceeds screen HALF_SIZE).
 );
 
-  localparam `F HALF_SIZE_CLIP = HALF_SIZE[19:0]<<2;
+  localparam `F HALF_SIZE_CLIP = HALF_SIZE[`QMNI:0]<<(`Qn-8); //SMELL: I can't remember what this shift is for.
 
   // States for getting stepDistX = 1.0/rayDirX:
   localparam SDXPrep      = 0;
@@ -205,6 +205,8 @@ module wall_tracer #(
     .o_sat  (rcp_sat)
   );
   wire [10:0] size = rcp_out[2:-8];
+  //NOTE: size is 11-bit limit of (1/visualWallDist)<<8, or 256/visualWallDist,
+  // hence a visualWallDist of 1 means size is 256, which gets doubled (mirrored) to yield a screen height of 512.
 
   // Generate the initial tracking distances, as a portion of the full
   // step distances, relative to where our player is (fractionally) in the map cell:
@@ -367,7 +369,7 @@ module wall_tracer #(
             o_side <= side;
             o_texu <= texu;
             o_texa <= visualWallDist;
-            o_texVinit <= {mul_out[1:-8],10'b0};//`FF(mul_out)<<8;
+            o_texVinit <= { mul_out[(`Qm-8)-1:-8], {`Qn{1'b0}} };//`FF(mul_out)<<8;
             // Increment rayAddend:
             rayAddendX <= rayAddendX + vplaneX;
             rayAddendY <= rayAddendY + vplaneY;

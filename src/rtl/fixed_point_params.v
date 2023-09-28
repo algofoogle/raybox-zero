@@ -8,10 +8,12 @@
 // It seems the smaller the player step size, the bigger Qm needs to be. Non-power-of-2 steps could make this worse.
 // For instance, with Q12.12, it seems the smallest reliable step quantum is 8, i.e. 8*(2^-12) => 0.001953125.
 // This might be made better if we properly check for reciprocal saturation.
-`define Qm          10                  // Signed. 8 is minimum, else rayAddend overflows.
+//NOTE: Minimum that currently works is Q10.9, but Q10.10 is better:
+`define Qm          10                  // Signed. 9 is minimum: Below 9, texv is broken. Below 8, rayAddend overflows.
 `define Qn          10                  // Currently 9 is lowest possible because of other bit-range maths, but 10+ is recommended.
 `define Qmn         (`Qm+`Qn)
 `define QMI         (`Qm-1)             // Just for convenience; M-1.
+`define QMNI        (`Qmn-1)            // Just for convenience; full bit count -1 for upper vector index.
 //NOTE:
 // DON'T FORGET! When changing `Qm or `Qn, you also need to update the LZCs (inc. `SZ)
 // and the equivalent values in sim_main.cpp if using the sim.

@@ -40,6 +40,8 @@ using namespace std;
 //SMELL: These must be set to the same numbers in fixed_point_params.v:
 #define Qm  10
 #define Qn  10
+//NOTE: Currently these don't have much (or any?) effect over SPI,
+// because the vectors have their own hard-coded ranges.
 
 // #define USE_POWER_PINS //NOTE: This is automatically set in the Makefile, now.
 #define INSPECT_INTERNAL //NOTE: This is automatically set in the Makefile, now.
@@ -139,6 +141,7 @@ bool          gOverrideVectors = false;
 bool          gSwapMouseXY = false;
 bool          gRotateView = false;
 bool          gEnableSPI = false;
+bool          gAnimateRegisters = false; // If true, do funky stuff with sky/floor colour and leak.
 int           gMouseX, gMouseY;
 int           gColorSky = 0;
 int           gColorFloor = 0;
@@ -370,6 +373,10 @@ void process_sdl_events() {
           gSyncLine = true;
           gSyncFrame = true;
           printf("Refreshing every 3 frames\n");
+          break;
+        case SDLK_SLASH:
+          gAnimateRegisters = !gAnimateRegisters;
+          printf("Funky register animation is %s\n", gAnimateRegisters ? "ON" : "off");
           break;
         case SDLK_v:
           TB->log_vsync = !TB->log_vsync;
@@ -772,10 +779,18 @@ void render_text(SDL_Renderer* renderer, TTF_Font* font, int x, int y, string s)
 
 void update_game_state() {
   static int frame = 0;
-  gColorSky   += 3; if (gColorSky>63)   gColorSky   -= 64;
-  gColorFloor += 5; if (gColorFloor>63) gColorFloor -= 64;
-  ++frame;
-  gLeak = 8 + int(8.0 * sin(double(frame)/10.0));
+  if (gAnimateRegisters) {
+    gColorSky   += 3; if (gColorSky>63)   gColorSky   -= 64;
+    // gColorFloor = 0x20;
+    gColorFloor += 5; if (gColorFloor>63) gColorFloor -= 64;
+    ++frame;
+    gLeak = 8 + int(8.0 * sin(double(frame)/10.0));
+  }
+  else {
+    gColorSky   = 0x15; //0b01_01_01;
+    gColorFloor = 0x2A; //0b10_10_10;
+    gLeak       = 0;
+  }
 }
 
 

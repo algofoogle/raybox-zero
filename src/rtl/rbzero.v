@@ -70,7 +70,7 @@ module rbzero(
   wire [5:0]  wall_rgb;             // Colour of the current wall pixel being scanned.
   reg `F      texV;                 // Note big 'V': Fixed-point accumulator for working out texv per pixel. //SMELL: Wasted excess precision.
   wire `F     texVV = texV + traced_texVinit;
-  wire [5:0]  texv = (texVV < 0) ? 6'd0 : texVV[8:3]; // Clamp to 0.
+  wire [5:0]  texv = (texVV < 0) ? 6'd0 : texVV[8:3]; // Clamp to 0. This fixes texture underflow.
   // At vdist of 1.0, a 64p texture is stretched to 512p, hence texv is 64/512 (>>3) of int(texV).
   //NOTE: Would it be possible to do primitive texture 'filtering' using 50/50 checker dither for texxture sub-pixels?
   row_render row_render(
@@ -81,7 +81,6 @@ module rbzero(
     .texu     (traced_texu),        //SMELL: Need to clamp texu/v so they don't wrap due to fixed-point precision loss.
     .texv     (texv),
     .leak     (floor_leak),
-    // .over     (texVV[9]), //DEBUG: texture overflow.
     .hpos     (hpos),
     // Outputs:
     .rgb      (wall_rgb),
