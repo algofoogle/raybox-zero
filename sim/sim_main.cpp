@@ -142,10 +142,12 @@ bool          gSwapMouseXY = false;
 bool          gRotateView = false;
 bool          gEnableSPI = false;
 bool          gAnimateRegisters = false; // If true, do funky stuff with sky/floor colour and leak.
+bool          gInfiniteHeight = false;
 int           gMouseX, gMouseY;
 int           gColorSky = 0;
 int           gColorFloor = 0;
 int           gLeak = 0;
+int           gTexVShift = 0;
 double        gMotionMultiplier = 1.0;
 #ifdef WINDOWS
 bool          gMouseCapture = true;
@@ -378,6 +380,10 @@ void process_sdl_events() {
           gAnimateRegisters = !gAnimateRegisters;
           printf("Funky register animation is %s\n", gAnimateRegisters ? "ON" : "off");
           break;
+        case SDLK_BACKSLASH:
+          gInfiniteHeight = !gInfiniteHeight;
+          printf("Infinite height is %s\n", gInfiniteHeight ? "ON" : "off");
+          break;
         case SDLK_v:
           TB->log_vsync = !TB->log_vsync;
           printf("Logging VSYNC %s\n", TB->log_vsync ? "enabled" : "disabled");
@@ -540,8 +546,15 @@ void recalc_view(const Uint8* k, int mouseX, int mouseY) {
   if (mouseDelta != 0)        rotate_view(-mouse_rotate_speed * double(mouseDelta));
   if (k[SDL_SCANCODE_W]) { gView.px += m * gView.fx;   gView.py += m * gView.fy; }
   if (k[SDL_SCANCODE_S]) { gView.px -= m * gView.fx;   gView.py -= m * gView.fy; }
-  if (k[SDL_SCANCODE_A]) { gView.px -= m * gView.vx;   gView.py -= m * gView.vy; }
-  if (k[SDL_SCANCODE_D]) { gView.px += m * gView.vx;   gView.py += m * gView.vy; }
+  if (gSwapMouseXY) {
+    // A/D slide gTexVShift to create illusion of moving left/right IF using infinite height mode.
+    if (k[SDL_SCANCODE_A]) { gTexVShift -= 1; }
+    if (k[SDL_SCANCODE_D]) { gTexVShift += 1; }
+  }
+  else {
+    if (k[SDL_SCANCODE_A]) { gView.px -= m * gView.vx;   gView.py -= m * gView.vy; }
+    if (k[SDL_SCANCODE_D]) { gView.px += m * gView.vx;   gView.py += m * gView.vy; }
+  }
 }
 
 
@@ -785,6 +798,7 @@ void update_game_state() {
     gColorFloor += 5; if (gColorFloor>63) gColorFloor -= 64;
     ++frame;
     gLeak = 8 + int(8.0 * sin(double(frame)/10.0));
+    // gTexVShift += 1;
   }
   else {
     gColorSky   = 0x15; //0b01_01_01;
@@ -798,6 +812,9 @@ enum {
   CMD_SKY = 0,
   CMD_FLOOR,
   CMD_LEAK,
+  CMD_OTHER,
+  CMD_VSHIFT,
+  CMD_VINF,
   CMD__MAX,
 };
 
@@ -817,7 +834,7 @@ int update_spi_registers_state() {
   static bool frame_end = true;
 
   const int first_register = CMD_SKY;
-  const int last_register = CMD_LEAK;
+  const int last_register = CMD__MAX-1;
 
   static int register_counter = first_register;
 
@@ -856,6 +873,15 @@ int update_spi_registers_state() {
             break;
           case CMD_LEAK:
             push_bits_onto_stack(bits, gLeak, 6);
+            break;
+          case CMD_OTHER:
+            push_bits_onto_stack(bits, 0, 12); // For now, otherX/Y is hard-coded to 0.
+            break;
+          case CMD_VSHIFT:
+            push_bits_onto_stack(bits, gTexVShift, 6);
+            break;
+          case CMD_VINF:
+            push_bits_onto_stack(bits, gInfiniteHeight, 1);
             break;
           default:
             printf("ERROR: Unknown register: %d\n", register_counter);

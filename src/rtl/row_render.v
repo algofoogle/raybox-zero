@@ -10,6 +10,7 @@ module row_render #(
   input wire  [9:0] hpos, // Current horizontal trace position.
   input wire  [5:0] texu, // Texture 'u' coordinate, 0..63
   input wire  [5:0] texv, // Texture 'v' coordinate, 0..63
+  input wire        vinf, // Infinite V mode?
   input wire  [5:0] leak, // How far up the wall does the 'floor leak'? 0 is normal (no leak).
   output wire [5:0] rgb,  //NOTE: BBGGRR bit order.
   output wire hit         // Are we in this row or not?
@@ -17,12 +18,16 @@ module row_render #(
   localparam HALF_SIZE = H_VIEW/2;
   //SMELL: Instead of combo logic, could use a register and check for enter/leave:
   assign hit =
-    (hpos < HALF_SIZE || texv != 6'd0 ) & // Fix texture overflow; i.e. texv can't wrap around to 0 beyond the half-size point.
-    (texv >= leak) & (                    // 'Leaking' means background is visible instead of texture, up to 'leak' point. Can fake 'wading'.
-      (size > HALF_SIZE) ||               // If texture is taller than the screen itself, it's always visible.
-      // 1'b1 || // Infinite wall height.
-      ((HALF_SIZE-size <= {1'b0,hpos}) && ({1'b0,hpos} <= HALF_SIZE+size))
-    );
+    (texv >= leak) &                      // 'Leaking' means background is visible instead of texture, up to 'leak' point. Can fake 'wading'.
+    (vinf | (
+      (hpos < HALF_SIZE || texv != 6'd0 ) & // Fix texture overflow; i.e. texv can't wrap around to 0 beyond the half-size point.
+      (
+        (size > HALF_SIZE) ||               // If texture is taller than the screen itself, it's always visible.
+        // 1'b1 || // Infinite wall height.
+        ((HALF_SIZE-size <= {1'b0,hpos}) && ({1'b0,hpos} <= HALF_SIZE+size))
+      )
+    ));
+
   //SMELL: For now, just arbitrarily assign a colour based on side. Later, do textures.
 
   assign rgb =

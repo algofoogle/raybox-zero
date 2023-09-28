@@ -69,8 +69,13 @@ module rbzero(
   wire        wall_en;              // Asserted for the duration of the textured wall being visible on screen.
   wire [5:0]  wall_rgb;             // Colour of the current wall pixel being scanned.
   reg `F      texV;                 // Note big 'V': Fixed-point accumulator for working out texv per pixel. //SMELL: Wasted excess precision.
-  wire `F     texVV = texV + traced_texVinit;
-  wire [5:0]  texv = (texVV < 0) ? 6'd0 : texVV[8:3]; // Clamp to 0. This fixes texture underflow.
+  wire `F     texVshift = {{(`Qm-9){1'b0}},texv_shift,{(`Qn+3){1'b0}}};
+  wire `F     texVV = texV + traced_texVinit + texVshift; //NOTE: Instead of having this adder, could just use traced_texVinit as the texV hmax reset (though it does make it 'gritty').
+  wire [5:0]  texv =
+    (texVV >= 0 || vinf)
+      ? texVV[8:3]
+      : 6'd0;                       // Clamp to 0 to fix texture underflow.
+
   // At vdist of 1.0, a 64p texture is stretched to 512p, hence texv is 64/512 (>>3) of int(texV).
   //NOTE: Would it be possible to do primitive texture 'filtering' using 50/50 checker dither for texxture sub-pixels?
   row_render row_render(
@@ -80,12 +85,14 @@ module rbzero(
     .size     (traced_size),
     .texu     (traced_texu),        //SMELL: Need to clamp texu/v so they don't wrap due to fixed-point precision loss.
     .texv     (texv),
+    .vinf     (vinf),
     .leak     (floor_leak),
     .hpos     (hpos),
     // Outputs:
     .rgb      (wall_rgb),
     .hit      (wall_en)
   );
+
   // texV scans the texture 'v' coordinate range with a step size of 'traced_texa'.
   //NOTE: Because of 'texVV = texV + traced_texVinit' above, texV might be relative to
   // a positive, 0, or negative starting point as calculated by wall_tracer.
@@ -129,6 +136,8 @@ module rbzero(
     .leak     (floor_leak),
     .otherx   (otherx),
     .othery   (othery),
+    .vshift   (texv_shift),
+    .vinf     (vinf),
 
     .load_new (visible_frame_end)
   );
@@ -137,6 +146,8 @@ module rbzero(
   wire [5:0]  floor_leak    /* verilator public */;
   wire [5:0]  otherx        /* verilator public */;
   wire [5:0]  othery        /* verilator public */;
+  wire [5:0]  texv_shift    /* verilator public */;
+  wire        vinf          /* verilator public */;
 
   // --- Map ROM: ---
   wire [MAP_WBITS-1:0] tracer_map_col;
