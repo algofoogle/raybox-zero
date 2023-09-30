@@ -148,6 +148,7 @@ int           gColorSky = 0;
 int           gColorFloor = 0;
 int           gLeak = 0;
 int           gTexVShift = 0;
+bool          gMouseYTexV = false;
 double        gMotionMultiplier = 1.0;
 #ifdef WINDOWS
 bool          gMouseCapture = true;
@@ -432,6 +433,10 @@ void process_sdl_events() {
           gRotateView = !gRotateView;
           printf("View is%s rotated\n", gRotateView ? "" : " NOT");
           break;
+        case SDLK_y:
+          gMouseYTexV = !gMouseYTexV;
+          printf("Mouse Y controls TexV: %s\n", gMouseYTexV ? "ON" : "off");
+          break;
         case SDLK_f:
           printf("Stepping by 1 frame is not yet implemented!\n");
           break;
@@ -511,7 +516,7 @@ void rotate_view(double a) {
 
 
 
-void recalc_view(const Uint8* k, int mouseX, int mouseY) {
+void recalc_view(const Uint8* k, int mouseX, int mouseY, double t) {
   //SMELL: Actual travel distance should be based on time elapsed, which will require an extra argument.
   const double key_rotate_speed   = 0.01;
   double mouse_rotate_speed = 0.001;
@@ -526,7 +531,7 @@ void recalc_view(const Uint8* k, int mouseX, int mouseY) {
   double m =  slow ?  playerCrawl :
               fast ?  playerRun :
                       playerMove;
-  m *= gMotionMultiplier;
+  m *= gMotionMultiplier * t;
   double r = key_rotate_speed;
   r *= gMotionMultiplier;
   if (slow) {
@@ -546,10 +551,14 @@ void recalc_view(const Uint8* k, int mouseX, int mouseY) {
   if (mouseDelta != 0)        rotate_view(-mouse_rotate_speed * double(mouseDelta));
   if (k[SDL_SCANCODE_W]) { gView.px += m * gView.fx;   gView.py += m * gView.fy; }
   if (k[SDL_SCANCODE_S]) { gView.px -= m * gView.fx;   gView.py -= m * gView.fy; }
+  if (gMouseYTexV) {
+    int delta = gSwapMouseXY ? mouseX : mouseY;
+    gTexVShift += (gSwapMouseXY ? 1 : -1) * delta;
+  }
   if (gSwapMouseXY) {
     // A/D slide gTexVShift to create illusion of moving left/right IF using infinite height mode.
-    if (k[SDL_SCANCODE_A]) { gTexVShift -= 1; }
-    if (k[SDL_SCANCODE_D]) { gTexVShift += 1; }
+    if (k[SDL_SCANCODE_A]) { gTexVShift -= int(10.0*t); }
+    if (k[SDL_SCANCODE_D]) { gTexVShift += int(10.0*t); }
   }
   else {
     if (k[SDL_SCANCODE_A]) { gView.px -= m * gView.vx;   gView.py -= m * gView.vy; }
@@ -559,7 +568,7 @@ void recalc_view(const Uint8* k, int mouseX, int mouseY) {
 
 
 //NOTE: handle_control_inputs is called twice; once with `true` before process_sdl_events, then once after with `false`.
-void handle_control_inputs(bool prepare) {
+void handle_control_inputs(bool prepare, double t) {
   if (prepare) {
     // PREPARE mode: Clear all inputs, so process_sdl_events has a chance to preset MOMENTARY inputs:
     TB->m_core->reset     = 0;
@@ -596,7 +605,7 @@ void handle_control_inputs(bool prepare) {
     // ACTIVE mode: Read the momentary state of all keyboard keys, and add them via `|=` to whatever is already asserted:
     auto keystate = SDL_GetKeyboardState(NULL);
 
-    recalc_view(keystate, mouseX, mouseY);
+    recalc_view(keystate, mouseX, mouseY, t);
 
     // TB->m_core->show_debug = 1;
     TB->m_core->reset     |= keystate[SDL_SCANCODE_R];
@@ -878,7 +887,7 @@ int update_spi_registers_state() {
             push_bits_onto_stack(bits, 0, 12); // For now, otherX/Y is hard-coded to 0.
             break;
           case CMD_VSHIFT:
-            push_bits_onto_stack(bits, gTexVShift, 6);
+            push_bits_onto_stack(bits, gTexVShift / 10, 6);
             break;
           case CMD_VINF:
             push_bits_onto_stack(bits, gInfiniteHeight, 1);
@@ -1145,7 +1154,8 @@ int main(int argc, char **argv) {
 
   gOriginalTime = gPrevTime = SDL_GetTicks();
   gPrevTickCount = TB->m_tickcount; // Used for measuring simulated clock speed.
-  gPrevFrames = 0;
+  gPrevFrames = 0; // Used for calculating frame rate.
+  Uint32 last_time = SDL_GetTicks(); // Used for calculating motion.
 
   bool count_hbp = false;
   int hbp_counter = 0; // Counter for timing the HBP (i.e. time after HSP, but before HDA).
@@ -1157,7 +1167,7 @@ int main(int argc, char **argv) {
     if (TB->done()) gQuit = true;
     if (TB->paused) SDL_WaitEvent(NULL); // If we're paused, an event is needed before we could resume.
 
-    handle_control_inputs(true); // true = PREPARE mode; set default signal inputs, so process_sdl_events can OPTIONALLY override.
+    handle_control_inputs(true, 0); // true = PREPARE mode; set default signal inputs, so process_sdl_events can OPTIONALLY override.
     //SMELL: Should we do handle_control_inputs(true) only when we detect the start of a new frame,
     // so as to preserve/capture any keys that were pressed across *partial* refreshes?
     process_sdl_events();
@@ -1165,7 +1175,9 @@ int main(int argc, char **argv) {
     if (TB->paused) continue;
 
     int old_reset = TB->m_core->reset;
-    handle_control_inputs(false); // false = ACTIVE mode; add in actual HID=>signal input changes.
+    int time_delta = SDL_GetTicks() - last_time;
+    last_time = SDL_GetTicks();
+    handle_control_inputs(false, (double(time_delta)/1000.0)*60.0); // false = ACTIVE mode; add in actual HID=>signal input changes.
     update_game_state();
     if (old_reset != TB->m_core->reset) {
       // Reset state changed, so we probably need to resync:
@@ -1197,11 +1209,6 @@ int main(int argc, char **argv) {
         hits = update_spi_registers_state();
       }
       TB->tick();      hsync_stopped |= TB->hsync_stopped();      vsync_stopped |= TB->vsync_stopped();
-
-      // if (TB->m_core->DESIGN->color_sky == 0x36 && hits <84000) {
-      //   printf("========================= HITS:%d\n", hits);
-      //   throw std::invalid_argument("BORK");
-      // }
 
 #ifdef USE_SPEAKER
       TB->examine_condition_met |= TB->m_core->speaker;
