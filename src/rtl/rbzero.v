@@ -12,14 +12,19 @@
 module rbzero(
   input               clk,
   input               reset,
-  // SPI interface for updating vectors:
+  // SPI slave for updating vectors:
   input               i_sclk,
   input               i_mosi,
   input               i_ss_n,
-  // SPI interface for everything else:
+  // SPI slave for everything else:
+  input               i_reg_ss_n, // aka /CS, aka csb.
   input               i_reg_sclk,
   input               i_reg_mosi,
-  input               i_reg_ss_n,
+  // SPI master for reading external flash ROM (e.g. texture data):
+  output              o_tex_csb, // aka /CS
+  output              o_tex_sclk,
+  output              o_tex_mosi,
+  input               i_tex_miso,
   // Debug/demo signals:
   input               i_debug,
   input               i_inc_px,
@@ -38,12 +43,12 @@ module rbzero(
   output wire [9:0]   vpos
 );
 
-  localparam H_VIEW = 640;
-  localparam HALF_SIZE = H_VIEW/2;
-  localparam MAP_WBITS = 5;
-  localparam MAP_HBITS = 5;
+  localparam [9:0]  H_VIEW    = 640;
+  localparam        HALF_SIZE = H_VIEW/2;
+  localparam        MAP_WBITS = 5;
+  localparam        MAP_HBITS = 5;
 `ifdef USE_MAP_OVERLAY
-  localparam MAP_SCALE = 3;
+  localparam        MAP_SCALE = 3;
 `endif//USE_MAP_OVERLAY
 
   // --- VGA sync driver: ---
@@ -89,15 +94,107 @@ module rbzero(
     .leak     (floor_leak),
     .hpos     (hpos),
     // Outputs:
-    .rgb      (wall_rgb),
+    // .rgb      (wall_rgb),
     .hit      (wall_en)
   );
+
+  // Texture pixel colour comes from looking up within the 'g1' buffer we loaded
+  // during the Texture SPI read sequence...
+  assign wall_rgb = {2'b00, {g1[texv],traced_side}, 2'b00};
+
+  //SMELL: Put the following into another module, or move it into row_render?
+  // Load the next line's wall slice texture via SPI.
+  // This assumes that by the time the SPI sequence starts, the wall slice address
+  // is already known, i.e. wall_tracer has determined traced_wall/side/texu,
+  // and they're all stable for the remainder of the line...
+  wire [1:0] shifted_wall_id = traced_wall-1;
+  wire [8:0] wall_slice_address = {shifted_wall_id, traced_side, traced_texu};
+  //NOTE: Wall slice address, when used to form the SPI address, is actually
+  // shifted left 3 bits, i.e. 8-byte-aligned, i.e. 64 pixels.
+  localparam [9:0] TSPI_CMD_LEN         = 8;  // Num bits to send for SPI command.
+  localparam [9:0] TSPI_ADDR_LEN        = 24; // Num bits to send for SPI address.
+  localparam [9:0] TSPI_PREAMBLE_LEN    = TSPI_CMD_LEN + TSPI_ADDR_LEN; // Combined CMD+ADDR bit length.
+  localparam [9:0] TSPI_READ_LEN        = 64; // For now: 64 bits, for 64 1-bit pixels.
+  localparam [9:0] TSPI_STREAM_LEN      = TSPI_PREAMBLE_LEN + TSPI_READ_LEN; // Total SCLK cycles for full stream.
+  localparam [9:0] TSPI_HPOS_READ_START = H_VIEW - TSPI_PREAMBLE_LEN; // hpos value when we can start SPI stream.
+  localparam [9:0] TSPI_HPOS_READ_STOP  = TSPI_HPOS_READ_START + TSPI_STREAM_LEN; // hpos value when SPI stream ends.
+  reg [TSPI_READ_LEN-1:0] g1;
+  // Inverted clk directly drives texture SPI SCLK at full speed, continuously:
+  assign o_tex_sclk = ~clk;
+  // Why inverted? Because this allows us to set up MOSI on rising clk edge,
+  // then it's stable when spi_sclk would subsequently rise to clock that MOSI
+  // bit into the SPI chip.
+  //
+  // Texture SPI states follow hpos, with an offset based on line end:
+  wire [9:0] tspi_state = hpos - TSPI_HPOS_READ_START;
+  // Texture SPI chip is ON for the whole duration of our SPI read stream:
+  assign o_tex_csb = ~(tspi_state < TSPI_STREAM_LEN); // Active LOW.
+  // This screen-time range is when MISO is presenting data, and we store it:
+  wire tspi_data_present = (tspi_state >= TSPI_PREAMBLE_LEN && tspi_state < TSPI_STREAM_LEN); //(hpos >= TSPI_HPOS_READ_START && hpos < TSPI_HPOS_READ_STOP);
+  //NOTE: Could/should we instead use 'tspi_state' instead of hpos comparison, above?
+  //NOTE: BEWARE: Below, posedge of SPI_SCLK (not clk) is used, because this is where MISO output is stable...
+  always @(posedge o_tex_sclk) begin
+    if (tspi_data_present) begin
+      // Bits are streaming out via MISO, so shift them into our buffer:
+      g1 <= {g1[TSPI_READ_LEN-2:0], i_tex_miso};
+    end
+  end
+  // This is a simple way to work out what data to present at MOSI during the
+  // SPI preamble:
+  assign o_tex_mosi =
+    (tspi_state== 6 || tspi_state== 7)      // CMD[1:0] is 'b11.
+      ? 1'b1:
+    (tspi_state>=20 && tspi_state<=28)      // ADDR[11:3] is wsa[8:0].
+      ? wall_slice_address[28-tspi_state]:
+    1'b0;                                   // 0 for all other preamble bits
+                                            // and beyond.
+  // The above combo logic for o_tex_csb and o_tex_mosi gives us the following output
+  // for each 'state':
+  //
+  // | state    | o_tex_csb| o_tex_mosi| note                             |
+  // |---------:|---------:|---------:|:----------------------------------|
+  // | (n)      | 1        | 0        | (any state not otherwise covered) |
+  // |  0       | 0        | 0        | CMD[7]; chip ON                   |
+  // |  1       | 0        | 0        | CMD[6]                            |
+  // |  2       | 0        | 0        | CMD[5]                            |
+  // |  3       | 0        | 0        | CMD[4]                            |
+  // |  4       | 0        | 0        | CMD[3]                            |
+  // |  5       | 0        | 0        | CMD[2]                            |
+  // |  6       | 0        | 1        | CMD[1]                            |
+  // |  7       | 0        | 1        | CMD[0] => CMD 03h (READ) loaded.  |
+  // |  8       | 0        | 0        | ADDR[23]                          |
+  // |  9       | 0        | 0        | ADDR[22]                          |
+  // | 10       | 0        | 0        | ADDR[21]                          |
+  // | 11       | 0        | 0        | ADDR[20]                          |
+  // | 12       | 0        | 0        | ADDR[19]                          |
+  // | 13       | 0        | 0        | ADDR[18]                          |
+  // | 14       | 0        | 0        | ADDR[17]                          |
+  // | 15       | 0        | 0        | ADDR[16]                          |
+  // | 16       | 0        | 0        | ADDR[15]                          |
+  // | 17       | 0        | 0        | ADDR[14]                          |
+  // | 18       | 0        | 0        | ADDR[13]                          |
+  // | 19       | 0        | 0        | ADDR[12]                          |
+  // | 20       | 0        | wsa[8]   | ADDR[11]                          |
+  // | 21       | 0        | wsa[7]   | ADDR[10]                          |
+  // | 22       | 0        | wsa[6]   | ADDR[9]                           |
+  // | 23       | 0        | wsa[5]   | ADDR[8]                           |
+  // | 24       | 0        | wsa[4]   | ADDR[7]                           |
+  // | 25       | 0        | wsa[3]   | ADDR[6]                           |
+  // | 26       | 0        | wsa[2]   | ADDR[5]                           |
+  // | 27       | 0        | wsa[1]   | ADDR[4]                           |
+  // | 28       | 0        | wsa[0]   | ADDR[3]                           |
+  // | 29       | 0        | 0        | ADDR[2]                           |
+  // | 30       | 0        | 0        | ADDR[1]                           |
+  // | 31       | 0        | 0        | ADDR[0]                           |
+  // | 32..95   | 0        | 0        | (64 states) MOSI=dummy, MISO=read bit |
+  // | 96       | 1        | 0        | Chip OFF                          |
+
 
   // texV scans the texture 'v' coordinate range with a step size of 'traced_texa'.
   //NOTE: Because of 'texVV = texV + traced_texVinit' above, texV might be relative to
   // a positive, 0, or negative starting point as calculated by wall_tracer.
   //SMELL: Move this into some other module, e.g. row_render?
-  always @(posedge clk) texV <= (hmax ? 0 : texV + traced_texa);
+  always @(posedge clk) texV <= (hmax ? 20'd0 : texV + traced_texa);
 
   // --- Point-Of-View data, i.e. view vectors: ---
   wire `F playerX /* verilator public */;

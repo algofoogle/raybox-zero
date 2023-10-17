@@ -13,7 +13,8 @@ module debug_overlay #(
   output [5:0] debug_rgb
 );
   // 'h' is hpos offset to coordinates relative to the top-left corner of the debug overlay:
-  wire signed [10:0] h = {1'b0,hpos} - (H_VIEW - (1<<DEBUG_SCALE)*(`Qm+`Qn) - 1);
+  localparam [10:0] DEBUG_OVERLAY_HPOS_START = (H_VIEW - (1<<DEBUG_SCALE)*(`Qm+`Qn) - 1);
+  wire signed [10:0] h = {1'b0,hpos} - DEBUG_OVERLAY_HPOS_START;
   wire [9:0] v = vpos; // Just for convenience.
 
   // Are we in the region where the debug overlay displays?

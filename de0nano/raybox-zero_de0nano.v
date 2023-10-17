@@ -30,14 +30,18 @@ module raybox_zero_de0nano(
   reg clock_25; // VGA pixel clock of 25MHz is good enough. 25.175MHz is ideal (640x480x59.94)
   always @(posedge CLOCK_50) clock_25 <= ~clock_25;
 
+  // LEDs just show that we're alive:
+  assign LED[0] = ~hsync;
+  assign LED[1] = ~vsync;
+  assign LED[3:2] = 0;
+  assign LED[7:4] = 4'b1111;
+
   // RGB222 outputs directly from the rbzero design:
   wire [5:0] rgb;
   // HSYNC and VSYNC out of rbzero design:
   wire hsync, vsync;  //NOTE: Inverted polarity; LOW during sync.
   // Pixel X/Y coming from rbzero, really only used if we're doing RGB1_DAC with dithering:
   wire [9:0] hpos, vpos;
-  wire px0 = hpos[0]; // Bit 0 of VGA pixel X position.
-  wire py0 = vpos[0]; // Bit 0 of VGA pixel Y position.
 
   // Standard RESET coming from DE0-Nano's KEY0
   // (but note also 'any_reset' and its relatinoship to PicoDeo):
@@ -208,7 +212,14 @@ module raybox_zero_de0nano(
   wire i_debug    = pico_gpio[22] | K[4];
   wire i_inc_px   = K[1];
   wire i_inc_py   = K[2];
-  wire any_reset  = pico_gpio[21] | reset; // Reset can come from syncronised KEY[0] or from PicoDeo GPIO 21.
+  wire any_reset  = pico_gpio[21] | reset; // Reset can come from synchronised KEY[0] or from PicoDeo GPIO 21.
+
+  // My Texture SPI flash ROM is wired up to my DE0-Nano as follows:
+  wire o_tex_csb, o_tex_sclk, o_tex_mosi, i_tex_miso;
+  assign gpio1[33] = o_tex_sclk;
+  assign gpio1[31] = o_tex_csb;
+  assign gpio1[29] = o_tex_mosi;
+  assign i_tex_miso  = gpio1[27];
 
   rbzero game(
     // --- Inputs: ---
@@ -218,6 +229,14 @@ module raybox_zero_de0nano(
     .i_sclk     (i_sclk),
     .i_mosi     (i_mosi),
     .i_ss_n     (i_ss_n),
+    //SMELL: i_reg_* SPI is not connected!!!
+
+    // Texture SPI flash ROM:
+    .o_tex_csb  (o_tex_csb),
+    .o_tex_sclk (o_tex_sclk),
+    .o_tex_mosi (o_tex_mosi),
+    .i_tex_miso (i_tex_miso),
+
     // Debug/Demo:
     .i_debug    (i_debug),
     .i_inc_px   (i_inc_px),

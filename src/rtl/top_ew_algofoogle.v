@@ -95,6 +95,9 @@ module top_ew_algofoogle(
         rbzero_rgb_out[1:0], 6'b0   // Red
     };
 
+    // For now, just use single SPI instead of Quad SPI:
+    assign tex_oeb = 4'b1110;   // Just io0 (MOSI) is output for now.
+
     rbzero rbzero(
         .clk        (rbzero_clk),
         .reset      (rbzero_reset),
@@ -106,6 +109,11 @@ module top_ew_algofoogle(
         .i_reg_sclk (reg_csb),
         .i_reg_mosi (reg_sclk),
         .i_reg_ss_n (reg_mosi),
+        // SPI slave interface for reading SPI flash memory (i.e. textures):
+        .o_tex_csb  (tex_csb),
+        .o_tex_sclk (tex_sclk),
+        .o_tex_mosi (tex_out[0]),   // Might change when we implement QSPI.
+        .i_tex_miso (tex_in[1]),    // Might change when we implement QSPI.
         // Debug/demo signals:
         .i_debug    (rbzero_show_debug_overlays),
         .i_inc_px   (mode[0]),

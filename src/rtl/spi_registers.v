@@ -137,11 +137,11 @@ module spi_registers(
       // SPI is active, and we've got a rising SCLK edge, so this is a bit being clocked in:
       if (spi_counter < SPI_CMD_BITS) begin
         // Receiving a command.
-        spi_counter <= spi_counter + 1;
+        spi_counter <= spi_counter + 1'd1;
         spi_cmd <= {spi_cmd[SPI_CMD_BITS-2:0], mosi};
       end else begin
         // Receiving the data that goes along with the command.
-        spi_counter <= spi_frame_end ? 0 : (spi_counter + 1);
+        spi_counter <= spi_frame_end ? 7'd0 : (spi_counter + 1'd1);
         spi_buffer <= {spi_buffer[SPI_BUFFER_LIMIT-1:0], mosi};
       end
     end

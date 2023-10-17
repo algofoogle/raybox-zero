@@ -172,7 +172,7 @@ module pov(
       // We detected a SCLK rising edge, while /SS is asserted, so this means we're clocking in a bit...
       // SPI bit stream counter wraps around after the expected number of bits, so that the master can
       // theoretically keep sending frames while /SS is asserted.
-      spi_counter <= spi_frame_end ? 0 : (spi_counter + 1);
+      spi_counter <= spi_frame_end ? 7'd0 : (spi_counter + 1'd1);
       spi_buffer <= {spi_buffer[finalBit-1:0], mosi};
     end
   end
