@@ -109,7 +109,7 @@ module top_ew_algofoogle(
         // Debug/demo signals:
         .i_debug    (rbzero_show_debug_overlays),
         .i_inc_px   (mode[0]),
-        .i_inc_px   (mode[1]),
+        .i_inc_py   (mode[1]),
         // VGA outputs:
         .hsync_n    (hsync_n),
         .vsync_n    (vsync_n),
