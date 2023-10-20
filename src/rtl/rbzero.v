@@ -100,7 +100,7 @@ module rbzero(
 
   // Texture pixel colour comes from looking up within the 'g1' buffer we loaded
   // during the Texture SPI read sequence...
-  assign wall_rgb = {2'b00, {g1[texv],traced_side}, 2'b00};
+  assign wall_rgb = {2'b00, {g1[texv],~traced_side}, 2'b00};
 
   //SMELL: Put the following into another module, or move it into row_render?
   // Load the next line's wall slice texture via SPI.
@@ -136,7 +136,7 @@ module rbzero(
   always @(posedge o_tex_sclk) begin
     if (tspi_data_present) begin
       // Bits are streaming out via MISO, so shift them into our buffer:
-      g1 <= {g1[TSPI_READ_LEN-2:0], i_tex_miso};
+      g1 <= {i_tex_miso, g1[TSPI_READ_LEN-1:1]};
     end
   end
   // This is a simple way to work out what data to present at MOSI during the
