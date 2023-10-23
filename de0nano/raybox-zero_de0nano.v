@@ -23,10 +23,10 @@ module raybox_zero_de0nano(
 
   // K4..K1 external buttons board (K4 is top, K1 is bottom):
   //NOTE: These buttons are active LOW, so we invert them here to make them active HIGH:
-  wire [4:1] K = ~{gpio1[23], gpio1[21], gpio1[19], gpio1[17]};
+  wire [4:1] K = ~{gpio1[22], gpio1[21], gpio1[19], gpio1[17]};
 
   //SMELL: This is a bad way to do clock dividing.
-  // Can we instead use the built-in FPGA clock divider?
+  // Can we instead use the built-in FPGA PLL?
   reg clock_25; // VGA pixel clock of 25MHz is good enough. 25.175MHz is ideal (640x480x59.94)
   always @(posedge CLOCK_50) clock_25 <= ~clock_25;
 
@@ -44,7 +44,7 @@ module raybox_zero_de0nano(
   wire [9:0] hpos, vpos;
 
   // Standard RESET coming from DE0-Nano's KEY0
-  // (but note also 'any_reset' and its relatinoship to PicoDeo):
+  // (but note also 'any_reset' and its relationship to PicoDeo):
   wire reset;
   //NOTE: We might not need this metastability avoidance for our simple (and not-time-critical) inputs:
   stable_sync sync_reset (.clk(clock_25), .d(!KEY[0]), .q(reset));
@@ -215,11 +215,47 @@ module raybox_zero_de0nano(
   wire any_reset  = pico_gpio[21] | reset; // Reset can come from synchronised KEY[0] or from PicoDeo GPIO 21.
 
   // My Texture SPI flash ROM is wired up to my DE0-Nano as follows:
+  /*
+
+                           +-----+-----+
+      (ROM pin 6) SCLK  40 |io33 |io32 | 39  N/C
+                           +-----+-----+
+                   N/C  38 |io31 |io30 | 37  io3 (ROM pin 7)
+                           +-----+-----+
+      (ROM pin 3)  io2  36 |io29 |io28 | 35  io0 (ROM pin 5) (MOSI)
+                           +-----+-----+
+                   N/C  34 |io27 |io26 | 33  io1 (ROM pin 2) (MISO)
+                           +-----+-----+
+      (ROM pin 1)  /CS  32 |io25 |io24 | 31  N/C
+                           +-----+-----+
+      (ROM pin 4)  GND  30 | GND |3.3V | 29  VCC (ROM pin 8)
+                           +-----+-----+
+                           |     |     |
+
+  Thus, gpio1 mapping to SPI flash ROM is as follows:
+
+  | gpio1 pin | gpio1[x]  | ROM pin | Function   |
+  |----------:|----------:|--------:|------------|
+  |     29    |    VCC3P3 |       8 | VCC3P3     |
+  |     30    |       GND |       4 | GND        |
+  |     31    | gpio1[24] |   (n/c) |            |
+  |     32    | gpio1[25] |       1 | /CS        |
+  |     33    | gpio1[26] |       2 | io1 (MISO) |
+  |     34    | gpio1[27] |   (n/c) |            |
+  |     35    | gpio1[28] |       5 | io0 (MOSI) |
+  |     36    | gpio1[29] |       3 | io2        |
+  |     37    | gpio1[30] |       7 | io3        |
+  |     38    | gpio1[31] |   (n/c) |            |
+  |     39    | gpio1[32] |   (n/c) |            |
+  |     40    | gpio1[33] |       6 | SCLK       |
+
+  */
+
   wire o_tex_csb, o_tex_sclk, o_tex_mosi, i_tex_miso;
   assign gpio1[33] = o_tex_sclk;
-  assign gpio1[31] = o_tex_csb;
-  assign gpio1[29] = o_tex_mosi;
-  assign i_tex_miso  = gpio1[27];
+  assign gpio1[25] = o_tex_csb;
+  assign gpio1[28] = o_tex_mosi;
+  assign i_tex_miso  = gpio1[26];
 
   rbzero game(
     // --- Inputs: ---
