@@ -258,7 +258,7 @@ module raybox_zero_de0nano(
   assign gpio1[25] = tex_csb;
   assign gpio1[33] = tex_sclk;
   assign gpio1[28] = (tex_oeb0==0) ? tex_out0 : 1'bz; // When oeb0==1, gpio1[28] becomes an input, feeding tex_in[0].
-  assign tex_oeb0 = 0; // FORCED OUTPUT.
+  // assign tex_oeb0 = 0; // FORCED OUTPUT.
 
   rbzero game(
     // --- Inputs: ---
@@ -273,8 +273,9 @@ module raybox_zero_de0nano(
     // Texture SPI flash ROM:
     .o_tex_csb  (tex_csb),
     .o_tex_sclk (tex_sclk),
-    .o_tex_mosi (tex_out0),
-    .i_tex_miso (tex_in[1]),
+    .o_tex_out0 (tex_out0),
+    .o_tex_oeb0 (tex_oeb0),
+    .i_tex_in   (tex_in),
 
     // Debug/Demo:
     .i_debug    (i_debug),
