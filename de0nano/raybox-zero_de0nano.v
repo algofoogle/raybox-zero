@@ -251,11 +251,14 @@ module raybox_zero_de0nano(
 
   */
 
-  wire o_tex_csb, o_tex_sclk, o_tex_mosi, i_tex_miso;
-  assign gpio1[33] = o_tex_sclk;
-  assign gpio1[25] = o_tex_csb;
-  assign gpio1[28] = o_tex_mosi;
-  assign i_tex_miso  = gpio1[26];
+  // Inputs from texture SPI ROM (per quad mode):
+  wire [3:0] tex_in = {gpio1[30], gpio1[29], gpio1[26], gpio1[28]};
+  // Outputs to texture SPI ROM:
+  wire tex_csb, tex_sclk, tex_out0, tex_oeb0;
+  assign gpio1[25] = tex_csb;
+  assign gpio1[33] = tex_sclk;
+  assign gpio1[28] = (tex_oeb0==0) ? tex_out0 : 1'bz; // When oeb0==1, gpio1[28] becomes an input, feeding tex_in[0].
+  assign tex_oeb0 = 0; // FORCED OUTPUT.
 
   rbzero game(
     // --- Inputs: ---
@@ -268,10 +271,10 @@ module raybox_zero_de0nano(
     //SMELL: i_reg_* SPI is not connected!!!
 
     // Texture SPI flash ROM:
-    .o_tex_csb  (o_tex_csb),
-    .o_tex_sclk (o_tex_sclk),
-    .o_tex_mosi (o_tex_mosi),
-    .i_tex_miso (i_tex_miso),
+    .o_tex_csb  (tex_csb),
+    .o_tex_sclk (tex_sclk),
+    .o_tex_mosi (tex_out0),
+    .i_tex_miso (tex_in[1]),
 
     // Debug/Demo:
     .i_debug    (i_debug),
