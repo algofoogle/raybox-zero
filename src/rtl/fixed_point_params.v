@@ -11,6 +11,7 @@
 //NOTE: Minimum that currently works is Q10.9, but Q10.10 is better:
 `define Qm          10                  // Signed. 9 is minimum: Below 9, texv is broken. Below 8, rayAddend overflows.
 `define Qn          10                  // Currently 9 is lowest possible because of other bit-range maths, but 10+ is recommended.
+`define Qmnc        20          // <== MUST EQUAL Qmn+Qn. Sort of the same as `Qmn, but that isn't useful for all my Verilog needs.
 `define Qmn         (`Qm+`Qn)
 `define QMI         (`Qm-1)             // Just for convenience; M-1.
 `define QMNI        (`Qmn-1)            // Just for convenience; full bit count -1 for upper vector index.
@@ -19,7 +20,8 @@
 // and the equivalent values in sim_main.cpp if using the sim.
 
 //SMELL: Base all of these hardcoded numbers on Qm and Qn values:
-`define F           signed [`QMI:-`Qn]  // `Qm-1:0 is M (int), -1:-`Qn is N (frac).
+`define Fn          [`QMI:-`Qn]
+`define F           signed `Fn          // `Qm-1:0 is M (int), -1:-`Qn is N (frac).
 `define FExt        [`Qm+`Qn-1:0]       // Same as F but for external use (i.e. with no negative bit indices, to help OpenLane LVS).
 `define I           signed [`QMI:0]
 `define f           [-1:-`Qn]           //SMELL: Not signed.
@@ -27,7 +29,7 @@
 
 // Unsigned version of `F; same bit depth, but avoids sign comparison;
 // i.e. "negative" numbers compare to be greater than all positive numbers:
-`define UF          unsigned [`QMI:-`Qn]
+`define UF          unsigned `Fn
 
 `define FF(f)       f[`QMI:-`Qn]        // Get full F out of something bigger (e.g. F2).
 `define FI(f)       f[`QMI:0]           // Extract I part from an F.

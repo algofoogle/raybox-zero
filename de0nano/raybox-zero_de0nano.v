@@ -21,14 +21,19 @@ module raybox_zero_de0nano(
   input   [1:0]   gpio1_IN  // GPIO1 input-only pins
 );
 
+  // Quartus-generated PLL module, generating 24MHz clock from system 50MHz source.
+  // This is used as our pixel clock and system clock for the main DUT:
+  // For more info see:
+  // https://github.com/algofoogle/journal/blob/master/0165-2023-10-24.md#quartus-pll
+  wire pixel_clock;
+  pll pll_inst (
+    .inclk0 (CLOCK_50),
+    .c0     (pixel_clock)
+  );
+
   // K4..K1 external buttons board (K4 is top, K1 is bottom):
   //NOTE: These buttons are active LOW, so we invert them here to make them active HIGH:
-  wire [4:1] K = ~{gpio1[23], gpio1[21], gpio1[19], gpio1[17]};
-
-  //SMELL: This is a bad way to do clock dividing.
-  // Can we instead use the built-in FPGA clock divider?
-  reg clock_25; // VGA pixel clock of 25MHz is good enough. 25.175MHz is ideal (640x480x59.94)
-  always @(posedge CLOCK_50) clock_25 <= ~clock_25;
+  wire [4:1] K = ~{gpio1[22], gpio1[21], gpio1[19], gpio1[17]};
 
   // LEDs just show that we're alive:
   assign LED[0] = ~hsync;
@@ -44,10 +49,10 @@ module raybox_zero_de0nano(
   wire [9:0] hpos, vpos;
 
   // Standard RESET coming from DE0-Nano's KEY0
-  // (but note also 'any_reset' and its relatinoship to PicoDeo):
+  // (but note also 'any_reset' and its relationship to PicoDeo):
   wire reset;
   //NOTE: We might not need this metastability avoidance for our simple (and not-time-critical) inputs:
-  stable_sync sync_reset (.clk(clock_25), .d(!KEY[0]), .q(reset));
+  stable_sync sync_reset (.clk(pixel_clock), .d(!KEY[0]), .q(reset));
 
 `ifdef RGB1_DAC
   `ifdef RGB3_DAC
@@ -92,12 +97,12 @@ module raybox_zero_de0nano(
 
   // Register RGB outputs, to avoid any combo logic propagation quirks
   // (which I don't think we need to worry about for HSYNC, VSYNC, and speaker because skew on those is fine):
-  always @(posedge clock_25) {qr,qg,qb} <= {r,g,b};
+  always @(posedge pixel_clock) {qr,qg,qb} <= {r,g,b};
 
   // Because actual RGB1_DAC hardware is only using MSB of each colour channel, attenuate that output
   // (i.e. mask it out for some pixels) to create a pattern dither:
   reg alt;
-  always @(posedge clock_25) if (hpos==0 && vpos==0) alt <= ~alt; // Temporal dithering, i.e. flip patterns on odd frames.
+  always @(posedge pixel_clock) if (hpos==0 && vpos==0) alt <= ~alt; // Temporal dithering, i.e. flip patterns on odd frames.
   wire dither_hi = (px0^py0)^alt;
   wire dither_lo = (px0^alt)&(py0^alt);
   wire [1:0] rr = rgb[1:0];
@@ -140,7 +145,7 @@ module raybox_zero_de0nano(
   reg [5:0] qrgb;
   // Register RGB outputs, to avoid any combo logic propagation quirks
   // (which I don't think we need to worry about for HSYNC, VSYNC, and speaker because skew on those is fine):
-  always @(posedge clock_25) qrgb <= rgb;
+  always @(posedge pixel_clock) qrgb <= rgb;
 
   // Red:
   assign gpio1[  3] = 1'b0;   // Unused by rbzero; set to 0.
@@ -215,15 +220,54 @@ module raybox_zero_de0nano(
   wire any_reset  = pico_gpio[21] | reset; // Reset can come from synchronised KEY[0] or from PicoDeo GPIO 21.
 
   // My Texture SPI flash ROM is wired up to my DE0-Nano as follows:
-  wire o_tex_csb, o_tex_sclk, o_tex_mosi, i_tex_miso;
-  assign gpio1[33] = o_tex_sclk;
-  assign gpio1[31] = o_tex_csb;
-  assign gpio1[29] = o_tex_mosi;
-  assign i_tex_miso  = gpio1[27];
+  /*
+
+                           +-----+-----+
+      (ROM pin 6) SCLK  40 |io33 |io32 | 39  N/C
+                           +-----+-----+
+                   N/C  38 |io31 |io30 | 37  io3 (ROM pin 7)
+                           +-----+-----+
+      (ROM pin 3)  io2  36 |io29 |io28 | 35  io0 (ROM pin 5) (MOSI)
+                           +-----+-----+
+                   N/C  34 |io27 |io26 | 33  io1 (ROM pin 2) (MISO)
+                           +-----+-----+
+      (ROM pin 1)  /CS  32 |io25 |io24 | 31  N/C
+                           +-----+-----+
+      (ROM pin 4)  GND  30 | GND |3.3V | 29  VCC (ROM pin 8)
+                           +-----+-----+
+                           |     |     |
+
+  Thus, gpio1 mapping to SPI flash ROM is as follows:
+
+  | gpio1 pin | gpio1[x]  | ROM pin | Function   |
+  |----------:|----------:|--------:|------------|
+  |     29    |    VCC3P3 |       8 | VCC3P3     |
+  |     30    |       GND |       4 | GND        |
+  |     31    | gpio1[24] |   (n/c) |            |
+  |     32    | gpio1[25] |       1 | /CS        |
+  |     33    | gpio1[26] |       2 | io1 (MISO) |
+  |     34    | gpio1[27] |   (n/c) |            |
+  |     35    | gpio1[28] |       5 | io0 (MOSI) |
+  |     36    | gpio1[29] |       3 | io2        |
+  |     37    | gpio1[30] |       7 | io3        |
+  |     38    | gpio1[31] |   (n/c) |            |
+  |     39    | gpio1[32] |   (n/c) |            |
+  |     40    | gpio1[33] |       6 | SCLK       |
+
+  */
+
+  // Inputs from texture SPI ROM (per quad mode):
+  wire [3:0] tex_in = {gpio1[30], gpio1[29], gpio1[26], gpio1[28]};
+  // Outputs to texture SPI ROM:
+  wire tex_csb, tex_sclk, tex_out0, tex_oeb0;
+  assign gpio1[25] = tex_csb;
+  assign gpio1[33] = tex_sclk;
+  assign gpio1[28] = (tex_oeb0==0) ? tex_out0 : 1'bz; // When oeb0==1, gpio1[28] becomes an input, feeding tex_in[0].
+  // assign tex_oeb0 = 0; // FORCED OUTPUT.
 
   rbzero game(
     // --- Inputs: ---
-    .clk        (clock_25),
+    .clk        (pixel_clock),
     .reset      (any_reset),
     // SPI:
     .i_sclk     (i_sclk),
@@ -232,10 +276,11 @@ module raybox_zero_de0nano(
     //SMELL: i_reg_* SPI is not connected!!!
 
     // Texture SPI flash ROM:
-    .o_tex_csb  (o_tex_csb),
-    .o_tex_sclk (o_tex_sclk),
-    .o_tex_mosi (o_tex_mosi),
-    .i_tex_miso (i_tex_miso),
+    .o_tex_csb  (tex_csb),
+    .o_tex_sclk (tex_sclk),
+    .o_tex_out0 (tex_out0),
+    .o_tex_oeb0 (tex_oeb0),
+    .i_tex_in   (tex_in),
 
     // Debug/Demo:
     .i_debug    (i_debug),
