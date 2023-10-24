@@ -149,7 +149,7 @@ module rbzero(
   wire tspi_data_present = (tspi_state >= TSPI_PREAMBLE_LEN && tspi_state < TSPI_STREAM_LEN);
   //NOTE: BEWARE: Below, posedge of SPI_SCLK (not clk) is used, because this is where MISO output is stable...
   always @(posedge o_tex_sclk) begin
-    if (tspi_data_present) begin
+    if (tspi_data_present && !reset) begin
       // Nibbles are streaming out via io[3:0], so shift them into our buffers...
       //NOTE: i_tex_in[0] is discarded for now.
       if (0==tspi_state[0]) begin
@@ -224,7 +224,7 @@ module rbzero(
   //NOTE: Because of 'texVV = texV + traced_texVinit' above, texV might be relative to
   // a positive, 0, or negative starting point as calculated by wall_tracer.
   //SMELL: Move this into some other module, e.g. row_render?
-  always @(posedge clk) texV <= (hmax ? 20'd0 : texV + traced_texa);
+  always @(posedge clk) if (!reset) texV <= (hmax ? 20'd0 : texV + traced_texa);
 
   // --- Point-Of-View data, i.e. view vectors: ---
   wire `F playerX /* verilator public */;
