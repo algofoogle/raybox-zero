@@ -1,6 +1,18 @@
 # Spec for Anton's design (`top_ew_algofoogle`)
 
+## TL;DR
+
 This is a purely-digital design for now. I hope to still include a very simple analog portion, but can leave it out if I don't finish it soon, or if it otherwise would be trouble for everyone to include.
+
+My design [needs the Caravel SoC](#caravel-management-soc) to run firmware and control *up to* [47 LA pins](#logic-analyser-pins) (inputs into my design).
+
+I think we'll be fine in terms of [clocking](#clocking) and [holding in reset](#reset-lock).
+
+I've worked out my intended pad use for each of:
+*   [If only 9 pads are available to me, in total](#if-only-9-pads-are-available-to-me-in-total)
+*   [If 9 pads available PLUS extra shared/muxed INPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs)
+*   [If 9 pads available PLUS extra shared/muxed INPUTS and OUTPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs-and-outputs)
+
 
 ## Size
 
@@ -57,7 +69,7 @@ My design's top module `i_clk` input port requires a clock of ~25MHz, 50% duty c
 
 ### If 9 pads available PLUS extra shared/muxed INPUTS
 
-Ellen advised that some digital inputs could *maybe* be shared between designs. I could use more *outputs*, so if the possible "shared" digital pads are *inputs* only, the bottom 4 rows capitalise on this to make my only 2 inputs shared with Ellen's. Hence, I can add 2 more outputs (`o_gpout[2]` and `o_gpout[3]`):
+Ellen advised that some digital inputs could *maybe* be shared between designs. I could use more *outputs*, so if the possible "shared" digital pads are *inputs* only, the bottom 5 rows capitalise on this to make my only 2 inputs shared with Ellen's (and add a third). Hence, I can also add 2 more outputs (`o_gpout[2]` and `o_gpout[3]`):
 
 | Pad | Dir   | Top module port        |
 |----:|:-----:|------------------------|
@@ -72,11 +84,12 @@ Ellen advised that some digital inputs could *maybe* be shared between designs. 
 |**9**|**Out**| **`o_gpout[3]`**       |
 |*10* | *In*  | `i_tex_in[1]` **(shared)** |
 |*11* | *In*  | `i_tex_in[2]` **(shared)** |
+|*12* | *In*  | `i_tex_in[3]` **(shared)** |
 
 
 ## If 9 pads available PLUS extra shared/muxed INPUTS and OUTPUTS
 
-Finally, if there happen to be additional pads that can mux OUTPUTS too, I would add `o_gpout[4]` and `o_gpout[5]`:
+Finally, if the *shared* pads could easily mux OUTPUTS as well as INPUTS, I would do the following (adding `o_gpout[4]` and `o_gpout[5]`):
 
 | Pad  | Dir   | Top module port        |
 |-----:|:-----:|------------------------|
