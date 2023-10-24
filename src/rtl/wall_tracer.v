@@ -166,8 +166,8 @@ module wall_tracer #(
   //NOTE: a playerfrac could be 0, in which case the partial must be 1.0 if the rayDir is increasing,
   // or 0 otherwise. playerfrac cannot be 1.0, however, since by definition it is the fractional part
   // of the player position.
-  wire `F partialX = rxi ? `intF(1)-`fF(playerFracX) : `fF(playerFracX); //SMELL: Why does Quartus think these are 32 bits being assigned?
-  wire `F partialY = ryi ? `intF(1)-`fF(playerFracY) : `fF(playerFracY);
+  wire `F partialX = rxi ? `intF(`Qmnc'd1)-`fF(playerFracX) : `fF(playerFracX); //SMELL: Why does Quartus think these are 32 bits being assigned?
+  wire `F partialY = ryi ? `intF(`Qmnc'd1)-`fF(playerFracY) : `fF(playerFracY);
   //SMELL: We're using full `F fixed-point numbers here so we can include the possibility of an integer
   // part because of the 1.0 case, mentioned above. However, we really only need 1 extra bit to support
   // this, if that makes any difference.

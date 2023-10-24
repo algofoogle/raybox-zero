@@ -21,14 +21,19 @@ module raybox_zero_de0nano(
   input   [1:0]   gpio1_IN  // GPIO1 input-only pins
 );
 
+  // Quartus-generated PLL module, generating 24MHz clock from system 50MHz source.
+  // This is used as our pixel clock and system clock for the main DUT:
+  // For more info see:
+  // https://github.com/algofoogle/journal/blob/master/0165-2023-10-24.md#quartus-pll
+  wire pixel_clock;
+  pll pll_inst (
+    .inclk0 (CLOCK_50),
+    .c0     (pixel_clock)
+  );
+
   // K4..K1 external buttons board (K4 is top, K1 is bottom):
   //NOTE: These buttons are active LOW, so we invert them here to make them active HIGH:
   wire [4:1] K = ~{gpio1[22], gpio1[21], gpio1[19], gpio1[17]};
-
-  //SMELL: This is a bad way to do clock dividing.
-  // Can we instead use the built-in FPGA PLL?
-  reg clock_25; // VGA pixel clock of 25MHz is good enough. 25.175MHz is ideal (640x480x59.94)
-  always @(posedge CLOCK_50) clock_25 <= ~clock_25;
 
   // LEDs just show that we're alive:
   assign LED[0] = ~hsync;
@@ -47,7 +52,7 @@ module raybox_zero_de0nano(
   // (but note also 'any_reset' and its relationship to PicoDeo):
   wire reset;
   //NOTE: We might not need this metastability avoidance for our simple (and not-time-critical) inputs:
-  stable_sync sync_reset (.clk(clock_25), .d(!KEY[0]), .q(reset));
+  stable_sync sync_reset (.clk(pixel_clock), .d(!KEY[0]), .q(reset));
 
 `ifdef RGB1_DAC
   `ifdef RGB3_DAC
@@ -92,12 +97,12 @@ module raybox_zero_de0nano(
 
   // Register RGB outputs, to avoid any combo logic propagation quirks
   // (which I don't think we need to worry about for HSYNC, VSYNC, and speaker because skew on those is fine):
-  always @(posedge clock_25) {qr,qg,qb} <= {r,g,b};
+  always @(posedge pixel_clock) {qr,qg,qb} <= {r,g,b};
 
   // Because actual RGB1_DAC hardware is only using MSB of each colour channel, attenuate that output
   // (i.e. mask it out for some pixels) to create a pattern dither:
   reg alt;
-  always @(posedge clock_25) if (hpos==0 && vpos==0) alt <= ~alt; // Temporal dithering, i.e. flip patterns on odd frames.
+  always @(posedge pixel_clock) if (hpos==0 && vpos==0) alt <= ~alt; // Temporal dithering, i.e. flip patterns on odd frames.
   wire dither_hi = (px0^py0)^alt;
   wire dither_lo = (px0^alt)&(py0^alt);
   wire [1:0] rr = rgb[1:0];
@@ -140,7 +145,7 @@ module raybox_zero_de0nano(
   reg [5:0] qrgb;
   // Register RGB outputs, to avoid any combo logic propagation quirks
   // (which I don't think we need to worry about for HSYNC, VSYNC, and speaker because skew on those is fine):
-  always @(posedge clock_25) qrgb <= rgb;
+  always @(posedge pixel_clock) qrgb <= rgb;
 
   // Red:
   assign gpio1[  3] = 1'b0;   // Unused by rbzero; set to 0.
@@ -262,7 +267,7 @@ module raybox_zero_de0nano(
 
   rbzero game(
     // --- Inputs: ---
-    .clk        (clock_25),
+    .clk        (pixel_clock),
     .reset      (any_reset),
     // SPI:
     .i_sclk     (i_sclk),

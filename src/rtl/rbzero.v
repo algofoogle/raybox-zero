@@ -113,7 +113,7 @@ module rbzero(
   // This assumes that by the time the SPI sequence starts, the wall slice address
   // is already known, i.e. wall_tracer has determined traced_wall/side/texu,
   // and they're all stable for the remainder of the line...
-  wire [1:0] shifted_wall_id = traced_wall-1;
+  wire [1:0] shifted_wall_id = traced_wall-1'd1;
   wire [8:0] wall_slice_address = {shifted_wall_id, traced_side, traced_texu};
   //NOTE: Each texel is currently 8 bits in the ROM, i.e. 64 bytes per slice,
   // representing 64 pixels. In each byte, the packing is BGRXBGRX, i.e.
