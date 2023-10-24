@@ -9,9 +9,9 @@
 // For instance, with Q12.12, it seems the smallest reliable step quantum is 8, i.e. 8*(2^-12) => 0.001953125.
 // This might be made better if we properly check for reciprocal saturation.
 //NOTE: Minimum that currently works is Q10.9, but Q10.10 is better:
-`define Qm          10                  // Signed. 9 is minimum: Below 9, texv is broken. Below 8, rayAddend overflows.
-`define Qn          10                  // Currently 9 is lowest possible because of other bit-range maths, but 10+ is recommended.
-`define Qmnc        20          // <== MUST EQUAL Qmn+Qn. Sort of the same as `Qmn, but that isn't useful for all my Verilog needs.
+`define Qm          12                  // Signed. 9 is minimum: Below 9, texv is broken. Below 8, rayAddend overflows.
+`define Qn          12                  // Currently 9 is lowest possible because of other bit-range maths, but 10+ is recommended.
+`define Qmnc        24          // <== MUST EQUAL Qmn+Qn. Sort of the same as `Qmn, but that isn't useful for all my Verilog needs.
 `define Qmn         (`Qm+`Qn)
 `define QMI         (`Qm-1)             // Just for convenience; M-1.
 `define QMNI        (`Qmn-1)            // Just for convenience; full bit count -1 for upper vector index.

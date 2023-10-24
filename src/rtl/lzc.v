@@ -13,8 +13,8 @@
 // `define D17 // 17-bit range, e.g. Q8.9
 // `define D18 // 18-bit range, e.g. Q9.9
 // `define D19 // 19-bit range, e.g. Q9.10
-`define D20 // 20-bit range, e.g. Q10.10
-`define D22 // 22-bit range, e.g. Q11.11
+// `define D20 // 20-bit range, e.g. Q10.10
+// `define D22 // 22-bit range, e.g. Q11.11
 `define D24 // 24-bit range, e.g. Q12.12
 `define D30 // 30-bit range, e.g. Q15.15, mostly for testing.
 
