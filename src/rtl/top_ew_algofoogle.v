@@ -62,73 +62,73 @@ module top_ew_algofoogle(
     // Our design will be held in reset unless reset_lock_a and reset_lock_b hold
     // opposing values (i.e. one must be high, the other low).
     // If both are 0, or both are 1, the design will remain in reset.
-    wire rbzero_reset = ~(reset_lock_a ^ reset_lock_b);
+    wire rbzero_reset = ~(i_reset_lock_a ^ i_reset_lock_b);
 
-    assign rbzero_clk = clk;
+    wire rbzero_clk = i_clk;
 
     gpout_mux gpout0(
         .sel(i_gpout0_sel), .gpout(o_gpout[0]), .primary(rbzero_rgb_out[2]), .alt(rbzero_reset),
-            .clk(clk), .reset(rbzero_reset),
+            .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),
             .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg_mosi(i_reg_mosi),
             .hblank(hblank), .vblank(vblank),
             .hpos(hpos), .vpos(vpos),
             .tex_oeb0(o_tex_oeb0), .tex_in(i_tex_in),
-            .mode(i_mode), .rgb(rgb)
+            .mode(i_mode), .rgb(o_rgb)
     );
     gpout_mux gpout1(
         .sel(i_gpout1_sel), .gpout(o_gpout[1]), .primary(rbzero_rgb_out[3]), .alt(1'b1),
-            .clk(clk), .reset(rbzero_reset),
+            .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),
             .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg_mosi(i_reg_mosi),
             .hblank(hblank), .vblank(vblank),
             .hpos(hpos), .vpos(vpos),
             .tex_oeb0(o_tex_oeb0), .tex_in(i_tex_in),
-            .mode(i_mode), .rgb(rgb)
+            .mode(i_mode), .rgb(o_rgb)
     );
     gpout_mux gpout2(
         .sel(i_gpout2_sel), .gpout(o_gpout[2]), .primary(rbzero_rgb_out[0]), .alt(i_reset_lock_a),
-            .clk(clk), .reset(rbzero_reset),
+            .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),
             .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg_mosi(i_reg_mosi),
             .hblank(hblank), .vblank(vblank),
             .hpos(hpos), .vpos(vpos),
             .tex_oeb0(o_tex_oeb0), .tex_in(i_tex_in),
-            .mode(i_mode), .rgb(rgb)
+            .mode(i_mode), .rgb(o_rgb)
     );
     gpout_mux gpout3(
         .sel(i_gpout3_sel), .gpout(o_gpout[3]), .primary(rbzero_rgb_out[1]), .alt(i_reset_lock_b),
-            .clk(clk), .reset(rbzero_reset),
+            .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),
             .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg_mosi(i_reg_mosi),
             .hblank(hblank), .vblank(vblank),
             .hpos(hpos), .vpos(vpos),
             .tex_oeb0(o_tex_oeb0), .tex_in(i_tex_in),
-            .mode(i_mode), .rgb(rgb)
+            .mode(i_mode), .rgb(o_rgb)
     );
     gpout_mux gpout4(
         .sel(i_gpout4_sel), .gpout(o_gpout[4]), .primary(rbzero_rgb_out[4]), .alt(i_debug_vec_overlay),
-            .clk(clk), .reset(rbzero_reset),
+            .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),
             .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg_mosi(i_reg_mosi),
             .hblank(hblank), .vblank(vblank),
             .hpos(hpos), .vpos(vpos),
             .tex_oeb0(o_tex_oeb0), .tex_in(i_tex_in),
-            .mode(i_mode), .rgb(rgb)
+            .mode(i_mode), .rgb(o_rgb)
     );
     gpout_mux gpout5(
         .sel(i_gpout5_sel), .gpout(o_gpout[5]), .primary(rbzero_rgb_out[5]), .alt(1'b0),
-            .clk(clk), .reset(rbzero_reset),
+            .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),
             .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg_mosi(i_reg_mosi),
             .hblank(hblank), .vblank(vblank),
             .hpos(hpos), .vpos(vpos),
             .tex_oeb0(o_tex_oeb0), .tex_in(i_tex_in),
-            .mode(i_mode), .rgb(rgb)
+            .mode(i_mode), .rgb(o_rgb)
     );
 
     wire [5:0] rbzero_rgb_out; //CHECK: What is the final bit depth we're using for EW CI submission?
-    assign rgb = {
+    assign o_rgb = {
         // For each channel, we currently have 2 active bits, and 6 unused bits,
         // with each channel intended to go to a DAC as 8 bits.
         rbzero_rgb_out[5:4], 6'b0,  // Blue
