@@ -25,9 +25,11 @@ module top_ew_algofoogle(
     // SPI master for external texture memory:
     output  wire            tex_csb,    // IO[3]
     output  wire            tex_sclk,   // IO[4]
-    // SPI Quad IOs, including ports for different directions:
-    output  wire    [3:0]   tex_oeb,    // IO[8:5] dir select.  0=output 1=input. Startup: 1110.
-    output  wire    [3:0]   tex_out,    // IO[8:5] output path. Maps to SPI io[3:0]. io[0] is typically MOSI.
+    // SPI Quad IOs, including ports for different directions.
+    //NOTE: We actually only switch io[0] (MOSI in single SPI mode) between OUTPUT and INPUT
+    // when doing QSPI. The rest remain as inputs.
+    output  wire            tex_oeb0,   // IO[  5] dir select.  0=output 1=input.
+    output  wire            tex_out0,   // IO[  5] output path. Maps to SPI io[0] (typically MOSI).
     input   wire    [3:0]   tex_in,     // IO[8:5] input path.  Maps to SPI io[3:0]. io[1] is typically MISO.
 
     // SPI slave 1: View vectors, to be controlled by LA:
@@ -89,14 +91,12 @@ module top_ew_algofoogle(
 
     wire [5:0] rbzero_rgb_out; //CHECK: What is the final bit depth we're using for EW CI submission?
     assign rgb = {
-        // For each channel, we currently have 2 active bits, and 6 unused bits:
+        // For each channel, we currently have 2 active bits, and 6 unused bits,
+        // with each channel intended to go to a DAC as 8 bits.
         rbzero_rgb_out[5:4], 6'b0,  // Blue
         rbzero_rgb_out[3:2], 6'b0,  // Green
         rbzero_rgb_out[1:0], 6'b0   // Red
     };
-
-    // For now, just use single SPI instead of Quad SPI:
-    assign tex_oeb = 4'b1110;   // Just io0 (MOSI) is output for now.
 
     rbzero rbzero(
         .clk        (rbzero_clk),
@@ -106,14 +106,15 @@ module top_ew_algofoogle(
         .i_sclk     (vec_sclk),
         .i_mosi     (vec_mosi),
         // SPI slave interface for everything else:
-        .i_reg_sclk (reg_csb),
-        .i_reg_mosi (reg_sclk),
-        .i_reg_ss_n (reg_mosi),
+        .i_reg_ss_n (reg_csb),
+        .i_reg_sclk (reg_sclk),
+        .i_reg_mosi (reg_mosi),
         // SPI slave interface for reading SPI flash memory (i.e. textures):
         .o_tex_csb  (tex_csb),
         .o_tex_sclk (tex_sclk),
-        .o_tex_mosi (tex_out[0]),   // Might change when we implement QSPI.
-        .i_tex_miso (tex_in[1]),    // Might change when we implement QSPI.
+        .o_tex_out0 (tex_out0),
+        .o_tex_oeb0 (tex_oeb0),
+        .i_tex_in   (tex_in),
         // Debug/demo signals:
         .i_debug    (rbzero_show_debug_overlays),
         .i_inc_px   (mode[0]),
@@ -122,6 +123,8 @@ module top_ew_algofoogle(
         .hsync_n    (hsync_n),
         .vsync_n    (vsync_n),
         .rgb        (rbzero_rgb_out)
+        // UNUSED, but could be handy if attached to LA:
+        //o_hblank, o_vblank, hpos, vpos.
     );
     
 endmodule

@@ -21,7 +21,7 @@ module raybox_zero_de0nano(
   input   [1:0]   gpio1_IN  // GPIO1 input-only pins
 );
 
-  // Quartus-generated PLL module, generating 24MHz clock from system 50MHz source.
+  // Quartus-generated PLL module, generating 25MHz clock from system 50MHz source.
   // This is used as our pixel clock and system clock for the main DUT:
   // For more info see:
   // https://github.com/algofoogle/journal/blob/master/0165-2023-10-24.md#quartus-pll

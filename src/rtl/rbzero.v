@@ -13,9 +13,9 @@ module rbzero(
   input               clk,
   input               reset,
   // SPI slave for updating vectors:
+  input               i_ss_n,
   input               i_sclk,
   input               i_mosi,
-  input               i_ss_n,
   // SPI slave for everything else:
   input               i_reg_ss_n, // aka /CS, aka csb.
   input               i_reg_sclk,
@@ -27,9 +27,9 @@ module rbzero(
   output              o_tex_oeb0, // For QSPI io[0], oeb0==0 is OUTPUT, 1 is INPUT.
   input   [3:0]       i_tex_in,
   // Debug/demo signals:
-  input               i_debug,
-  input               i_inc_px,
-  input               i_inc_py,
+  input               i_debug,  // Show debug overlay for inspecting view vectors?
+  input               i_inc_px, // DEMO: Increment playerX
+  input               i_inc_py, // DEMO: Increment playerY
   // VGA outputs:
   output wire         hsync_n, vsync_n,
   output wire [5:0]   rgb,
