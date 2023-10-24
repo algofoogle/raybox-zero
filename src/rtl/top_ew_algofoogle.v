@@ -10,84 +10,122 @@
 // and others like CLK and RESET might be common. There might also be a power gate,
 // but probably not part of this level of the design.
 
+
 module top_ew_algofoogle(
-    input   wire            clk,        // IO[0]?? External or internal/shared?
-    input   wire            reset,      // LA[0]?
-    input   wire            ena,        // Maybe gate clock internally and force reset?
-    output  wire            debug,      // IO[9]: Muxable between different functions, select via LA?
+    input   wire            i_clk,            // Internal clock source signal.
+    input   wire            i_reset_lock_a,   // Pair must have opposing values to release reset.
+    input   wire            i_reset_lock_b,   // Pair must have opposing values to release reset.
 
     // RAW VGA outputs:
-    output  wire            hsync_n,    // IO[1]
-    output  wire            vsync_n,    // IO[2]
-    output  wire    [23:0]  rgb,        // INTERNAL: rgb is BGR888, which go to DACs.
+    output  wire            o_hsync,          // 
+    output  wire            o_vsync,          // 
+    output  wire    [23:0]  o_rgb,            // INTERNAL: rgb is BGR888, which go to DACs.
     // Only upper 2 bits of each channel used normally, but full range (if supported) can do depth shading.
 
     // SPI master for external texture memory:
-    output  wire            tex_csb,    // IO[3]
-    output  wire            tex_sclk,   // IO[4]
+    output  wire            o_tex_csb,        // /CS
+    output  wire            o_tex_sclk,       // SCLK
     // SPI Quad IOs, including ports for different directions.
     //NOTE: We actually only switch io[0] (MOSI in single SPI mode) between OUTPUT and INPUT
     // when doing QSPI. The rest remain as inputs.
-    output  wire            tex_oeb0,   // IO[  5] dir select.  0=output 1=input.
-    output  wire            tex_out0,   // IO[  5] output path. Maps to SPI io[0] (typically MOSI).
-    input   wire    [3:0]   tex_in,     // IO[8:5] input path.  Maps to SPI io[3:0]. io[1] is typically MISO.
+    output  wire            o_tex_oeb0,       // IO pad dir select. 0=output 1=input.
+    output  wire            o_tex_out0,       // IO pad output path. Maps to SPI io[0] (typically MOSI).
+    input   wire    [3:0]   i_tex_in,         // This includes i_tex_in[0] which is the above bi-dir IO pad's input path. Maps to SPI io[2:0]. io[3] as yet unused.
 
     // SPI slave 1: View vectors, to be controlled by LA:
-    input   wire            vec_csb,    // LA[1]
-    input   wire            vec_sclk,   // LA[2]
-    input   wire            vec_mosi,   // LA[3]
+    input   wire            i_vec_csb,        // 
+    input   wire            i_vec_sclk,       // 
+    input   wire            i_vec_mosi,       // 
 
     // SPI slave 2: General registers, to be controlled by LA:
-    input   wire            reg_csb,    // LA[4]
-    input   wire            reg_sclk,   // LA[5]
-    input   wire            reg_mosi,   // LA[6]
+    input   wire            i_reg_csb,        // 
+    input   wire            i_reg_sclk,       // 
+    input   wire            i_reg_mosi,       // 
 
-    // Debug select stuff: Select one of 64 signals to output via 'debug' pin.
-    input   wire    [5:0]   debug_sel,  // LA[12:7]
+    input   wire            i_debug_vec_overlay,
+    input   wire            i_debug_map_overlay,
+    input   wire            i_debug_trace_overlay,
+
+    // Up to 6 'gpout's, actual source selectable from many, by 'i_gpout*_sel's...
+    output  wire    [5:0]   o_gpout,
+    input   wire    [5:0]   i_gpout0_sel,
+    input   wire    [5:0]   i_gpout1_sel,
+    input   wire    [5:0]   i_gpout2_sel,
+    input   wire    [5:0]   i_gpout3_sel,
+    input   wire    [5:0]   i_gpout4_sel,
+    input   wire    [5:0]   i_gpout5_sel,
 
     // "Mode": Other stuff to control the design generally, e.g. demo mode.
-    input   wire    [2:0]   mode        // LA[15:13]
+    input   wire    [2:0]   i_mode
 );
 
-    // ena high: Normal clk and reset inputs.
-    // ena low:  Force inactive state.
-    wire rbzero_clk     = ena ? clk     : 0;
-    wire rbzero_reset   = ena ? reset   : 1;
+    // Our design will be held in reset unless reset_lock_a and reset_lock_b hold
+    // opposing values (i.e. one must be high, the other low).
+    // If both are 0, or both are 1, the design will remain in reset.
+    wire rbzero_reset = ~(reset_lock_a ^ reset_lock_b);
 
-    /*
-    // assign debug = ? // Muxed debug output.
-    Possible debug options:
-    - 0: hsync_n (in case we have to share)
-    - 1: vsync_n (in case we have to share)
-    - 2: clk
-    - 3: clk/2
-    - 4: clk/4
-    - 5: mode[0]
-    - 6: mode[1]
-    - 7: mode[2]
-    - 8..31: each of 24 RGB output bits, pre DAC
-    - 32: vec_csb
-    - 33: vec_sclk
-    - 34: vec_mosi
-    - 35: reg_csb
-    - 36: reg_sclk
-    - 37: reg_mosi
-    - 38..47: hpos[0:9]
-    - 48..57: vpos[0:9]
-    - 58: tex_oeb[0]??
-    - 59: tex_oeb[1]??
-    - 60..63: RESERVED (see debug/map overlay options below).
-    //SMELL: What do we output for 60..63? Some vector bits, maybe? Parity of vector integer parts?
-    */
+    assign rbzero_clk = clk;
 
-    // debug_sel is usually 1 of 64 values, but the upper 4 (60..63) are:
-    // 1111-- 
-    // ----o- o = Show debug overlay
-    // -----m m = Show map overlay
-    // These disable any other specific debug output, preferring instead to show something visually on screen.
-    wire rbzero_show_debug_overlays = (debug_sel[5:1] == 5'b11111);
-    //SMELL: Why not just use 2 more LA pins for this?
-    //SMELL: 60 doesn't really make sense because it's neither overlay, nor any other debug selection.
+    gpout_mux gpout0(
+        .sel(i_gpout0_sel), .gpout(o_gpout[0]), .primary(rbzero_rgb_out[2]), .alt(rbzero_reset),
+            .clk(clk), .reset(rbzero_reset),
+            .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec(i_vec_mosi),
+            .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg(i_reg_mosi),
+            .hblank(hblank), .vblank(vblank),
+            .hpos(hpos), .vpos(vpos),
+            .tex_oeb0(o_tex_oeb0), .tex_in(i_tex_in),
+            .mode(i_mode), .rgb(rgb)
+    );
+    gpout_mux gpout1(
+        .sel(i_gpout1_sel), .gpout(o_gpout[1]), .primary(rbzero_rgb_out[3]), .alt(1'b1),
+            .clk(clk), .reset(rbzero_reset),
+            .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec(i_vec_mosi),
+            .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg(i_reg_mosi),
+            .hblank(hblank), .vblank(vblank),
+            .hpos(hpos), .vpos(vpos),
+            .tex_oeb0(o_tex_oeb0), .tex_in(i_tex_in),
+            .mode(i_mode), .rgb(rgb)
+    );
+    gpout_mux gpout2(
+        .sel(i_gpout2_sel), .gpout(o_gpout[2]), .primary(rbzero_rgb_out[0]), .alt(i_reset_lock_a),
+            .clk(clk), .reset(rbzero_reset),
+            .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec(i_vec_mosi),
+            .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg(i_reg_mosi),
+            .hblank(hblank), .vblank(vblank),
+            .hpos(hpos), .vpos(vpos),
+            .tex_oeb0(o_tex_oeb0), .tex_in(i_tex_in),
+            .mode(i_mode), .rgb(rgb)
+    );
+    gpout_mux gpout3(
+        .sel(i_gpout3_sel), .gpout(o_gpout[3]), .primary(rbzero_rgb_out[1]), .alt(i_reset_lock_b),
+            .clk(clk), .reset(rbzero_reset),
+            .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec(i_vec_mosi),
+            .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg(i_reg_mosi),
+            .hblank(hblank), .vblank(vblank),
+            .hpos(hpos), .vpos(vpos),
+            .tex_oeb0(o_tex_oeb0), .tex_in(i_tex_in),
+            .mode(i_mode), .rgb(rgb)
+    );
+    gpout_mux gpout4(
+        .sel(i_gpout4_sel), .gpout(o_gpout[4]), .primary(rbzero_rgb_out[4]), .alt(i_debug_vec_overlay),
+            .clk(clk), .reset(rbzero_reset),
+            .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec(i_vec_mosi),
+            .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg(i_reg_mosi),
+            .hblank(hblank), .vblank(vblank),
+            .hpos(hpos), .vpos(vpos),
+            .tex_oeb0(o_tex_oeb0), .tex_in(i_tex_in),
+            .mode(i_mode), .rgb(rgb)
+    );
+    gpout_mux gpout5(
+        .sel(i_gpout5_sel), .gpout(o_gpout[5]), .primary(rbzero_rgb_out[5]), .alt(1'b0),
+            .clk(clk), .reset(rbzero_reset),
+            .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec(i_vec_mosi),
+            .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg(i_reg_mosi),
+            .hblank(hblank), .vblank(vblank),
+            .hpos(hpos), .vpos(vpos),
+            .tex_oeb0(o_tex_oeb0), .tex_in(i_tex_in),
+            .mode(i_mode), .rgb(rgb)
+    );
 
     wire [5:0] rbzero_rgb_out; //CHECK: What is the final bit depth we're using for EW CI submission?
     assign rgb = {
@@ -98,33 +136,101 @@ module top_ew_algofoogle(
         rbzero_rgb_out[1:0], 6'b0   // Red
     };
 
+    wire hblank, vblank;
+    wire [9:0] hpos, vpos;
+
     rbzero rbzero(
         .clk        (rbzero_clk),
         .reset      (rbzero_reset),
         // SPI slave interface for updating vectors:
-        .i_ss_n     (vec_csb),
-        .i_sclk     (vec_sclk),
-        .i_mosi     (vec_mosi),
+        .i_ss_n     (i_vec_csb),
+        .i_sclk     (i_vec_sclk),
+        .i_mosi     (i_vec_mosi),
         // SPI slave interface for everything else:
-        .i_reg_ss_n (reg_csb),
-        .i_reg_sclk (reg_sclk),
-        .i_reg_mosi (reg_mosi),
+        .i_reg_ss_n (i_reg_csb),
+        .i_reg_sclk (i_reg_sclk),
+        .i_reg_mosi (i_reg_mosi),
         // SPI slave interface for reading SPI flash memory (i.e. textures):
-        .o_tex_csb  (tex_csb),
-        .o_tex_sclk (tex_sclk),
-        .o_tex_out0 (tex_out0),
-        .o_tex_oeb0 (tex_oeb0),
-        .i_tex_in   (tex_in),
+        .o_tex_csb  (o_tex_csb),
+        .o_tex_sclk (o_tex_sclk),
+        .o_tex_out0 (o_tex_out0),
+        .o_tex_oeb0 (o_tex_oeb0),
+        .i_tex_in   ({1'b0, i_tex_in}), //SMELL: io[3] is unused, so hard-coded to 0 input here.
         // Debug/demo signals:
-        .i_debug    (rbzero_show_debug_overlays),
-        .i_inc_px   (mode[0]),
-        .i_inc_py   (mode[1]),
+        .i_debug    (i_debug_vec_overlay),
+        .i_inc_px   (i_mode[0]),
+        .i_inc_py   (i_mode[1]),
         // VGA outputs:
-        .hsync_n    (hsync_n),
-        .vsync_n    (vsync_n),
-        .rgb        (rbzero_rgb_out)
-        // UNUSED, but could be handy if attached to LA:
-        //o_hblank, o_vblank, hpos, vpos.
+        .hsync_n    (o_hsync),
+        .vsync_n    (o_vsync),
+        .rgb        (rbzero_rgb_out),
+        .o_hblank   (hblank),
+        .o_vblank   (vblank),
+        .hpos       (hpos),
+        .vpos       (vpos)
     );
     
+endmodule
+
+
+module gpout_mux(
+    input   wire            clk,        // Used for the clk OUTPUT options.
+    input   wire            reset,      // Used to clear the clk divider register.
+    input   wire    [5:0]   sel,        // Which of 64 inputs is the one we'll output via gpout?
+    output  wire            gpout,      // The actual selected output.
+    input   wire            primary,    // If sel==0, this is what gets sent to gpout.
+    input   wire            alt,        // If sel==1, this is an alternate sent to gpout.
+    // All the rest are consistent between instances...
+    input   wire            vec_csb,
+    input   wire            vec_sclk,
+    input   wire            vec_mosi,
+    input   wire            reg_csb,
+    input   wire            reg_sclk,
+    input   wire            reg_mosi,
+    input   wire            hblank,
+    input   wire            vblank,
+    input   wire            tex_oeb0,
+    input   wire    [2:0]   tex_in,
+    input   wire    [2:0]   mode,
+    input   wire    [9:0]   hpos,
+    input   wire    [9:0]   vpos,
+    input   wire    [23:0]  rgb
+);
+
+    reg [1:0] clk_div;
+    always @(posedge clk) clk_div <= (reset) ? 0 : clk_div+1'b1;
+
+    always @*
+        case (sel)
+            6'd00:  gpout = primary;
+            6'd01:  gpout = alt;
+            6'd02:  gpout = clk;
+            6'd03:  gpout = clk_div[0]; // clk/2
+            6'd04:  gpout = clk_div[1]; // clk/4
+            6'd05:  gpout = vec_csb;
+            6'd06:  gpout = vec_sclk;
+            6'd07:  gpout = vec_mosi;
+            6'd08, 6'd09, 6'd10, 6'd11, 6'd12, 6'd13, 6'd14, 6'd15,
+            6'd16, 6'd17, 6'd18, 6'd19, 6'd20, 6'd21, 6'd22, 6'd23,
+            6'd24, 6'd25, 6'd26, 6'd27, 6'd28, 6'd29, 6'd30, 6'd31:
+                    gpout = rgb[sel-8];
+            6'd32:  gpout = reg_csb;
+            6'd33:  gpout = reg_sclk;
+            6'd34:  gpout = reg_mosi;
+            6'd35:  gpout = hblank;
+            6'd36:  gpout = vblank;
+            6'd37:  gpout = tex_oeb0;
+            6'd38:  gpout = tex_in[0];
+            6'd39:  gpout = tex_in[1];
+            6'd40:  gpout = tex_in[2];
+            6'd41:  gpout = mode[0];
+            6'd42:  gpout = mode[1];
+            6'd43:  gpout = mode[2];
+            6'd44, 6'd45, 6'd46, 6'd47, 6'd48,
+            6'd49, 6'd50, 6'd51, 6'd52, 6'd53:
+                    gpout = hpos[sel-44];
+            6'd54, 6'd55, 6'd56, 6'd57, 6'd58,
+            6'd59, 6'd60, 6'd61, 6'd62, 6'd63:
+                    gpout = vpos[sel-44];
+        endcase
 endmodule
