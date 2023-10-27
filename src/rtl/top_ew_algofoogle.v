@@ -7,8 +7,7 @@
 //
 // It defines the expected digital ports that will ultimately be needed.
 // Some will be wired up to external IOs (or muxed), some to LA, some to a DAC circuit,
-// and others like CLK and RESET might be common. There might also be a power gate,
-// but probably not part of this level of the design.
+// and others like CLK and RESET might be common or otherwise internal.
 
 
 module top_ew_algofoogle(
@@ -66,6 +65,7 @@ module top_ew_algofoogle(
 
     wire rbzero_clk = i_clk;
 
+    //SMELL: 'generate' these 6 instead, since they're pretty consistent...
     gpout_mux gpout0(
         .sel(i_gpout0_sel), .gpout(o_gpout[0]), .primary(rbzero_rgb_out[2]), .alt(rbzero_reset),
             .clk(i_clk), .reset(rbzero_reset),
@@ -160,6 +160,7 @@ module top_ew_algofoogle(
         .i_debug    (i_debug_vec_overlay),
         .i_inc_px   (i_mode[0]),
         .i_inc_py   (i_mode[1]),
+        //.i_gen_tex  (i_mode[2]), //1=Use bitwise-generated textures instead of SPI texture memory.
         // VGA outputs:
         .hsync_n    (o_hsync),
         .vsync_n    (o_vsync),

@@ -7,8 +7,8 @@ set ::env(DESIGN_NAME) top_ew_algofoogle
 set ::env(RUN_KLAYOUT_XOR) 0
 set ::env(RUN_KLAYOUT_DRC) 0
 
-# don't put clock buffers on the outputs, need tristates to be the final cells
-set ::env(PL_RESIZER_BUFFER_OUTPUT_PORTS) 0
+# # don't put clock buffers on the outputs, need tristates to be the final cells
+# set ::env(PL_RESIZER_BUFFER_OUTPUT_PORTS) 0
 
 #SMELL: Just change this to a glob:
 #set ::env(VERILOG_FILES) [glob $::env(DESIGN_DIR)/src/rtl/*.v]
@@ -33,7 +33,6 @@ set ::env(VERILOG_FILES) "\
 set ::env(FP_SIZING) absolute
 set ::env(DIE_AREA) "0 0 700 700"
 set ::env(PL_TARGET_DENSITY) 0.6
-#SMELL: What about FP_CORE_UTIL?
 
 # set ::env(SYNTH_DEFINES) "MPRJ_IO_PADS=38"
 
