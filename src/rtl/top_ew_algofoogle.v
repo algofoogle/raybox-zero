@@ -175,7 +175,7 @@ module top_ew_algofoogle(
         .o_tex_sclk (o_tex_sclk),
         .o_tex_out0 (o_tex_out0),
         .o_tex_oeb0 (o_tex_oeb0),
-        .i_tex_in   ({1'b0, i_tex_in}), //SMELL: io[3] is unused, so hard-coded to 0 input here.
+        .i_tex_in   (i_tex_in), //NOTE: io[3] is unused, currently.
         // Debug/demo signals:
         .i_debug    (i_debug_vec_overlay),
         .i_inc_px   (i_mode[0]),
@@ -211,7 +211,7 @@ module gpout_mux(
     input   wire            hblank,
     input   wire            vblank,
     input   wire            tex_oeb0,
-    input   wire    [2:0]   tex_in,
+    input   wire    [3:0]   tex_in,
     input   wire    [2:0]   mode,
     input   wire    [9:0]   hpos,
     input   wire    [9:0]   vpos,
@@ -221,37 +221,76 @@ module gpout_mux(
     reg [1:0] clk_div;
     always @(posedge clk) clk_div <= (reset) ? 0 : clk_div+1'b1;
 
-    always @*
+
+    function f_out(input [5:0] sel);
         case (sel)
-            6'd00:  gpout = primary;
-            6'd01:  gpout = alt;
-            6'd02:  gpout = clk;
-            6'd03:  gpout = clk_div[0]; // clk/2
-            6'd04:  gpout = clk_div[1]; // clk/4
-            6'd05:  gpout = vec_csb;
-            6'd06:  gpout = vec_sclk;
-            6'd07:  gpout = vec_mosi;
+            6'd00:  f_out = primary;
+            6'd01:  f_out = alt;
+            6'd02:  f_out = clk;
+            6'd03:  f_out = clk_div[1]; // clk/4
+            6'd04:  f_out = tex_in[3];
+            6'd05:  f_out = vec_csb;
+            6'd06:  f_out = vec_sclk;
+            6'd07:  f_out = vec_mosi;
             6'd08, 6'd09, 6'd10, 6'd11, 6'd12, 6'd13, 6'd14, 6'd15,
             6'd16, 6'd17, 6'd18, 6'd19, 6'd20, 6'd21, 6'd22, 6'd23,
             6'd24, 6'd25, 6'd26, 6'd27, 6'd28, 6'd29, 6'd30, 6'd31:
-                    gpout = rgb[sel-8];
-            6'd32:  gpout = reg_csb;
-            6'd33:  gpout = reg_sclk;
-            6'd34:  gpout = reg_mosi;
-            6'd35:  gpout = hblank;
-            6'd36:  gpout = vblank;
-            6'd37:  gpout = tex_oeb0;
-            6'd38:  gpout = tex_in[0];
-            6'd39:  gpout = tex_in[1];
-            6'd40:  gpout = tex_in[2];
-            6'd41:  gpout = mode[0];
-            6'd42:  gpout = mode[1];
-            6'd43:  gpout = mode[2];
+                    f_out = rgb[sel-8];
+            6'd32:  f_out = reg_csb;
+            6'd33:  f_out = reg_sclk;
+            6'd34:  f_out = reg_mosi;
+            6'd35:  f_out = hblank;
+            6'd36:  f_out = vblank;
+            6'd37:  f_out = tex_oeb0;
+            6'd38:  f_out = tex_in[0];
+            6'd39:  f_out = tex_in[1];
+            6'd40:  f_out = tex_in[2];
+            6'd41:  f_out = mode[0];
+            6'd42:  f_out = mode[1];
+            6'd43:  f_out = mode[2];
             6'd44, 6'd45, 6'd46, 6'd47, 6'd48,
             6'd49, 6'd50, 6'd51, 6'd52, 6'd53:
-                    gpout = hpos[sel-44];
+                    f_out = hpos[sel-44];
             6'd54, 6'd55, 6'd56, 6'd57, 6'd58,
             6'd59, 6'd60, 6'd61, 6'd62, 6'd63:
-                    gpout = vpos[sel-44];
+                    f_out = vpos[sel-54];
         endcase
+
+    endfunction
+
+    assign gpout = f_out(sel);
+
+    // always @*
+    //     case (sel)
+    //         6'd00:  gpout = primary;
+    //         6'd01:  gpout = alt;
+    //         6'd02:  gpout = clk;
+    //         6'd03:  gpout = clk_div[0]; // clk/2
+    //         6'd04:  gpout = clk_div[1]; // clk/4
+    //         6'd05:  gpout = vec_csb;
+    //         6'd06:  gpout = vec_sclk;
+    //         6'd07:  gpout = vec_mosi;
+    //         6'd08, 6'd09, 6'd10, 6'd11, 6'd12, 6'd13, 6'd14, 6'd15,
+    //         6'd16, 6'd17, 6'd18, 6'd19, 6'd20, 6'd21, 6'd22, 6'd23,
+    //         6'd24, 6'd25, 6'd26, 6'd27, 6'd28, 6'd29, 6'd30, 6'd31:
+    //                 gpout = rgb[sel-8];
+    //         6'd32:  gpout = reg_csb;
+    //         6'd33:  gpout = reg_sclk;
+    //         6'd34:  gpout = reg_mosi;
+    //         6'd35:  gpout = hblank;
+    //         6'd36:  gpout = vblank;
+    //         6'd37:  gpout = tex_oeb0;
+    //         6'd38:  gpout = tex_in[0];
+    //         6'd39:  gpout = tex_in[1];
+    //         6'd40:  gpout = tex_in[2];
+    //         6'd41:  gpout = mode[0];
+    //         6'd42:  gpout = mode[1];
+    //         6'd43:  gpout = mode[2];
+    //         6'd44, 6'd45, 6'd46, 6'd47, 6'd48,
+    //         6'd49, 6'd50, 6'd51, 6'd52, 6'd53:
+    //                 gpout = hpos[sel-44];
+    //         6'd54, 6'd55, 6'd56, 6'd57, 6'd58,
+    //         6'd59, 6'd60, 6'd61, 6'd62, 6'd63:
+    //                 gpout = vpos[sel-44];
+    //     endcase
 endmodule
