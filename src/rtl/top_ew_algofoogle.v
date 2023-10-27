@@ -16,6 +16,15 @@ module top_ew_algofoogle(
     input   wire            i_reset_lock_a,   // Pair must have opposing values to release reset.
     input   wire            i_reset_lock_b,   // Pair must have opposing values to release reset.
 
+    // Provides constant sources of '0' and '1' values that can be used for wiring up different
+    // combinations of constants as required inside a user_project_wrapper (where only wires are
+    // allowed, and no cells OR instantiation of contants).
+    // I'm not certain, but I think providing multiple (i.e. vectors) like this is a good idea
+    // so we can conveniently do index ranges, but *also* so we don't get fanout problems from
+    // single constant driver cells...?
+    output  wire    [15:0]  zeros,
+    output  wire    [15:0]  ones,
+
     // RAW VGA outputs:
     output  wire            o_hsync,          // 
     output  wire            o_vsync,          // 
@@ -58,6 +67,9 @@ module top_ew_algofoogle(
     // "Mode": Other stuff to control the design generally, e.g. demo mode.
     input   wire    [2:0]   i_mode
 );
+
+    assign zeros    = {16{1'b0}};
+    assign ones     = {16{1'b1}};
 
     // Our design will be held in reset unless reset_lock_a and reset_lock_b hold
     // opposing values (i.e. one must be high, the other low).

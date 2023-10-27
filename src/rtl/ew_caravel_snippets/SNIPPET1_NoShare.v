@@ -8,11 +8,21 @@
 // ---- ACTUAL SNIPPET STARTS BELOW THIS LINE ----
 
 
+// Anton's assigned pads are IO[26:18].
+// These abstractions allow easy renumbering of those pads, if necessary.
+wire [5:0]  anton_gpout;                // Design-driven. We splice 2 LSB into anton_io_out, discard upper 4.
+wire [8:0]  anton_io_out;               // Map the 'out' side of our 9 pads.
+assign      anton_io_out[6:5] = anton_gpout[1:0];
 
-// Convenience mapping of IO[26:18], allows us to easily renumber Anton's assigned pads:
-wire [8:0]  anton_io_in = io_in[26:18];
-                  assign io_out[26:18] = anton_io_out; wire [8:0] anton_io_out; // [8:7] not used; they're inputs instead.
-                  assign io_oeb[26:18] = anton_io_oeb; wire [8:0] anton_io_oeb = 9'b1100z0000; // io_oeb[22] is 'z' because it's controlled by the design.
+wire [8:0]  anton_io_in;                // Map the 'in' side of our 9 pads.
+
+wire        anton_tex_oeb0;             // Design-driven. Controls dir of one specific IO pad (Texture QSPI io[0]).
+wire [8:0]  anton_io_oeb = {a1s[1:0], a0s[1:0], anton_tex_oeb0, a0s[5:2]}; // 1100t0000 where 't' is anton_tex_oeb0.
+
+// Wire up the above abstractions to actual pads:
+assign anton_io_in = io_in[26:18];
+assign io_out[26:18] = anton_io_out;
+assign io_oeb[26:18] = anton_io_oeb;
 
 // Convenience mapping of LA[114:64] to anton_la_in[50:0], all INPUTS INTO our module:
 wire [50:0] anton_la_in   = la_data_in[114:64];
@@ -30,6 +40,9 @@ top_ew_algofoogle top_ew_algofoogle(
   .i_reset_lock_a       (anton_la_in[0]), // Hold design in reset if equal (both 0 or both 1)
   .i_reset_lock_b       (anton_la_in[1]), // Hold design in reset if equal (both 0 or both 1)
 
+  .zeros                (a0s),  // A source of 16 constant '0' signals.
+  .ones                 (a1s),  // A source of 16 constant '1' signals.
+
   .o_hsync              (anton_io_out[0]),
   .o_vsync              (anton_io_out[1]),
   //.o_rgb([23:0]) not used, except to feed DAC.
@@ -37,11 +50,11 @@ top_ew_algofoogle top_ew_algofoogle(
   .o_tex_csb            (anton_io_out[2]),
   .o_tex_sclk           (anton_io_out[3]),
 
-  .o_tex_oeb0           (anton_io_oeb[4]), // IO_OEB[22] (dir): IO[22] is my only bidirectional pad.
+  .o_tex_oeb0           (anton_tex_oeb0), // My only bidirectional pad.
   .o_tex_out0           (anton_io_out[4]),
   .i_tex_in             ({anton_la_in[50], anton_io_in[8], anton_io_in[7], anton_io_in[4]}),
 
-  .o_gpout              ({4'bzzzz, anton_io_out[6:5]}) // Is assigning Z for UNUSED gpouts the right way to do it?
+  .o_gpout              (anton_gpout), //NOTE: Lower 2 bits are used, upper 4 are not.
 
   .i_vec_csb            (anton_la_in[2]),
   .i_vec_sclk           (anton_la_in[3]),
