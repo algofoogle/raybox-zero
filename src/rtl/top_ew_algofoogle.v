@@ -11,10 +11,16 @@
 
 
 module top_ew_algofoogle(
+`ifdef USE_POWER_PINS
+    inout vccd1,
+    inout vssd1,
+`endif
+
     input   wire            i_clk,            // Internal clock source signal.
     input   wire            i_la_invalid,     // Check a la_oenb bit; if 1, LAs are misconfigured (i.e. they're not being driven by the SoC).
     input   wire            i_reset_lock_a,   // Pair must have opposing values to release reset.
     input   wire            i_reset_lock_b,   // Pair must have opposing values to release reset.
+    output  wire            o_reset,          // Actual reset state, internally, for debugging.
 
     // Provides constant sources of '0' and '1' values that can be used for wiring up different
     // combinations of constants as required inside a user_project_wrapper (where only wires are
@@ -75,6 +81,7 @@ module top_ew_algofoogle(
     // opposing values (i.e. one must be high, the other low).
     // If both are 0, or both are 1, the design will remain in reset.
     wire rbzero_reset = ~(i_reset_lock_a ^ i_reset_lock_b);
+    assign o_reset = rbzero_reset;
 
     wire rbzero_clk = i_clk;
 
