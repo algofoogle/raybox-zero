@@ -12,6 +12,7 @@
 
 module top_ew_algofoogle(
     input   wire            i_clk,            // Internal clock source signal.
+    input   wire            i_la_invalid,     // Check a la_oenb bit; if 1, LAs are misconfigured (i.e. they're not being driven by the SoC).
     input   wire            i_reset_lock_a,   // Pair must have opposing values to release reset.
     input   wire            i_reset_lock_b,   // Pair must have opposing values to release reset.
 

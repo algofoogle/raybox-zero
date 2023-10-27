@@ -43,6 +43,8 @@ So my design isn't free-running, it has to be explicitly 'enabled': I've got a r
 
 Irrespective of whether the LA pins start up all high, or all low, the design will be held in reset. Following power-on, I am *assuming* they won't all stay floating or in a random state. If they are, however, SoC firmware can rectify this.
 
+To further avoid trouble where the two LA signals might be floating, I plan to implement a sense on `la_oenb` to also force reset if the SoC is not actively driving the respective pair of signals.
+
 
 ## Clocking
 
@@ -182,3 +184,7 @@ NOTE: In my instantiation Verilog snippets I've arbitrarily selected `la_data_in
 ## TODO
 
 *   Include questions for Matt e.g. those planned for the group call (**note to self**: in Journal 0166).
+
+## Questions
+
+*   Can our designs *simply share* digital *inputs* such that they don't need a mux? i.e. my design needs up to 3 digital inputs, and so does Ellen's, so can those drive both of our designs simultaneously, especially since our designs are otherwise independent?

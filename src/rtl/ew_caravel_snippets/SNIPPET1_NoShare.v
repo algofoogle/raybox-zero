@@ -5,7 +5,7 @@
 // For more info, see EWSPEC:
 // https://github.com/algofoogle/raybox-zero/blob/ew/doc/EWSPEC.md#if-only-9-pads-are-available-to-me-in-total
 
-// ---- ACTUAL SNIPPET STARTS BELOW ----
+// ---- ACTUAL SNIPPET STARTS BELOW THIS LINE ----
 
 
 
@@ -26,6 +26,7 @@ top_ew_algofoogle top_ew_algofoogle(
 `endif
 
   .i_clk                (user_clock2),
+  .i_la_invalid         (anton_la_oenb[0]), // Check any one of our LA's OENBs. Should be 0 (i.e. driven by SoC) if valid.
   .i_reset_lock_a       (anton_la_in[0]), // Hold design in reset if equal (both 0 or both 1)
   .i_reset_lock_b       (anton_la_in[1]), // Hold design in reset if equal (both 0 or both 1)
 
