@@ -230,8 +230,8 @@ module gpout_mux(
             6'd00:  gpout = primary;
             6'd01:  gpout = alt;
             6'd02:  gpout = clk;
-            6'd03:  gpout = clk_div[0]; // clk/2
-            6'd04:  gpout = clk_div[1]; // clk/4
+            6'd03:  gpout = clk_div[1]; // clk/4
+            6'd04:  gpout = tex_in[3];
             6'd05:  gpout = vec_csb;
             6'd06:  gpout = vec_sclk;
             6'd07:  gpout = vec_mosi;
@@ -256,6 +256,6 @@ module gpout_mux(
                     gpout = hpos[sel-44];
             6'd54, 6'd55, 6'd56, 6'd57, 6'd58,
             6'd59, 6'd60, 6'd61, 6'd62, 6'd63:
-                    gpout = vpos[sel-44];
+                    gpout = vpos[sel-54];
         endcase
 endmodule
