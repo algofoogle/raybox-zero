@@ -18,6 +18,7 @@ wire [8:0]  anton_io_in;                // Map the 'in' side of our 9 pads.
 
 wire        anton_tex_oeb0;             // Design-driven. Controls dir of one specific IO pad (Texture QSPI io[0]).
 wire [8:0]  anton_io_oeb = {a1s[1:0], a0s[1:0], anton_tex_oeb0, a0s[5:2]}; // 1100t0000 where 't' is anton_tex_oeb0.
+wire [15:0] a0s, a1s;
 
 // Wire up the above abstractions to actual pads:
 assign anton_io_in = io_in[26:18];
