@@ -188,3 +188,4 @@ NOTE: In my instantiation Verilog snippets I've arbitrarily selected `la_data_in
 ## Questions
 
 *   Can our designs *simply share* digital *inputs* such that they don't need a mux? i.e. my design needs up to 3 digital inputs, and so does Ellen's, so can those drive both of our designs simultaneously, especially since our designs are otherwise independent?
+*   Is it possible to make the SoC single-step `user_clock2` in order to run tests/diagnostics?
