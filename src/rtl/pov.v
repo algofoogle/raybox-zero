@@ -34,13 +34,14 @@ module pov(
   // localparam `SQ2_9 vplaneInitY  = -0.339844 * FSCALER;
 `else
   // An interesting starting position for demo purposes:
-  //NOTE: >>1 below is because realF() assumes 10 fractional bits, but we're only using 9:
-  localparam `UQ6_9 playerInitX  = 15'($rtoi(`realF(11.500000))>>1);
-  localparam `UQ6_9 playerInitY  = 15'($rtoi(`realF(10.500000))>>1);
-  localparam `SQ2_9 facingInitX  = 11'($rtoi(`realF( 0.720137))>>1);
-  localparam `SQ2_9 facingInitY  = 11'($rtoi(`realF(-0.693832))>>1);
-  localparam `SQ2_9 vplaneInitX  = 11'($rtoi(`realF( 0.346916))>>1);
-  localparam `SQ2_9 vplaneInitY  = 11'($rtoi(`realF( 0.360069))>>1);
+  //NOTE: The right-shift below is because realF() assumes `Qn (say, 10 or 12) fractional bits, but we're only using 9:
+  localparam SHIFT_Qn9 = `Qn-9;
+  localparam `UQ6_9 playerInitX  = 15'($rtoi(`realF(11.500000))>>SHIFT_Qn9);
+  localparam `UQ6_9 playerInitY  = 15'($rtoi(`realF(10.500000))>>SHIFT_Qn9);
+  localparam `SQ2_9 facingInitX  = 11'($rtoi(`realF( 0.720137))>>SHIFT_Qn9);
+  localparam `SQ2_9 facingInitY  = 11'($rtoi(`realF(-0.693832))>>SHIFT_Qn9);
+  localparam `SQ2_9 vplaneInitX  = 11'($rtoi(`realF( 0.346916))>>SHIFT_Qn9);
+  localparam `SQ2_9 vplaneInitY  = 11'($rtoi(`realF( 0.360069))>>SHIFT_Qn9);
 
   // // Good forwards/backwards view:
   // localparam `UQ6_9 playerInitX  = 15'($rtoi(`realF(10.203125))>>1);

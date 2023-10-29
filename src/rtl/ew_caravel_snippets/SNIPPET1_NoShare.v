@@ -10,6 +10,9 @@
 
     //// BEGIN: INSTANTIATION OF ANTON'S DESIGN (top_ew_algofoogle) (SNIPPET1_NoShare) ---------------------
 
+    // This snippet comes from here:
+    // https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/ew_caravel_snippets/SNIPPET1_NoShare.v
+
     // Anton's assigned pads are IO[26:18]...
     // These allow easy renumbering of those pads, if necessary.
     assign anton_io_in = io_in[26:18];      // Map the 'in' side of our 9 pads.
@@ -27,21 +30,23 @@
     wire        anton_tex_oeb0;             // Design-driven: Controls dir of one specific IO pad (Texture QSPI io[0]).
     wire [5:0]  anton_gpout;                // Design-driven: We splice 2 LSB into anton_io_out, discard upper 4.
     wire [15:0] a0s, a1s;                   // Low and high signals from our design that we can use to mix constants.
-    wire [8:0]  anton_io_oeb = {a1s[1:0], a0s[1:0], anton_tex_oeb0, a0s[5:2]}; // 1100t0000 where 't' is anton_tex_oeb0.
+    assign      anton_io_oeb = {a1s[1:0], a0s[1:0], anton_tex_oeb0, a0s[5:2]}; // 1100t0000 where 't' is anton_tex_oeb0.
     assign      anton_io_out[6:5] = anton_gpout[1:0]; // Only use lower 2 (of 6) 'gpout's, plug them into the middle of Anton's OUTPUT pads.
     wire [3:0]  anton_tex_in = {anton_la_in[50], anton_io_in[8], anton_io_in[7], anton_io_in[4]};
+    wire        anton_o_reset;              // For now this is just used during cocotb tests.
 
 
     top_ew_algofoogle top_ew_algofoogle(
     `ifdef USE_POWER_PINS
-    .vccd1(vccd1),        // User area 1 1.8V power
-    .vssd1(vssd1),        // User area 1 digital ground
+        .vccd1(vccd1),        // User area 1 1.8V power
+        .vssd1(vssd1),        // User area 1 digital ground
     `endif
 
         .i_clk                  (user_clock2),
         .i_la_invalid           (anton_la_oenb[0]), // Check any one of our LA's OENBs. Should be 0 (i.e. driven by SoC) if valid.
-        .i_reset_lock_a         (anton_la_in[0]), // Hold design in reset if equal (both 0 or both 1)
-        .i_reset_lock_b         (anton_la_in[1]), // Hold design in reset if equal (both 0 or both 1)
+        .i_reset_lock_a         (anton_la_in[0]),   // Hold design in reset if equal (both 0 or both 1)
+        .i_reset_lock_b         (anton_la_in[1]),   // Hold design in reset if equal (both 0 or both 1)
+        .o_reset                (anton_o_reset),    // OUTPUT from the design to allow simulation testing to see its actual reset state.
 
         .zeros                  (a0s),  // A source of 16 constant '0' signals.
         .ones                   (a1s),  // A source of 16 constant '1' signals.

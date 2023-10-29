@@ -54,6 +54,7 @@ module wall_tracer #(
 
   localparam `F HALF_SIZE_CLIP = HALF_SIZE[`QMNI:0]<<(`Qn-8); //SMELL: I can't remember what this shift is for.
 
+/* verilator lint_off REALCVT */
   // Minimum trace distance. Lower than this will lead to texture scaler overflow,
   // so we might as well keep tracing if we haven't exceeded this value.
   localparam MIN_DIST = 0.125; // i.e. 1/8
@@ -62,8 +63,9 @@ module wall_tracer #(
   localparam real FSCALER = SCALER;
   localparam `F MIN_DIST_F = MIN_DIST * FSCALER;
 `else
-  localparam `F MIN_DIST_F = $rtoi(`realF(MIN_DIST));
+  localparam `F MIN_DIST_F = `Qmnc'($rtoi(`realF(MIN_DIST)));
 `endif
+/* verilator lint_on REALCVT */
 
   // States for getting stepDistX = 1.0/rayDirX:
   localparam SDXPrep      = 0;

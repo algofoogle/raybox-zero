@@ -224,7 +224,7 @@ module rbzero(
   //NOTE: Because of 'texVV = texV + traced_texVinit' above, texV might be relative to
   // a positive, 0, or negative starting point as calculated by wall_tracer.
   //SMELL: Move this into some other module, e.g. row_render?
-  always @(posedge clk) if (!reset) texV <= (hmax ? 20'd0 : texV + traced_texa);
+  always @(posedge clk) if (!reset) texV <= (hmax ? `Qmnc'd0 : texV + traced_texa);
 
   // --- Point-Of-View data, i.e. view vectors: ---
   wire `F playerX /* verilator public */;

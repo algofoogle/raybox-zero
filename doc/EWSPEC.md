@@ -184,8 +184,10 @@ NOTE: In my instantiation Verilog snippets I've arbitrarily selected `la_data_in
 ## TODO
 
 *   Include questions for Matt e.g. those planned for the group call (**note to self**: in Journal 0166).
+*   Inform everyone that my intended repo branch for everything in *all repos* is `ew` and not `main` or anything else. This includes for `raybox-zero-caravel`
 
 ## Questions
 
 *   Can our designs *simply share* digital *inputs* such that they don't need a mux? i.e. my design needs up to 3 digital inputs, and so does Ellen's, so can those drive both of our designs simultaneously, especially since our designs are otherwise independent?
 *   Is it possible to make the SoC single-step `user_clock2` in order to run tests/diagnostics?
+*   Can Anton use any/all of the 3 user_project_wrapper's `user_irq`s? Are they always masked **out** by default (i.e. disabled by VexRiscv, and need to be explicitly enabled by firmware), or is there a risk they'll start interrupting the SoC all over the place immediately from power-on?

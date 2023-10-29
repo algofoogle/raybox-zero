@@ -38,8 +38,8 @@ using namespace std;
 //#define USE_SPEAKER
 
 //SMELL: These must be set to the same numbers in fixed_point_params.v:
-#define Qm  10
-#define Qn  10
+#define Qm  12
+#define Qn  12
 //NOTE: Currently these don't have much (or any?) effect over SPI,
 // because the vectors have their own hard-coded ranges.
 
