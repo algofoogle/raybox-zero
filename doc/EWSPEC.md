@@ -15,12 +15,12 @@ I've worked out my intended pad use for each of:
 2.  [If 9 pads available PLUS extra shared/muxed INPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs)
 3.  [If 9 pads available PLUS extra shared/muxed INPUTS and OUTPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs-and-outputs)
 
-Verilog snippets to instantiate each of those alternatives will be found in [raybox-zero's `ew` branch](https://github.com/algofoogle/raybox-zero/tree/ew), and specifically in the [`src/rtl/ew_caravel_snippets` path](https://github.com/algofoogle/raybox-zero/tree/ew/src/rtl/ew_caravel_snippets).
+Verilog snippets to instantiate each of those alternatives, along with IO pad `user_define`s in the header of each, will be found in [raybox-zero's `ew` branch](https://github.com/algofoogle/raybox-zero/tree/ew), and specifically in the [`src/rtl/ew_caravel_snippets` path](https://github.com/algofoogle/raybox-zero/tree/ew/src/rtl/ew_caravel_snippets).
 
 
 ## Size
 
-I guessed at an area of 700x700&micro;m needed for my design. So far, it uses &lt; 30% of that. Another feature I hope to finish before next week will fill this more. Otherwise, it should be possible to shrink the area to 500x500&micro;m if necessary.
+I guessed at an area of 700x700&micro;m needed for my design. So far, it uses about 35% of a 600x600&micro;m area. Another feature I hope to finish before next week might grow this a bit. I'm finding that, depending on placement of my macro in our shared `user_project_wrapper`, I might need to reharden with a different aspect ratio, or maybe to place the pins differently to get fewer capacitance issues.
 
 
 ## Caravel Management SoC
@@ -62,6 +62,20 @@ I have a Verilog snippet ([`SNIPPET1_NoShare.v`](https://github.com/algofoogle/r
 
 My snippet uses convenience mapping [of the IOs](https://github.com/algofoogle/raybox-zero/blob/f085fa596394a6500e2a596dc613117d645b81d2/src/rtl/ew_caravel_snippets/SNIPPET1_NoShare.v#L12-L15) and [of the LAs](https://github.com/algofoogle/raybox-zero/blob/f085fa596394a6500e2a596dc613117d645b81d2/src/rtl/ew_caravel_snippets/SNIPPET1_NoShare.v#L17-L19) so that these can easily be changed if needed, and also to ensure I don't accidentally overlap with someone else.
 
+These are the user_defines (for IO pad power-on configuration) that I would prefer for the pads that have been assigned to me:
+
+```verilog
+`define USER_CONFIG_GPIO_18_INIT `GPIO_MODE_USER_STD_OUTPUT
+`define USER_CONFIG_GPIO_19_INIT `GPIO_MODE_USER_STD_OUTPUT
+`define USER_CONFIG_GPIO_20_INIT `GPIO_MODE_USER_STD_OUTPUT
+`define USER_CONFIG_GPIO_21_INIT `GPIO_MODE_USER_STD_OUTPUT
+`define USER_CONFIG_GPIO_22_INIT `GPIO_MODE_USER_STD_BIDIRECTIONA
+`define USER_CONFIG_GPIO_23_INIT `GPIO_MODE_USER_STD_OUTPUT
+`define USER_CONFIG_GPIO_24_INIT `GPIO_MODE_USER_STD_OUTPUT
+`define USER_CONFIG_GPIO_25_INIT `GPIO_MODE_USER_STD_INPUT_NOPULL
+`define USER_CONFIG_GPIO_26_INIT `GPIO_MODE_USER_STD_INPUT_NOPULL
+```
+
 For reference, this is how the pads are assigned to the ports in my top module:
 
 | Pad | Dir | Top module port        |
@@ -76,6 +90,8 @@ For reference, this is how the pads are assigned to the ports in my top module:
 |   7 |  In | `i_tex_in[1]`          |
 |   8 |  In | `i_tex_in[2]`          |
 | 9 total |
+
+
 
 **NOTE TO SELF**: In this snippet, I've assigned my highest LA signal (`anton_la_in[50]`) to be the driver of `i_tex_in[3]` internally, even though I don't yet have an implementation for that input in the design. At least that way if I *do* implement it, there's still a way to drive it rather than leave it floating.
 
@@ -185,6 +201,7 @@ NOTE: In my instantiation Verilog snippets I've arbitrarily selected `la_data_in
 
 *   Include questions for Matt e.g. those planned for the group call (**note to self**: in Journal 0166).
 *   Inform everyone that my intended repo branch for everything in *all repos* is `ew` and not `main` or anything else. This includes for `raybox-zero-caravel`
+*   Update GitHub links to correct commits.
 
 ## Questions
 

@@ -1,9 +1,22 @@
 // **** SNIPPET1_NoShare.v: ****
 // Snippet to instantiate Anton's top_ew_algofoogle macro IF we end up with NO
 // mux/sharing, i.e. just 9 pads dedicated for Anton.
-
+//
 // For more info, see EWSPEC:
 // https://github.com/algofoogle/raybox-zero/blob/ew/doc/EWSPEC.md#if-only-9-pads-are-available-to-me-in-total
+//
+// Here's what I'd prefer to have added to user_defines.v for my assigned IO pads:
+// `define USER_CONFIG_GPIO_18_INIT `GPIO_MODE_USER_STD_OUTPUT
+// `define USER_CONFIG_GPIO_19_INIT `GPIO_MODE_USER_STD_OUTPUT
+// `define USER_CONFIG_GPIO_20_INIT `GPIO_MODE_USER_STD_OUTPUT
+// `define USER_CONFIG_GPIO_21_INIT `GPIO_MODE_USER_STD_OUTPUT
+// `define USER_CONFIG_GPIO_22_INIT `GPIO_MODE_USER_STD_BIDIRECTIONAL
+// `define USER_CONFIG_GPIO_23_INIT `GPIO_MODE_USER_STD_OUTPUT
+// `define USER_CONFIG_GPIO_24_INIT `GPIO_MODE_USER_STD_OUTPUT
+// `define USER_CONFIG_GPIO_25_INIT `GPIO_MODE_USER_STD_INPUT_NOPULL
+// `define USER_CONFIG_GPIO_26_INIT `GPIO_MODE_USER_STD_INPUT_NOPULL
+
+
 
 // ---- ACTUAL SNIPPET STARTS BELOW THIS LINE ----
 
