@@ -154,14 +154,14 @@ module rbzero(
       //NOTE: i_tex_in[0] is discarded for now.
       if (0==tspi_state[0]) begin
         // Even nibble (colour LSB):
-        tex_r0 <= {i_tex_in[1], tex_r0[TSPI_TEXEL_COUNT-1:1]};
-        tex_g0 <= {i_tex_in[2], tex_g0[TSPI_TEXEL_COUNT-1:1]};
-        tex_b0 <= {i_tex_in[3], tex_b0[TSPI_TEXEL_COUNT-1:1]};
+        tex_r0 <= {i_tex_in[0], tex_r0[TSPI_TEXEL_COUNT-1:1]};
+        tex_g0 <= {i_tex_in[1], tex_g0[TSPI_TEXEL_COUNT-1:1]};
+        tex_b0 <= {i_tex_in[2], tex_b0[TSPI_TEXEL_COUNT-1:1]};
       end else begin
         // Odd nibble (colour MSB):
-        tex_r1 <= {i_tex_in[1], tex_r1[TSPI_TEXEL_COUNT-1:1]};
-        tex_g1 <= {i_tex_in[2], tex_g1[TSPI_TEXEL_COUNT-1:1]};
-        tex_b1 <= {i_tex_in[3], tex_b1[TSPI_TEXEL_COUNT-1:1]};
+        tex_r1 <= {i_tex_in[0], tex_r1[TSPI_TEXEL_COUNT-1:1]};
+        tex_g1 <= {i_tex_in[1], tex_g1[TSPI_TEXEL_COUNT-1:1]};
+        tex_b1 <= {i_tex_in[2], tex_b1[TSPI_TEXEL_COUNT-1:1]};
       end
     end
   end
