@@ -25,7 +25,7 @@
 module wall_tracer #(
   parameter MAP_WBITS     = 4,
   parameter MAP_HBITS     = 4,
-  parameter HALF_SIZE     = 320 // Half the visible screen width.
+  parameter HALF_SIZE     = 320   // Half the visible screen width.
 ) (
   input                   clk,
   input                   reset,  //SMELL: Not used. Should we??
@@ -53,6 +53,17 @@ module wall_tracer #(
 );
 
   localparam `F HALF_SIZE_CLIP = HALF_SIZE[`QMNI:0]<<(`Qn-8); //SMELL: I can't remember what this shift is for.
+
+  // Minimum trace distance. Lower than this will lead to texture scaler overflow,
+  // so we might as well keep tracing if we haven't exceeded this value.
+  localparam MIN_DIST = 0.125; // i.e. 1/8
+`ifdef QUARTUS
+  localparam SCALER = 1<<9; // The vectors below use 9 fractional bits.
+  localparam real FSCALER = SCALER;
+  localparam `F MIN_DIST_F = MIN_DIST * FSCALER;
+`else
+  localparam `F MIN_DIST_F = $rtoi(`realF(MIN_DIST));
+`endif
 
   // States for getting stepDistX = 1.0/rayDirX:
   localparam SDXPrep      = 0;
@@ -257,6 +268,9 @@ module wall_tracer #(
 
   // int line_counter; // DEBUG.
 
+  // Hit is not valid if it's in the same map cell as the player, or if it's too close:
+  wire valid_distance = visualWallDist >= MIN_DIST_F && !(mapX==playerMapX && mapY==playerMapY);
+
   always @(posedge clk) begin
     if (do_reset) begin
       // line_counter = 0; // DEBUG.
@@ -320,11 +334,16 @@ module wall_tracer #(
         TracePrepY: begin   state <= TraceStep;     trackDistY <= `FF(mul_out); end //NOTE: mul inputs (and hence output) react to 'state'.
 
         TraceStep: begin
-          if (o_map_col == otherx[4:0] && o_map_row == othery[4:0]) begin
-            // Hit the 'other' block.
+          if (valid_distance && o_map_col == otherx[4:0] && o_map_row == othery[4:0]) begin
+            // HIT: 'other' block.
             wall <= 0;
             state <= SizePrep;
-          end else if (i_map_val==0) begin
+          end else if (valid_distance && i_map_val!=0) begin
+            // HIT: Normal wall.
+            wall <= i_map_val;
+            state <= SizePrep;
+          end else begin
+            // No hit; still tracing.
             //SMELL: Can we explicitly set different states to match which trace/step we're doing?
             if (needStepX) begin
               mapX <= rxi ? mapX+1'b1 : mapX-1'b1;
@@ -337,16 +356,9 @@ module wall_tracer #(
               visualWallDist <= trackDistY;
               side <= 1;
             end
-          end else begin
-            wall <= i_map_val;
-            state <= SizePrep; //TraceHit;
           end
         end
-        // TraceHit: begin
-        //   // Tracing stops because we hit something.
-        //   //SMELL: This state is not required.
-        //   state <= SizePrep;
-        // end
+
         SizePrep: begin     state <= SizeWait;      rcp_sel <= RCP_VDIST; end
         SizeWait: begin     state <= SizeLoad;      end // Do nothing; just wait for reciprocal to settle.
         SizeLoad: begin     state <= CalcTexU;      end
