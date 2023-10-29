@@ -95,7 +95,6 @@ module rbzero(
     .leak     (floor_leak),
     .hpos     (hpos),
     // Outputs:
-    // .rgb      (wall_rgb),
     .hit      (wall_en)
   );
 
@@ -106,7 +105,6 @@ module rbzero(
     {tex_g1[texv], tex_g0[texv]},
     {tex_r1[texv], tex_r0[texv]}
   };
-    //{2'b00, {g1[texv],~traced_side}, 2'b00};
 
   //SMELL: Put the following into another module, or move it into row_render?
   // Load the next line's wall slice texture via QSPI.
@@ -116,11 +114,11 @@ module rbzero(
   wire [1:0] shifted_wall_id = traced_wall-1'd1;
   wire [8:0] wall_slice_address = {shifted_wall_id, traced_side, traced_texu};
   //NOTE: Each texel is currently 8 bits in the ROM, i.e. 64 bytes per slice,
-  // representing 64 pixels. In each byte, the packing is BGRXBGRX, i.e.
-  // B---B--- B[0:1] //NOTE: These are all LSB first.
-  // -G---G-- G[0:1]
-  // --R---R- R[0:1]
-  // ---X---X Unused.
+  // representing 64 pixels. In each byte, the packing is XBGRXBGR, i.e.
+  // X---X--- Unused -- io3 input might not always be available as an IO pad.
+  // -B---B-- B[0:1] //NOTE: These are all LSB first.
+  // --G---G- G[0:1]
+  // ---R---R R[0:1]
   // Because each texel is 1 byte, the wall slice address ends up being shifted
   // left 6 bits when sent to the ROM during the QSPI preamble.
   localparam [9:0] TSPI_CMD_LEN         = 8;  // Num bits to send for SPI command.

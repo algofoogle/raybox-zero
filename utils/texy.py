@@ -5,6 +5,8 @@ from itertools import chain
 # Walls I like are: 0,1,14,15,84,85,106,107
 # Overall good parameters:
 #   py .\texy.py ..\assets\allwolfwalls.png -s 0,1,14,15,84,85,106,107 -m 1.4 -b 20 -f 2bgrx -p 1048576 walls.bin
+# Another good set:
+#   py texy.py ..\assets\allwolfwalls.png walls.bin -m 1.4 -b 20 -f 2bgrx -p 1048576 -s 78,79,66,67,46,47,50,51,0,1,2,3,52,53,14,15,16,17,8,9,12,13,32,33,38,39,22,23,44,45,86,87,88,89,98,99,100,101
 
 parser = argparse.ArgumentParser(
     description='Converts PNG images for use as raybox-zero textures'
@@ -14,7 +16,7 @@ parser.add_argument('outfile')
 parser.add_argument('-s', '--select', type=str, help='Takes a comma-separated list of wall indices (first is 0) and only includes those specified')
 parser.add_argument('-b', '--bias', type=int, default=0, help='Add (or subtract) a given bias on each colour channel')
 parser.add_argument('-m', '--multiplier', type=float, default=1.0, help='Adjust contrast using a multiplier')
-parser.add_argument('-f', '--format', type=str, default='2bgrx', choices=['mono', 'bgrx2222', '2bgrx'], help='Desired target format')
+parser.add_argument('-f', '--format', type=str, default='2xbgr', choices=['mono', 'bgrx2222', '2xbgr'], help='Desired target format')
 parser.add_argument('-p', '--pad', type=int, default=0, help='Pad the file out to the specified size, using 0xFF filler')
 args = parser.parse_args()
 if args.select is not None:
@@ -91,9 +93,9 @@ for i in select_walls:
             if b8 < 0: b8 = 0
             preview_slice_adjusted += [r8,g8,b8]
 
-            if args.format == '2bgrx':
+            if args.format == '2xbgr':
                 # Each byte must be made up of this bit stream:
-                # b[0],g[0],r[0],X, b[1],g[1],r[1],X
+                # X,b[0],g[0],r[0], X,b[1],g[1],r[1]
                 r2 = b8_b2(r8)
                 g2 = b8_b2(g8)
                 b2 = b8_b2(b8)
@@ -101,12 +103,14 @@ for i in select_walls:
                 preview_slice_lossy += [ b2_b8(r2), b2_b8(g2), b2_b8(b2) ]
                 # Now pack it:
                 outfile_data.append(
-                    (b2&1)<<7 |
-                    (g2&1)<<6 |
-                    (r2&1)<<5 |
-                    (b2&2)<<2 |
-                    (g2&2)<<1 |
-                    (r2&2)
+                    ((0)        <<7) | # X
+                    (((b2&1)>>0)<<6) | # B[1]
+                    (((g2&1)>>0)<<5) | # G[1]
+                    (((r2&1)>>0)<<4) | # R[1]
+                    ((0)        <<3) | #
+                    (((b2&2)>>1)<<2) | # B[0]
+                    (((g2&2)>>1)<<1) | # G[0]
+                    (((r2&2)>>1)<<0)   # R[0]
                 )
             elif args.format == 'bgrx2222':
                 # Convert RGB888 input data to our desired target format...
@@ -131,7 +135,7 @@ for i in select_walls:
                 outfile_data.append( m )
         wall_index_marker = list(chain.from_iterable([ [k]*3 for k in [255*int(j) for j in f"{i:08b}"] ]))
         # When a slice is done, write it to our output file:
-        if args.format == 'bgrx2222' or args.format == '2bgrx':
+        if args.format == 'bgrx2222' or args.format == '2xbgr':
             byte_list = outfile_data
         elif args.format == 'mono':
             byte_list = [int("".join(map(str, outfile_data[i:i+8])), 2) for i in range(0, len(outfile_data), 8)]
