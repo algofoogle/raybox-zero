@@ -259,6 +259,8 @@ Result:
 
 ## Full list of macro pins
 
+Many of these are not used, but they are still present around the edge of the macro.
+
 1.  `o_gpout[0]`
 1.  `o_gpout[1]`
 1.  `o_gpout[2]`
