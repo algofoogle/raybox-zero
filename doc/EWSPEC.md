@@ -2,30 +2,40 @@
 
 ## TL;DR
 
-Design is purely-digital for now. I hope to still include a very simple analog portion, but can leave it out if I don't finish it soon.
+My macro (i.e. top module) is [`top_ew_algofoogle`](https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/top_ew_algofoogle.v). These are the main files as found in my repo ([raybox-zero-caravel](https://github.com/algofoogle/raybox-zero-caravel), a caravel_user_project based on tag `mpw-8c`):
+*   GDS: [`gds/top_ew_algofoogle.gds.gz`](https://github.com/algofoogle/raybox-zero-caravel/blob/ew/gds/top_ew_algofoogle.gds.gz)
+*   LEF: [`lef/top_ew_algofoogle.lef`](https://github.com/algofoogle/raybox-zero-caravel/blob/ew/lef/top_ew_algofoogle.lef)
+*   DEF: [`top_ew_algofoogle.def`](https://github.com/algofoogle/raybox-zero-caravel/blob/ew/def/top_ew_algofoogle.def)
 
-My macro (i.e. top module) is [`top_ew_algofoogle`](https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/top_ew_algofoogle.v). Its pins (ports) break out of all its *possible* connections, even though not necesarily all of them will be used together (depending on which way we agree to do pad sharing). The idea is that this allows a single hardened version of the macro to be instantiated with different (and extra) wiring where available, e.g. to use a mux provided by Matt Venn.
+Full source is embedded in <code>[`verilog/rtl/`](https://github.com/algofoogle/raybox-zero-caravel/tree/ew/verilog/rtl)raybox-zero/</code> as a git submodule.
+
+I have 3 alternatives for snippets that instantiate and wire up my macro in user_project_wrapper, depending on what we agree our IO pad sharing will be (Ref: [EW pin allocation](https://github.com/algofoogle/journal/blob/master/0165-2023-10-24.md#ew-pin-allocation)):
+
+1.  [`SNIPPET1_NoShare.v`](https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/ew_caravel_snippets/SNIPPET1_NoShare.v): Straight, simple, [9 dedicated IO pads for Anton](#if-only-9-pads-are-available-to-me-in-total).
+2.  `SNIPPET2_ShareIns.v` (**TBC**): 12-pads version, [Anton's 9, plus 3 extra shared INPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs)
+3.  `SNIPPET3_ShareMuxIO.v` (**TBC**): 13-pads version, [Anton's 9, plus shared/muxed INPUTS and OUTPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs-and-outputs) (Matt's mux idea?)
+
+There are suitable IO pad `user_define`s included in the header of each snippet above.
+
+NOTE: Many of my macro's 125 pins will go unconnected in final placement -- the extras just support different wiring options so as to hopefully be flexible if we use a mux.
+
+The design is purely-digital for now. I hope to still include a very simple analog portion, but can leave it out if I don't finish it soon.
 
 My design [needs the Caravel SoC](#caravel-management-soc) to run firmware and control *up to* [51 LA pins](#logic-analyser-pins) (inputs into my design).
 
-I think we'll be fine in terms of [clocking](#clocking) and [holding in reset](#reset-lock).
-
-I've worked out my intended pad use for each of:
-1.  [If only 9 pads are available to me, in total](#if-only-9-pads-are-available-to-me-in-total)
-2.  [If 9 pads available PLUS extra shared/muxed INPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs)
-3.  [If 9 pads available PLUS extra shared/muxed INPUTS and OUTPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs-and-outputs)
-
-Verilog snippets to instantiate each of those alternatives, along with IO pad `user_define`s in the header of each, will be found in [raybox-zero's `ew` branch](https://github.com/algofoogle/raybox-zero/tree/ew), and specifically in the [`src/rtl/ew_caravel_snippets` path](https://github.com/algofoogle/raybox-zero/tree/ew/src/rtl/ew_caravel_snippets).
+I think we'll be fine in terms of [clocking](#clocking) (i'm using `user_clock2`) and [holding in reset](#reset-lock) (should remain locked in reset until enabled by LA).
 
 
 ## Size
 
-I guessed at an area of 700x700&micro;m needed for my design. So far, it uses about 35% of a 600x600&micro;m area. Another feature I hope to finish before next week might grow this a bit. I'm finding that, depending on placement of my macro in our shared `user_project_wrapper`, I might need to reharden with a different aspect ratio, or maybe to place the pins differently to get fewer capacitance issues.
+I guessed at an area of 700x700&micro;m needed for my design.
+
+I've since tried hardening at difference sizes (inc. wide rectangular): 900x500 or even 1000x450 might be better. Still tweaking this both for best design performance *and* best placement/safety inside UPW (user_project_wrapper): I either get slew/capacitance issues in my macro, or in UPW routing.
 
 
 ## Caravel Management SoC
 
-Besides the clock and external pads, the design has 51 internal inputs that can be controlled by the Caravel Managment SoC, running firmware. I'm intending to do this by using [51 of the internal Logic Analyser pins](#logic-analyser-pins) (all outputs from SoC, inputs to my design). Some are essential, but if 51 is too many, give me a target and I can cut it back.
+Besides the clock and external pads, the design has 51 internal inputs that must be driven by the Caravel Managment SoC, running firmware. I'm intending to do this by using [51 of the internal Logic Analyser pins](#logic-analyser-pins) (all outputs from SoC, inputs to my design). Some are essential, but if 51 is too many, give me a target and I can cut it back.
 
 I'm not using the Wishbone bus.
 
@@ -43,12 +53,12 @@ So my design isn't free-running, it has to be explicitly 'enabled': I've got a r
 
 Irrespective of whether the LA pins start up all high, or all low, the design will be held in reset. Following power-on, I am *assuming* they won't all stay floating or in a random state. If they are, however, SoC firmware can rectify this.
 
-To further avoid trouble where the two LA signals might be floating, I plan to implement a sense on `la_oenb` to also force reset if the SoC is not actively driving the respective pair of signals.
+<!-- To further avoid trouble where the two LA signals might be floating, I plan to implement a sense on `la_oenb` to also force reset if the SoC is not actively driving the respective pair of signals. -->
 
 
 ## Clocking
 
-My design's top module `i_clk` input port requires a clock of ~25MHz, 50% duty cycle. I don't think it matters where this comes from; `user_clock2` I *assume* would be fine (as suggested by Ellen and John), but I don't yet know what the different clock sources are or the impact of choosing one over another. Can `user_clock2` be turned off by the SoC or Housekeeping module, perhaps? Otherwise the reset lock above should provide enough protection.
+My design's top module `i_clk` input port requires a clock of ~25MHz, 50% duty cycle. I don't think it matters where this comes from; I've *assumed* `user_clock2` is fine (as suggested by Ellen and John), but I don't yet know what the different clock sources are or the impact of choosing one over another. Can `user_clock2` be turned off by the SoC or Housekeeping module, perhaps? Otherwise the reset lock above should provide enough protection.
 
 
 ## Pads
@@ -60,7 +70,7 @@ My design's top module `i_clk` input port requires a clock of ~25MHz, 50% duty c
 
 I have a Verilog snippet ([`SNIPPET1_NoShare.v`](https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/ew_caravel_snippets/SNIPPET1_NoShare.v)) that just instantiates my design with no sharing/mux support. In other words, it just directly uses the 9 pads I've been assigned, plus internal clock, plus 51 LA pins.
 
-My snippet uses convenience mapping [of the IOs](https://github.com/algofoogle/raybox-zero/blob/f085fa596394a6500e2a596dc613117d645b81d2/src/rtl/ew_caravel_snippets/SNIPPET1_NoShare.v#L12-L15) and [of the LAs](https://github.com/algofoogle/raybox-zero/blob/f085fa596394a6500e2a596dc613117d645b81d2/src/rtl/ew_caravel_snippets/SNIPPET1_NoShare.v#L17-L19) so that these can easily be changed if needed, and also to ensure I don't accidentally overlap with someone else.
+My snippet uses convenience-mapping [of the IOs and LAs](https://github.com/algofoogle/raybox-zero/blob/d913b7883796cfa128f37bdafdacb4d305e7f228/src/rtl/ew_caravel_snippets/SNIPPET1_NoShare.v#L29-L36) so that these can easily be changed if needed, and also to ensure I don't accidentally overlap with someone else.
 
 These are the user_defines (for IO pad power-on configuration) that I would prefer for the pads that have been assigned to me:
 
@@ -78,64 +88,70 @@ These are the user_defines (for IO pad power-on configuration) that I would pref
 
 For reference, this is how the pads are assigned to the ports in my top module:
 
-| Pad | Dir | Top module port        |
-|----:|:---:|------------------------|
-|   0 | Out | `o_hsync`              |
-|   1 | Out | `o_vsync`              |
-|   2 | Out | `o_tex_csb`            |
-|   3 | Out | `o_tex_sclk`           |
-|   4 | I/O | **Bi-dir**; in port: `i_tex_in[0]`; out port: `o_tex_out0` (activated by `o_tex_oeb0`==0) |
-|   5 | Out | `o_gpout[0]`           |
-|   6 | Out | `o_gpout[1]`           |
-|   7 |  In | `i_tex_in[1]`          |
-|   8 |  In | `i_tex_in[2]`          |
-| 9 total |
+| IO Pad | Anton # | Dir | Top module port        |
+|-------:|--------:|:---:|------------------------|
+|     18 |       0 | Out | `o_hsync`              |
+|     19 |       1 | Out | `o_vsync`              |
+|     20 |       2 | Out | `o_tex_csb`            |
+|     21 |       3 | Out | `o_tex_sclk`           |
+|     22 |       4 | I/O | **Bi-dir**; in port: `i_tex_in[0]`; out port: `o_tex_out0` (activated by `o_tex_oeb0`==0) |
+|     23 |       5 | Out | `o_gpout[0]`           |
+|     24 |       6 | Out | `o_gpout[1]`           |
+|     25 |       7 |  In | `i_tex_in[1]`          |
+|     26 |       8 |  In | `i_tex_in[2]`          |
+|        | 9 total |
 
-
-
-**NOTE TO SELF**: In this snippet, I've assigned my highest LA signal (`anton_la_in[50]`) to be the driver of `i_tex_in[3]` internally, even though I don't yet have an implementation for that input in the design. At least that way if I *do* implement it, there's still a way to drive it rather than leave it floating.
+>   **NOTE TO SELF**: In this snippet, I've assigned my highest LA signal (`anton_la_in[50]`) to be the driver of `i_tex_in[3]` internally, even though I don't yet have an implementation for that input in the design. At least that way if I *do* implement it, there's still a way to drive it rather than leave it floating.
 
 
 ### If 9 pads available PLUS extra shared/muxed INPUTS
 
-Ellen advised that some digital inputs could *maybe* be shared between designs. I could use more *outputs*, so if the possible "shared" digital pads are *inputs* only, the bottom 5 rows capitalise on this to make my only 2 inputs shared with Ellen's (and add a third). Hence, I can also add 2 more outputs (`o_gpout[2]` and `o_gpout[3]`):
+Ellen advised that some digital inputs could *maybe* be shared between designs. If they're dedicated inputs, does this mean we can both just connect our designs to those pads directly, without needing a mux?
 
-| Pad | Dir   | Top module port        |
-|----:|:-----:|------------------------|
-|   0 |  Out  | `o_hsync`              |
-|   1 |  Out  | `o_vsync`              |
-|   2 |  Out  | `o_tex_csb`            |
-|   3 |  Out  | `o_tex_sclk`           |
-|   4 |  I/O  | **Bi-dir**; in port: `i_tex_in[0]`; out port: `o_tex_out0` (activated by `o_tex_oeb0`==0) |
-|   5 |  Out  | `o_gpout[0]`           |
-|   6 |  Out  | `o_gpout[1]`           |
-|**7**|**Out**| **`o_gpout[2]`**       |
-|**8**|**Out**| **`o_gpout[3]`**       |
-| *9* | *In*  | `i_tex_in[1]` **(shared)** |
-|*10* | *In*  | `i_tex_in[2]` **(shared)** |
-|*11* | *In*  | `i_tex_in[3]` **(shared)** |
-| 12 total |
+Assuming they *are* **input-only** I could use more *outputs* so the bottom 5 rows capitalise on this to move my only 2 inputs to be shared with Ellen's (and add a third). Hence, I can change 2 of my pads to be additional outputs instead (`o_gpout[2]` and `o_gpout[3]`):
 
-## If 9 pads available PLUS extra shared/muxed INPUTS and OUTPUTS
+| IO Pad | Anton # | Dir   | Top module port        |
+|-------:|--------:|:-----:|------------------------|
+|     18 |       0 |  Out  | `o_hsync`              |
+|     19 |       1 |  Out  | `o_vsync`              |
+|     20 |       2 |  Out  | `o_tex_csb`            |
+|     21 |       3 |  Out  | `o_tex_sclk`           |
+|     22 |       4 |  I/O  | **Bi-dir**; in port: `i_tex_in[0]`; out port: `o_tex_out0` (activated by `o_tex_oeb0`==0) |
+|     23 |       5 |  Out  | `o_gpout[0]`           |
+|     24 |       6 |  Out  | `o_gpout[1]`           |
+|     25 |    **7**|**Out**| **`o_gpout[2]`**       |
+|     26 |    **8**|**Out**| **`o_gpout[3]`**       |
+|   31?  |     *9* | *In*  | `i_tex_in[1]` **(shared)** |
+|   32?  |    *10* | *In*  | `i_tex_in[2]` **(shared)** |
+|   34?  |    *11* | *In*  | `i_tex_in[3]` **(shared)** |
+|        |12 total |
 
-Finally, if the *shared* pads could easily mux OUTPUTS as well as INPUTS, I would do the following (adding `o_gpout[4]` and `o_gpout[5]`):
+>   **NOTE TO SELF**: With 4 gpouts, if I *were* to get the DAC design working, I could put a DAC analog output on each of two gpouts (DAC input still selectable by gpout_sel via LA), and the other two gpouts could still output a *digital* 2-bit colour channel. For example: `gpo[1:0]` is digital Red, `gpo[2]` is analog Green, `gpo[3]` is analog Blue (but all sources for these can be switched via gpout_sel anyway).
 
-| Pad  | Dir   | Top module port        |
-|-----:|:-----:|------------------------|
-|   0  |  Out  | `o_hsync`              |
-|   1  |  Out  | `o_vsync`              |
-|   2  |  Out  | `o_tex_csb`            |
-|   3  |  Out  | `o_tex_sclk`           |
-|   4  |  I/O  | **Bi-dir**; in port: `i_tex_in[0]`; out port: `o_tex_out0` (activated by `o_tex_oeb0`==0) |
-|   5  |  Out  | `o_gpout[0]`           |
-|   6  |  Out  | `o_gpout[1]`           |
-|   7  |  Out  | `o_gpout[2]`           |
-|   8  |  Out  | `o_gpout[3]`           |
-| **9**|**Out**| `o_gpout[4]` **(shared)** |
-|**10**|**Out**| `o_gpout[5]` **(shared)** |
-| *11* | *In*  | `i_tex_in[1]` **(shared)** |
-| *12* | *In*  | `i_tex_in[2]` **(shared)** |
-| 13 total |
+
+## If 9 pads available PLUS extra shared/muxed INPUTS *and* OUTPUTS
+
+Finally, if there are shareable pads that could easily mux OUTPUTS as well as INPUTS, I would do the following (adding `o_gpout[4]` and `o_gpout[5]`):
+
+| IO Pad | Anton # | Dir   | Top module port        |
+|-------:|--------:|:-----:|------------------------|
+|     18 |      0  |  Out  | `o_hsync`              |
+|     19 |      1  |  Out  | `o_vsync`              |
+|     20 |      2  |  Out  | `o_tex_csb`            |
+|     21 |      3  |  Out  | `o_tex_sclk`           |
+|     22 |      4  |  I/O  | **Bi-dir**; in port: `i_tex_in[0]`; out port: `o_tex_out0` (activated by `o_tex_oeb0`==0) |
+|     23 |      5  |  Out  | `o_gpout[0]`           |
+|     24 |      6  |  Out  | `o_gpout[1]`           |
+|     25 |      7  |  Out  | `o_gpout[2]`           |
+|     26 |      8  |  Out  | `o_gpout[3]`           |
+|     ?  |    **9**|**Out**| `o_gpout[4]` **(shared)** |
+|     ?  |   **10**|**Out**| `o_gpout[5]` **(shared)** |
+|     ?  |    *11* | *In*  | `i_tex_in[1]` **(shared)** |
+|     ?  |    *12* | *In*  | `i_tex_in[2]` **(shared)** |
+|        | 13 total |
+
+NOTE: In this arrangement, I dropped my third input (`i_tex_in[3]`) because I don't really need it.
+
 
 ## Logic Analyser pins
 
@@ -205,6 +221,135 @@ NOTE: In my instantiation Verilog snippets I've arbitrarily selected `la_data_in
 
 ## Questions
 
+*   Because my design needs to be close to `user_clock2` AND IO pads, would it be better for me to use pads that are [nearer the bottom-right](https://caravel-harness.readthedocs.io/en/latest/supplementary-figures.html#die-voltage-clamp-arrangement)? i.e. 8..16. Otherwise, should I create a macro that helps with buffering and routing?
 *   Can our designs *simply share* digital *inputs* such that they don't need a mux? i.e. my design needs up to 3 digital inputs, and so does Ellen's, so can those drive both of our designs simultaneously, especially since our designs are otherwise independent?
 *   Is it possible to make the SoC single-step `user_clock2` in order to run tests/diagnostics?
 *   Can Anton use any/all of the 3 user_project_wrapper's `user_irq`s? Are they always masked **out** by default (i.e. disabled by VexRiscv, and need to be explicitly enabled by firmware), or is there a risk they'll start interrupting the SoC all over the place immediately from power-on?
+
+## Full list of macro pins
+
+1.  `o_gpout[0]`
+1.  `o_gpout[1]`
+1.  `o_gpout[2]`
+1.  `o_gpout[3]`
+1.  `o_gpout[4]`
+1.  `o_gpout[5]`
+1.  `o_tex_csb`
+1.  `o_tex_sclk`
+1.  `o_tex_oeb0`
+1.  `o_tex_out0`
+1.  `o_hsync`
+1.  `o_vsync`
+1.  `zeros[0]`
+1.  `zeros[1]`
+1.  `zeros[2]`
+1.  `zeros[3]`
+1.  `zeros[4]`
+1.  `zeros[5]`
+1.  `zeros[6]`
+1.  `zeros[7]`
+1.  `zeros[8]`
+1.  `zeros[9]`
+1.  `zeros[10]`
+1.  `zeros[11]`
+1.  `zeros[12]`
+1.  `zeros[13]`
+1.  `zeros[14]`
+1.  `zeros[15]`
+1.  `ones[0]`
+1.  `ones[1]`
+1.  `ones[2]`
+1.  `ones[3]`
+1.  `ones[4]`
+1.  `ones[5]`
+1.  `ones[6]`
+1.  `ones[7]`
+1.  `ones[8]`
+1.  `ones[9]`
+1.  `ones[10]`
+1.  `ones[11]`
+1.  `ones[12]`
+1.  `ones[13]`
+1.  `ones[14]`
+1.  `ones[15]`
+1.  `i_tex_in[0]`
+1.  `i_tex_in[1]`
+1.  `i_tex_in[2]`
+1.  `i_tex_in[3]`
+1.  `o_rgb[0]`
+1.  `o_rgb[1]`
+1.  `o_rgb[2]`
+1.  `o_rgb[3]`
+1.  `o_rgb[4]`
+1.  `o_rgb[5]`
+1.  `o_rgb[6]`
+1.  `o_rgb[7]`
+1.  `o_rgb[8]`
+1.  `o_rgb[9]`
+1.  `o_rgb[10]`
+1.  `o_rgb[11]`
+1.  `o_rgb[12]`
+1.  `o_rgb[13]`
+1.  `o_rgb[14]`
+1.  `o_rgb[15]`
+1.  `o_rgb[16]`
+1.  `o_rgb[17]`
+1.  `o_rgb[18]`
+1.  `o_rgb[19]`
+1.  `o_rgb[20]`
+1.  `o_rgb[21]`
+1.  `o_rgb[22]`
+1.  `o_rgb[23]`
+1.  `o_reset`
+1.  `i_la_invalid`
+1.  `i_reset_lock_a`
+1.  `i_reset_lock_b`
+1.  `i_vec_csb`
+1.  `i_vec_sclk`
+1.  `i_vec_mosi`
+1.  `i_reg_csb`
+1.  `i_reg_sclk`
+1.  `i_reg_mosi`
+1.  `i_gpout0_sel[0]`
+1.  `i_gpout0_sel[1]`
+1.  `i_gpout0_sel[2]`
+1.  `i_gpout0_sel[3]`
+1.  `i_gpout0_sel[4]`
+1.  `i_gpout0_sel[5]`
+1.  `i_gpout1_sel[0]`
+1.  `i_gpout1_sel[1]`
+1.  `i_gpout1_sel[2]`
+1.  `i_gpout1_sel[3]`
+1.  `i_gpout1_sel[4]`
+1.  `i_gpout1_sel[5]`
+1.  `i_gpout2_sel[0]`
+1.  `i_gpout2_sel[1]`
+1.  `i_gpout2_sel[2]`
+1.  `i_gpout2_sel[3]`
+1.  `i_gpout2_sel[4]`
+1.  `i_gpout2_sel[5]`
+1.  `i_gpout3_sel[0]`
+1.  `i_gpout3_sel[1]`
+1.  `i_gpout3_sel[2]`
+1.  `i_gpout3_sel[3]`
+1.  `i_gpout3_sel[4]`
+1.  `i_gpout3_sel[5]`
+1.  `i_gpout4_sel[0]`
+1.  `i_gpout4_sel[1]`
+1.  `i_gpout4_sel[2]`
+1.  `i_gpout4_sel[3]`
+1.  `i_gpout4_sel[4]`
+1.  `i_gpout4_sel[5]`
+1.  `i_gpout5_sel[0]`
+1.  `i_gpout5_sel[1]`
+1.  `i_gpout5_sel[2]`
+1.  `i_gpout5_sel[3]`
+1.  `i_gpout5_sel[4]`
+1.  `i_gpout5_sel[5]`
+1.  `i_debug_vec_overlay`
+1.  `i_debug_trace_overlay`
+1.  `i_debug_map_overlay`
+1.  `i_clk`
+1.  `i_mode[0]`
+1.  `i_mode[1]`
+1.  `i_mode[2]`
