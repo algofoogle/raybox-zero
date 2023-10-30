@@ -9,11 +9,11 @@ My macro (i.e. top module) is [`top_ew_algofoogle`](https://github.com/algofoogl
 
 Full source is embedded in <code>[`verilog/rtl/`](https://github.com/algofoogle/raybox-zero-caravel/tree/ew/verilog/rtl)raybox-zero/</code> as a git submodule (`ew` branch).
 
-I have 3 alternatives for snippets that instantiate and wire up my macro in user_project_wrapper, depending on what we agree our IO pad sharing will be (Ref: [EW pin allocation](https://github.com/algofoogle/journal/blob/master/0165-2023-10-24.md#ew-pin-allocation)):
+I have alternatives for snippets that instantiate and wire up my macro in user_project_wrapper, depending on what we agree our IO pad sharing will be (Ref: [EW pin allocation](https://github.com/algofoogle/journal/blob/master/0165-2023-10-24.md#ew-pin-allocation)):
 
 1.  [`SNIPPET1_NoShare.v`](https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/ew_caravel_snippets/SNIPPET1_NoShare.v): Straight, simple, [9 dedicated IO pads for Anton](#if-only-9-pads-are-available-to-me-in-total).
 2.  [`SNIPPET2_ShareIns.v`](https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/ew_caravel_snippets/SNIPPET2_ShareIns.v): 12-pads version, [Anton's 9, plus 3 extra shared INPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs)
-3.  `SNIPPET3_ShareMuxIO.v` (**TBC**): 13-pads version, [Anton's 9, plus shared/muxed INPUTS and OUTPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs-and-outputs) (Matt's mux idea?)
+3.  `SNIPPET3_ShareMuxIO.v` (**NOT WRITTEN YET**): 13-pads version, [Anton's 9, plus shared/muxed INPUTS and OUTPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs-and-outputs) (Matt's mux idea?)
 
 There are suitable IO pad `user_defines` included in the header of each snippet above.
 
@@ -72,6 +72,8 @@ My design's top module `i_clk` input port requires a clock of ~25MHz, 50% duty c
 
 I have a Verilog snippet ([`SNIPPET1_NoShare.v`](https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/ew_caravel_snippets/SNIPPET1_NoShare.v)) that just instantiates my design with no sharing/mux support. In other words, it just directly uses the 9 pads I've been assigned, plus internal clock, plus 51 LA pins.
 
+(Example implementation: See [user_project_wrapper in my repo's default `ew` branch](https://github.com/algofoogle/raybox-zero-caravel/blob/ew/verilog/rtl/user_project_wrapper.v#L85-L168))
+
 My snippet uses convenience-mapping [of the IOs and LAs](https://github.com/algofoogle/raybox-zero/blob/9672184ec5f960ffd2758e46a9b73e9d57564685/src/rtl/ew_caravel_snippets/SNIPPET1_NoShare.v#L29-L36) so that these can easily be changed if needed, and also to ensure I don't accidentally overlap with someone else.
 
 These are the user_defines (for IO pad power-on configuration) that I would prefer for the pads that have been assigned to me:
@@ -111,6 +113,8 @@ For reference, this is how the pads are assigned to the ports in my top module:
 Ellen advised that some digital inputs *might* be shareable between designs. If they're dedicated inputs, does this mean we can both just connect our designs to those pads directly, without needing a mux?
 
 **If so,** I have a Verilog snippet ([`SNIPPET2_ShareIns.v`](https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/ew_caravel_snippets/SNIPPET2_ShareIns.v)) that instantiates my design with [9 dedicated pads](https://github.com/algofoogle/raybox-zero/blob/31b39e278dc5b64c31fd292c349bd27dab324267/src/rtl/ew_caravel_snippets/SNIPPET2_ShareIns.v#L43-L47), [4 shared inputs](https://github.com/algofoogle/raybox-zero/blob/31b39e278dc5b64c31fd292c349bd27dab324267/src/rtl/ew_caravel_snippets/SNIPPET2_ShareIns.v#L40-L41), plus [internal user_clock2](https://github.com/algofoogle/raybox-zero/blob/31b39e278dc5b64c31fd292c349bd27dab324267/src/rtl/ew_caravel_snippets/SNIPPET2_ShareIns.v#L72), plus [51 LA pins](https://github.com/algofoogle/raybox-zero/blob/31b39e278dc5b64c31fd292c349bd27dab324267/src/rtl/ew_caravel_snippets/SNIPPET2_ShareIns.v#L48-L50). My snippet uses convenience-mapping of the IO pads, shared inputs, and LAs as linked in this paragraph. Hence, these can easily be changed if needed, and it helps ensure I don't accidentally overlap with someone else.
+
+(Example implementation: See [user_project_wrapper in my repo's default `ew-snippet2-test` branch](https://github.com/algofoogle/raybox-zero-caravel/blob/ew-snippet2-test/verilog/rtl/user_project_wrapper.v#L85-L171))
 
 These are the user_defines (for IO pad power-on configuration) that I would prefer for the pads that have been assigned to me, if using this snippet:
 
@@ -244,18 +248,22 @@ Result:
 ![top_ew_algofoogle in middle of Caravel user project area](./0169-at13-upw-gds.png)
 
 
-## TODO
-
-*   Include questions for Matt e.g. those planned for the group call (**note to self**: in Journal 0166).
-*   Inform everyone that my intended repo branch for everything in *all repos* is `ew` and not `main` or anything else. This includes for `raybox-zero-caravel`
-*   Update GitHub links to correct commits.
-
 ## Questions
 
-*   Because my design needs to be close to `user_clock2` AND IO pads, would it be better for me to use pads that are [nearer the bottom-right](https://caravel-harness.readthedocs.io/en/latest/supplementary-figures.html#die-voltage-clamp-arrangement)? i.e. 8..16. Otherwise, should I create a macro that helps with buffering and routing?
-*   Can our designs *simply share* digital *inputs* such that they don't need a mux? i.e. my design needs up to 3 digital inputs, and so does Ellen's, so can those drive both of our designs simultaneously, especially since our designs are otherwise independent?
-*   Is it possible to make the SoC single-step `user_clock2` in order to run tests/diagnostics?
-*   Can Anton use any/all of the 3 user_project_wrapper's `user_irq`s? Are they always masked **out** by default (i.e. disabled by VexRiscv, and need to be explicitly enabled by firmware), or is there a risk they'll start interrupting the SoC all over the place immediately from power-on?
+1.  Can our designs *simply share* digital *inputs* such that they don't need a mux? i.e. my design needs up to 3 digital inputs, and so does Ellen's, so can those drive both of our designs simultaneously, especially since our designs are otherwise independent?
+1.  Does Matt feel my use of LAs and reset lock would pose any problems?
+2.  Because my design needs to be close to `user_clock2` AND IO pads, would it be better for me to use pads that are [nearer the bottom-right](https://caravel-harness.readthedocs.io/en/latest/supplementary-figures.html#die-voltage-clamp-arrangement)? i.e. 8..16. Otherwise, should I create a macro that helps with buffering and routing?
+3.  Is it OK how I've done pin ordering to try and match LAs and IOs (and esp `user_clock2`) a bit better? Should I plan to reharden my macro depending on where it gets placed, or if there is any change in the IOs we're all using?
+5.  Is it possible to make the SoC single-step `user_clock2` in order to run tests/diagnostics?
+6.  What's the likelihood that the SoC just won't work at all on every chip, e.g. won't run firmware?
+7.  Is it bad that I've used mpw-8c caravel_user_project and OpenLane (Dec 2022)? This includes precheck.
+8.  Antenna violations listed in `logs/signoff/*-antenna.log` that exceed 2x ratio: Are they real if not reported elsewhere? I've been getting about a 2.2x excess at times, though sometimes as high as 5x... yet they don't get reported as a warning or error.
+
+## Things I would still like to do
+
+1.  Write `SNIPPET3_ShareMuxIO.v` if I/O muxing is possible, to get 2 extra outputs.
+2.  Do a few other minor improvements to my core `tt_ew_algofoogle` design; doable by end of Nov 2nd.
+
 
 ## Full list of macro pins
 
