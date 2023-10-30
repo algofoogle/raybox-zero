@@ -12,7 +12,7 @@ Full source is embedded in <code>[`verilog/rtl/`](https://github.com/algofoogle/
 I have 3 alternatives for snippets that instantiate and wire up my macro in user_project_wrapper, depending on what we agree our IO pad sharing will be (Ref: [EW pin allocation](https://github.com/algofoogle/journal/blob/master/0165-2023-10-24.md#ew-pin-allocation)):
 
 1.  [`SNIPPET1_NoShare.v`](https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/ew_caravel_snippets/SNIPPET1_NoShare.v): Straight, simple, [9 dedicated IO pads for Anton](#if-only-9-pads-are-available-to-me-in-total).
-2.  `SNIPPET2_ShareIns.v` (**TBC**): 12-pads version, [Anton's 9, plus 3 extra shared INPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs)
+2.  [`SNIPPET2_ShareIns.v`](https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/ew_caravel_snippets/SNIPPET2_ShareIns.v): 12-pads version, [Anton's 9, plus 3 extra shared INPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs)
 3.  `SNIPPET3_ShareMuxIO.v` (**TBC**): 13-pads version, [Anton's 9, plus shared/muxed INPUTS and OUTPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs-and-outputs) (Matt's mux idea?)
 
 There are suitable IO pad `user_define`s included in the header of each snippet above.
@@ -79,7 +79,7 @@ These are the user_defines (for IO pad power-on configuration) that I would pref
 `define USER_CONFIG_GPIO_19_INIT `GPIO_MODE_USER_STD_OUTPUT
 `define USER_CONFIG_GPIO_20_INIT `GPIO_MODE_USER_STD_OUTPUT
 `define USER_CONFIG_GPIO_21_INIT `GPIO_MODE_USER_STD_OUTPUT
-`define USER_CONFIG_GPIO_22_INIT `GPIO_MODE_USER_STD_BIDIRECTIONA
+`define USER_CONFIG_GPIO_22_INIT `GPIO_MODE_USER_STD_BIDIRECTIONAL
 `define USER_CONFIG_GPIO_23_INIT `GPIO_MODE_USER_STD_OUTPUT
 `define USER_CONFIG_GPIO_24_INIT `GPIO_MODE_USER_STD_OUTPUT
 `define USER_CONFIG_GPIO_25_INIT `GPIO_MODE_USER_STD_INPUT_NOPULL
@@ -106,9 +106,26 @@ For reference, this is how the pads are assigned to the ports in my top module:
 
 ### If 9 pads available PLUS extra shared/muxed INPUTS
 
-Ellen advised that some digital inputs could *maybe* be shared between designs. If they're dedicated inputs, does this mean we can both just connect our designs to those pads directly, without needing a mux?
+Ellen advised that some digital inputs *might* be shareable between designs. If they're dedicated inputs, does this mean we can both just connect our designs to those pads directly, without needing a mux?
 
-Assuming they *are* **input-only** I could use more *outputs* so the bottom 5 rows capitalise on this to move my only 2 inputs to be shared with Ellen's (and add a third). Hence, I can change 2 of my pads to be additional outputs instead (`o_gpout[2]` and `o_gpout[3]`):
+**If so,** I have a Verilog snippet ([`SNIPPET2_ShareIns.v`](https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/ew_caravel_snippets/SNIPPET2_ShareIns.v)) that instantiates my design with [9 dedicated pads](https://github.com/algofoogle/raybox-zero/blob/31b39e278dc5b64c31fd292c349bd27dab324267/src/rtl/ew_caravel_snippets/SNIPPET2_ShareIns.v#L43-L47), [4 shared inputs](https://github.com/algofoogle/raybox-zero/blob/31b39e278dc5b64c31fd292c349bd27dab324267/src/rtl/ew_caravel_snippets/SNIPPET2_ShareIns.v#L40-L41), plus [internal user_clock2](https://github.com/algofoogle/raybox-zero/blob/31b39e278dc5b64c31fd292c349bd27dab324267/src/rtl/ew_caravel_snippets/SNIPPET2_ShareIns.v#L72), plus [51 LA pins](https://github.com/algofoogle/raybox-zero/blob/31b39e278dc5b64c31fd292c349bd27dab324267/src/rtl/ew_caravel_snippets/SNIPPET2_ShareIns.v#L48-L50). My snippet uses convenience-mapping of the IO pads, shared inputs, and LAs as linked in this paragraph. Hence, these can easily be changed if needed, and it helps ensure I don't accidentally overlap with someone else.
+
+These are the user_defines (for IO pad power-on configuration) that I would prefer for the pads that have been assigned to me, if using this snippet:
+
+```verilog
+`define USER_CONFIG_GPIO_18_INIT `GPIO_MODE_USER_STD_OUTPUT
+`define USER_CONFIG_GPIO_19_INIT `GPIO_MODE_USER_STD_OUTPUT
+`define USER_CONFIG_GPIO_20_INIT `GPIO_MODE_USER_STD_OUTPUT
+`define USER_CONFIG_GPIO_21_INIT `GPIO_MODE_USER_STD_OUTPUT
+`define USER_CONFIG_GPIO_22_INIT `GPIO_MODE_USER_STD_BIDIRECTIONAL
+`define USER_CONFIG_GPIO_23_INIT `GPIO_MODE_USER_STD_OUTPUT
+`define USER_CONFIG_GPIO_24_INIT `GPIO_MODE_USER_STD_OUTPUT
+`define USER_CONFIG_GPIO_25_INIT `GPIO_MODE_USER_STD_OUTPUT
+`define USER_CONFIG_GPIO_26_INIT `GPIO_MODE_USER_STD_OUTPUT
+// Assumed: IOs 35,34, 32,31 are configured already as `GPIO_MODE_USER_STD_INPUT_NOPULL
+```
+
+For reference, this is how the pads and shared inputs would be assigned to the ports in my top module:
 
 | IO Pad | Anton # | Dir   | Top module port        |
 |-------:|--------:|:-----:|------------------------|
