@@ -5,9 +5,9 @@
 My macro (i.e. top module) is [`top_ew_algofoogle`](https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/top_ew_algofoogle.v). These are the main files as found in my repo ([raybox-zero-caravel](https://github.com/algofoogle/raybox-zero-caravel), a caravel_user_project based on tag `mpw-8c`):
 *   GDS: [`gds/top_ew_algofoogle.gds.gz`](https://github.com/algofoogle/raybox-zero-caravel/blob/ew/gds/top_ew_algofoogle.gds.gz)
 *   LEF: [`lef/top_ew_algofoogle.lef`](https://github.com/algofoogle/raybox-zero-caravel/blob/ew/lef/top_ew_algofoogle.lef)
-*   DEF: [`top_ew_algofoogle.def`](https://github.com/algofoogle/raybox-zero-caravel/blob/ew/def/top_ew_algofoogle.def)
+*   DEF: [`def/top_ew_algofoogle.def`](https://github.com/algofoogle/raybox-zero-caravel/blob/ew/def/top_ew_algofoogle.def)
 
-Full source is embedded in <code>[`verilog/rtl/`](https://github.com/algofoogle/raybox-zero-caravel/tree/ew/verilog/rtl)raybox-zero/</code> as a git submodule.
+Full source is embedded in <code>[`verilog/rtl/`](https://github.com/algofoogle/raybox-zero-caravel/tree/ew/verilog/rtl)raybox-zero/</code> as a git submodule (`ew` branch).
 
 I have 3 alternatives for snippets that instantiate and wire up my macro in user_project_wrapper, depending on what we agree our IO pad sharing will be (Ref: [EW pin allocation](https://github.com/algofoogle/journal/blob/master/0165-2023-10-24.md#ew-pin-allocation)):
 
@@ -28,9 +28,11 @@ I think we'll be fine in terms of [clocking](#clocking) (i'm using `user_clock2`
 
 ## Size
 
-I guessed at an area of 700x700&micro;m needed for my design.
+I guessed at 700x700&micro;m needed for my design.
 
-I've since tried hardening at difference sizes (inc. wide rectangular): 900x500 or even 1000x450 might be better. Still tweaking this both for best design performance *and* best placement/safety inside UPW (user_project_wrapper): I either get slew/capacitance issues in my macro, or in UPW routing.
+I've tried hardening at different sizes/shapes, and settled on letting OpenLane pick: It's ended up at just under 600x600&micro;m.
+
+(I used `FP_SIZING": "relative"` and `"FP_CORE_UTIL": 35`)
 
 
 ## Caravel Management SoC
@@ -53,7 +55,7 @@ So my design isn't free-running, it has to be explicitly 'enabled': I've got a r
 
 Irrespective of whether the LA pins start up all high, or all low, the design will be held in reset. Following power-on, I am *assuming* they won't all stay floating or in a random state. If they are, however, SoC firmware can rectify this.
 
-<!-- To further avoid trouble where the two LA signals might be floating, I plan to implement a sense on `la_oenb` to also force reset if the SoC is not actively driving the respective pair of signals. -->
+<!-- CANCELLED: To further avoid trouble where the two LA signals might be floating, I plan to implement a sense on `la_oenb` to also force reset if the SoC is not actively driving the respective pair of signals. -->
 
 
 ## Clocking
@@ -70,7 +72,7 @@ My design's top module `i_clk` input port requires a clock of ~25MHz, 50% duty c
 
 I have a Verilog snippet ([`SNIPPET1_NoShare.v`](https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/ew_caravel_snippets/SNIPPET1_NoShare.v)) that just instantiates my design with no sharing/mux support. In other words, it just directly uses the 9 pads I've been assigned, plus internal clock, plus 51 LA pins.
 
-My snippet uses convenience-mapping [of the IOs and LAs](https://github.com/algofoogle/raybox-zero/blob/d913b7883796cfa128f37bdafdacb4d305e7f228/src/rtl/ew_caravel_snippets/SNIPPET1_NoShare.v#L29-L36) so that these can easily be changed if needed, and also to ensure I don't accidentally overlap with someone else.
+My snippet uses convenience-mapping [of the IOs and LAs](https://github.com/algofoogle/raybox-zero/blob/9672184ec5f960ffd2758e46a9b73e9d57564685/src/rtl/ew_caravel_snippets/SNIPPET1_NoShare.v#L29-L36) so that these can easily be changed if needed, and also to ensure I don't accidentally overlap with someone else.
 
 These are the user_defines (for IO pad power-on configuration) that I would prefer for the pads that have been assigned to me:
 
@@ -229,6 +231,18 @@ NOTE: In my instantiation Verilog snippets I've arbitrarily selected `la_data_in
 1.  `i_mode[1]`
 1.  `i_mode[2]`
 1.  `i_tex_in[3]`
+
+
+## Macro Placement
+
+`user_clock2` (my clock source) and LA inputs are all in the bottom-right corner, while my IO pads are in the top-left corner, so while testing my instantiation snippet, I placed my macro right in the middle of the user project area.
+
+I used a custom `pin_order.cfg` to try and minimise wire lengths further.
+
+Result:
+
+![top_ew_algofoogle in middle of Caravel user project area](./0169-at13-upw-gds.png)
+
 
 ## TODO
 
