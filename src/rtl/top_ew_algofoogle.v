@@ -87,6 +87,7 @@ module top_ew_algofoogle(
 
     //SMELL: 'generate' these 6 instead, since they're pretty consistent...
     gpout_mux gpout0(
+        //  Primary: Green[0]
         .sel(i_gpout0_sel), .gpout(o_gpout[0]), .primary(rbzero_rgb_out[2]), .alt(rbzero_reset),
             .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),
@@ -97,6 +98,7 @@ module top_ew_algofoogle(
             .mode(i_mode), .rgb(o_rgb)
     );
     gpout_mux gpout1(
+        //  Primary: Green[1]
         .sel(i_gpout1_sel), .gpout(o_gpout[1]), .primary(rbzero_rgb_out[3]), .alt(1'b1),
             .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),
@@ -107,6 +109,7 @@ module top_ew_algofoogle(
             .mode(i_mode), .rgb(o_rgb)
     );
     gpout_mux gpout2(
+        //  Primary: Red[0]
         .sel(i_gpout2_sel), .gpout(o_gpout[2]), .primary(rbzero_rgb_out[0]), .alt(i_reset_lock_a),
             .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),
@@ -117,6 +120,7 @@ module top_ew_algofoogle(
             .mode(i_mode), .rgb(o_rgb)
     );
     gpout_mux gpout3(
+        //  Primary: Red[1]
         .sel(i_gpout3_sel), .gpout(o_gpout[3]), .primary(rbzero_rgb_out[1]), .alt(i_reset_lock_b),
             .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),
@@ -127,6 +131,7 @@ module top_ew_algofoogle(
             .mode(i_mode), .rgb(o_rgb)
     );
     gpout_mux gpout4(
+        // Primary: Blue[0]
         .sel(i_gpout4_sel), .gpout(o_gpout[4]), .primary(rbzero_rgb_out[4]), .alt(i_debug_vec_overlay),
             .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),
@@ -137,6 +142,7 @@ module top_ew_algofoogle(
             .mode(i_mode), .rgb(o_rgb)
     );
     gpout_mux gpout5(
+        // Primary: Blue[1]
         .sel(i_gpout5_sel), .gpout(o_gpout[5]), .primary(rbzero_rgb_out[5]), .alt(1'b0),
             .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),

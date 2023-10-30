@@ -15,7 +15,7 @@ I have 3 alternatives for snippets that instantiate and wire up my macro in user
 2.  [`SNIPPET2_ShareIns.v`](https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/ew_caravel_snippets/SNIPPET2_ShareIns.v): 12-pads version, [Anton's 9, plus 3 extra shared INPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs)
 3.  `SNIPPET3_ShareMuxIO.v` (**TBC**): 13-pads version, [Anton's 9, plus shared/muxed INPUTS and OUTPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs-and-outputs) (Matt's mux idea?)
 
-There are suitable IO pad `user_define`s included in the header of each snippet above.
+There are suitable IO pad `user_defines` included in the header of each snippet above.
 
 NOTE: Many of my macro's 125 pins will go unconnected in final placement -- the extras just support different wiring options so as to hopefully be flexible if we use a mux.
 
