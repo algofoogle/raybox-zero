@@ -92,11 +92,18 @@ module top_ew_algofoogle(
     reg         reg_hsync;
     reg         reg_vsync;
     reg [23:0]  reg_rgb;
-    always @(posedge clk) begin
-        reg_gpout   <= unreg_gpout;
-        reg_hsync   <= unreg_hsync;
-        reg_vsync   <= unreg_vsync;
-        reg_rgb     <= unreg_rgb;
+    always @(posedge i_clk) begin
+        if (rbzero_reset) begin
+            reg_gpout   <= 0;
+            reg_hsync   <= 0;
+            reg_vsync   <= 0;
+            reg_rgb     <= 0;
+        end else begin
+            reg_gpout   <= unreg_gpout;
+            reg_hsync   <= unreg_hsync;
+            reg_vsync   <= unreg_vsync;
+            reg_rgb     <= unreg_rgb;
+        end
     end
 
     // Decide whether we are presenting raw combinatorial signals or registered versions:
@@ -122,7 +129,7 @@ module top_ew_algofoogle(
             .hblank(hblank), .vblank(vblank),
             .hpos(hpos), .vpos(vpos),
             .tex_oeb0(o_tex_oeb0), .tex_in(i_tex_in),
-            .mode(i_mode), .rgb(o_rgb)
+            .mode(i_mode), .rgb(unreg_rgb)
     );
     gpout_mux gpout1(
         //  Primary: Green[1]
@@ -133,7 +140,7 @@ module top_ew_algofoogle(
             .hblank(hblank), .vblank(vblank),
             .hpos(hpos), .vpos(vpos),
             .tex_oeb0(o_tex_oeb0), .tex_in(i_tex_in),
-            .mode(i_mode), .rgb(o_rgb)
+            .mode(i_mode), .rgb(unreg_rgb)
     );
     gpout_mux gpout2(
         //  Primary: Red[0]
@@ -144,7 +151,7 @@ module top_ew_algofoogle(
             .hblank(hblank), .vblank(vblank),
             .hpos(hpos), .vpos(vpos),
             .tex_oeb0(o_tex_oeb0), .tex_in(i_tex_in),
-            .mode(i_mode), .rgb(o_rgb)
+            .mode(i_mode), .rgb(unreg_rgb)
     );
     gpout_mux gpout3(
         //  Primary: Red[1]
@@ -155,7 +162,7 @@ module top_ew_algofoogle(
             .hblank(hblank), .vblank(vblank),
             .hpos(hpos), .vpos(vpos),
             .tex_oeb0(o_tex_oeb0), .tex_in(i_tex_in),
-            .mode(i_mode), .rgb(o_rgb)
+            .mode(i_mode), .rgb(unreg_rgb)
     );
     gpout_mux gpout4(
         // Primary: Blue[0]
@@ -166,7 +173,7 @@ module top_ew_algofoogle(
             .hblank(hblank), .vblank(vblank),
             .hpos(hpos), .vpos(vpos),
             .tex_oeb0(o_tex_oeb0), .tex_in(i_tex_in),
-            .mode(i_mode), .rgb(o_rgb)
+            .mode(i_mode), .rgb(unreg_rgb)
     );
     gpout_mux gpout5(
         // Primary: Blue[1]
@@ -177,7 +184,7 @@ module top_ew_algofoogle(
             .hblank(hblank), .vblank(vblank),
             .hpos(hpos), .vpos(vpos),
             .tex_oeb0(o_tex_oeb0), .tex_in(i_tex_in),
-            .mode(i_mode), .rgb(o_rgb)
+            .mode(i_mode), .rgb(unreg_rgb)
     );
 
     wire [5:0] rbzero_rgb_out; //CHECK: What is the final bit depth we're using for EW CI submission?
