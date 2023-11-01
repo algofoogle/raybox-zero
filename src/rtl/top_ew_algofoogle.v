@@ -186,7 +186,7 @@ module top_ew_algofoogle(
         .i_debug    (i_debug_vec_overlay),
         .i_inc_px   (i_mode[0]),
         .i_inc_py   (i_mode[1]),
-        //.i_gen_tex  (i_mode[2]), //1=Use bitwise-generated textures instead of SPI texture memory.
+        .i_gen_tex  (i_mode[2]), // 1=Use bitwise-generated textures instead of SPI texture memory.
         // VGA outputs:
         .hsync_n    (o_hsync),
         .vsync_n    (o_vsync),

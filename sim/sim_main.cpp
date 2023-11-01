@@ -38,8 +38,8 @@ using namespace std;
 //#define USE_SPEAKER
 
 //SMELL: These must be set to the same numbers in fixed_point_params.v:
-#define Qm  12
-#define Qn  12
+#define Qm  11
+#define Qn  11
 //NOTE: Currently these don't have much (or any?) effect over SPI,
 // because the vectors have their own hard-coded ranges.
 
@@ -143,6 +143,7 @@ bool          gRotateView = false;
 bool          gEnableSPI = false;
 bool          gAnimateRegisters = false; // If true, do funky stuff with sky/floor colour and leak.
 bool          gInfiniteHeight = false;
+bool          gGenTex = false; // If true, select generated textures instead of texture memory.
 int           gMouseX, gMouseY;
 int           gColorSky = 0;
 int           gColorFloor = 0;
@@ -293,6 +294,11 @@ void process_sdl_events() {
         case SDLK_F12:
           // Toggle mouse capture.
           toggle_mouse_capture();
+          break;
+        case SDLK_F11:
+          // Toggle generated/memory textures.
+          gGenTex = !gGenTex;
+          printf("Texture source: %s\n", gGenTex ? "Bitwise-generated" : "Texture SPI memory");
           break;
         case SDLK_F10:++fn_key;
         case SDLK_F9: ++fn_key;
@@ -613,6 +619,7 @@ void handle_control_inputs(bool prepare, double t) {
     // TB->m_core->show_map  |= keystate[SDL_SCANCODE_TAB ] | gLockInputs[LOCK_MAP];
     TB->m_core->i_inc_px  = keystate[SDL_SCANCODE_LEFTBRACKET];
     TB->m_core->i_inc_py  = keystate[SDL_SCANCODE_RIGHTBRACKET];
+    TB->m_core->i_gen_tex = gGenTex;
 
     #ifdef DESIGN_DIRECT_VECTOR_ACCESS
       TB->m_core->moveF     |= keystate[SDL_SCANCODE_W   ] | gLockInputs[LOCK_F];
@@ -1363,6 +1370,7 @@ int main(int argc, char **argv) {
       s += gLockInputs[LOCK_R]  ? ">" : ".";
     #endif
       s += gMouseCapture        ? "*" : ".";
+      s += gGenTex              ? "1" : "0";
       s += "] ";
 #ifdef INSPECT_INTERNAL
       s += " pX,Y=("

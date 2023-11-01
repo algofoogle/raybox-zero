@@ -30,6 +30,7 @@ module rbzero(
   input               i_debug,  // Show debug overlay for inspecting view vectors?
   input               i_inc_px, // DEMO: Increment playerX
   input               i_inc_py, // DEMO: Increment playerY
+  input               i_gen_tex, // 1=Use bitwise-generated textures instead of SPI texture memory.
   // VGA outputs:
   output wire         hsync_n, vsync_n,
   output wire [5:0]   rgb,
@@ -95,16 +96,23 @@ module rbzero(
     .leak     (floor_leak),
     .hpos     (hpos),
     // Outputs:
-    .hit      (wall_en)
+    .hit      (wall_en),
+    .gen_tex_rgb(gen_tex_rgb)
   );
+
+  wire `RGB gen_tex_rgb; // i_gen_tex selects between this or external texture SPI memory.
+  //SMELL: i_gen_tex==1 doesn't disable SPI texture memory access.
 
   // Texture pixel colour comes from looking up within the texel colour buffers
   // we loaded during the Texture SPI read sequence below...
-  assign wall_rgb = {
-    {tex_b1[texv], tex_b0[texv]},
-    {tex_g1[texv], tex_g0[texv]},
-    {tex_r1[texv], tex_r0[texv]}
-  };
+  assign wall_rgb =
+    i_gen_tex ? gen_tex_rgb:  // If i_gen_tex==1, use generated texture.
+    // Otherwise, use texture from SPI texture memory...
+    {
+      {tex_b1[texv], tex_b0[texv]},
+      {tex_g1[texv], tex_g0[texv]},
+      {tex_r1[texv], tex_r0[texv]}
+    };
 
   //SMELL: Put the following into another module, or move it into row_render?
   // Load the next line's wall slice texture via QSPI.
