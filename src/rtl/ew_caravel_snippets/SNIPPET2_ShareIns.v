@@ -43,9 +43,9 @@
     assign anton_io_in = io_in[26:18];      // Map the 'in' side of our 9 pads.
     assign io_out[26:18] = anton_io_out;    // Map the 'out' side of our 9 pads.
     assign io_oeb[26:18] = anton_io_oeb;    // Map the IO OEBs for our pads.
-    // Convenience mapping of LA[114:64] to anton_la_in[50:0]. All are INPUTS INTO our module:
-    wire [50:0] anton_la_in   = la_data_in[114:64];
-    wire [50:0] anton_la_oenb =    la_oenb[114:64]; // SoC should configure these all as its outputs (i.e. inputs to our design).
+    // Convenience mapping of LA[115:64] to anton_la_in[51:0]. All are INPUTS INTO our module:
+    wire [51:0] anton_la_in   = la_data_in[115:64];
+    wire [51:0] anton_la_oenb =    la_oenb[115:64]; // SoC should configure these all as its outputs (i.e. inputs to our design).
 
     // Abtractions between Anton's top design and the above pads.
     wire [8:0]  anton_io_in;                // 'In' side of abtracted pads. Only 1 ([4]) is used (bidirectional config).
@@ -113,7 +113,11 @@
         .i_gpout4_sel           (anton_la_in[40:35]),
         .i_gpout5_sel           (anton_la_in[46:41]),
 
-        .i_mode                 (anton_la_in[49:47])
+        .i_mode                 (anton_la_in[49:47]),
+
+        .i_reg_outs_enb         (anton_la_in[50]),
+        .i_spare_0              (anton_la_in[51]),
+        .i_spare_1              (shared_io_in[3])
     );
 
     //// END: INSTANTIATION OF ANTON'S DESIGN (top_ew_algofoogle) (SNIPPET1_NoShare) ---------------------

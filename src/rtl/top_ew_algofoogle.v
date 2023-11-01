@@ -37,7 +37,7 @@ module top_ew_algofoogle(
     output  wire    [23:0]  o_rgb,            // INTERNAL: rgb is BGR888, which go to DACs.
     // Only upper 2 bits of each channel used normally, but full range (if supported) can do depth shading.
 
-    // SPI master for external texture memory:
+    // SPI controller for external texture memory:
     output  wire            o_tex_csb,        // /CS
     output  wire            o_tex_sclk,       // SCLK
     // SPI Quad IOs, including ports for different directions.
@@ -47,12 +47,12 @@ module top_ew_algofoogle(
     output  wire            o_tex_out0,       // IO pad output path. Maps to SPI io[0] (typically MOSI).
     input   wire    [3:0]   i_tex_in,         // This includes i_tex_in[0] which is the above bi-dir IO pad's input path. Maps to SPI io[2:0]. io[3] as yet unused.
 
-    // SPI slave 1: View vectors, to be controlled by LA:
+    // SPI peripheral 1: View vectors, to be controlled by LA:
     input   wire            i_vec_csb,        // 
     input   wire            i_vec_sclk,       // 
     input   wire            i_vec_mosi,       // 
 
-    // SPI slave 2: General registers, to be controlled by LA:
+    // SPI peripheral 2: General registers, to be controlled by LA:
     input   wire            i_reg_csb,        // 
     input   wire            i_reg_sclk,       // 
     input   wire            i_reg_mosi,       // 
@@ -70,12 +70,39 @@ module top_ew_algofoogle(
     input   wire    [5:0]   i_gpout4_sel,
     input   wire    [5:0]   i_gpout5_sel,
 
+    input   wire            i_reg_outs_enb,     // Should our main display outputs be registered (0) or direct (1)?
+    input   wire            i_spare_0,          // Reserved.
+    input   wire            i_spare_1,          // Reserved.
+
     // "Mode": Other stuff to control the design generally, e.g. demo mode.
     input   wire    [2:0]   i_mode
 );
 
     assign zeros    = {16{1'b0}};
     assign ones     = {16{1'b1}};
+
+    // These are the raw combinatorial signals.
+    wire [5:0]  unreg_gpout;
+    wire        unreg_hsync;
+    wire        unreg_vsync;
+    wire [23:0] unreg_rgb;
+
+    // These are registered versions of the signals above; 1-clock delay.
+    reg [5:0]   reg_gpout;
+    reg         reg_hsync;
+    reg         reg_vsync;
+    reg [23:0]  reg_rgb;
+    always @(posedge clk) begin
+        reg_gpout   <= unreg_gpout;
+        reg_hsync   <= unreg_hsync;
+        reg_vsync   <= unreg_vsync;
+        reg_rgb     <= unreg_rgb;
+    end
+
+    // Decide whether we are presenting raw combinatorial signals or registered versions:
+    assign {o_gpout, o_hsync, o_vsync, o_rgb} =
+        (0==i_reg_outs_enb) ?   {reg_gpout, reg_hsync, reg_vsync, reg_rgb}:
+                                {unreg_gpout, unreg_hsync, unreg_vsync, unreg_rgb};
 
     // Our design will be held in reset unless reset_lock_a and reset_lock_b hold
     // opposing values (i.e. one must be high, the other low).
@@ -88,7 +115,7 @@ module top_ew_algofoogle(
     //SMELL: 'generate' these 6 instead, since they're pretty consistent...
     gpout_mux gpout0(
         //  Primary: Green[0]
-        .sel(i_gpout0_sel), .gpout(o_gpout[0]), .primary(rbzero_rgb_out[2]), .alt(rbzero_reset),
+        .sel(i_gpout0_sel), .gpout(unreg_gpout[0]), .primary(rbzero_rgb_out[2]), .alt(rbzero_reset),
             .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),
             .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg_mosi(i_reg_mosi),
@@ -99,7 +126,7 @@ module top_ew_algofoogle(
     );
     gpout_mux gpout1(
         //  Primary: Green[1]
-        .sel(i_gpout1_sel), .gpout(o_gpout[1]), .primary(rbzero_rgb_out[3]), .alt(1'b1),
+        .sel(i_gpout1_sel), .gpout(unreg_gpout[1]), .primary(rbzero_rgb_out[3]), .alt(1'b1),
             .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),
             .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg_mosi(i_reg_mosi),
@@ -110,7 +137,7 @@ module top_ew_algofoogle(
     );
     gpout_mux gpout2(
         //  Primary: Red[0]
-        .sel(i_gpout2_sel), .gpout(o_gpout[2]), .primary(rbzero_rgb_out[0]), .alt(i_reset_lock_a),
+        .sel(i_gpout2_sel), .gpout(unreg_gpout[2]), .primary(rbzero_rgb_out[0]), .alt(i_reset_lock_a),
             .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),
             .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg_mosi(i_reg_mosi),
@@ -121,7 +148,7 @@ module top_ew_algofoogle(
     );
     gpout_mux gpout3(
         //  Primary: Red[1]
-        .sel(i_gpout3_sel), .gpout(o_gpout[3]), .primary(rbzero_rgb_out[1]), .alt(i_reset_lock_b),
+        .sel(i_gpout3_sel), .gpout(unreg_gpout[3]), .primary(rbzero_rgb_out[1]), .alt(i_reset_lock_b),
             .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),
             .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg_mosi(i_reg_mosi),
@@ -132,7 +159,7 @@ module top_ew_algofoogle(
     );
     gpout_mux gpout4(
         // Primary: Blue[0]
-        .sel(i_gpout4_sel), .gpout(o_gpout[4]), .primary(rbzero_rgb_out[4]), .alt(i_debug_vec_overlay),
+        .sel(i_gpout4_sel), .gpout(unreg_gpout[4]), .primary(rbzero_rgb_out[4]), .alt(i_debug_vec_overlay),
             .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),
             .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg_mosi(i_reg_mosi),
@@ -143,7 +170,7 @@ module top_ew_algofoogle(
     );
     gpout_mux gpout5(
         // Primary: Blue[1]
-        .sel(i_gpout5_sel), .gpout(o_gpout[5]), .primary(rbzero_rgb_out[5]), .alt(1'b0),
+        .sel(i_gpout5_sel), .gpout(unreg_gpout[5]), .primary(rbzero_rgb_out[5]), .alt(1'b0),
             .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),
             .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg_mosi(i_reg_mosi),
@@ -154,7 +181,7 @@ module top_ew_algofoogle(
     );
 
     wire [5:0] rbzero_rgb_out; //CHECK: What is the final bit depth we're using for EW CI submission?
-    assign o_rgb = {
+    assign unreg_rgb = {
         // For each channel, we currently have 2 active bits, and 6 unused bits,
         // with each channel intended to go to a DAC as 8 bits.
         rbzero_rgb_out[5:4], 6'b0,  // Blue
@@ -168,15 +195,15 @@ module top_ew_algofoogle(
     rbzero rbzero(
         .clk        (rbzero_clk),
         .reset      (rbzero_reset),
-        // SPI slave interface for updating vectors:
+        // SPI peripheral interface for updating vectors:
         .i_ss_n     (i_vec_csb),
         .i_sclk     (i_vec_sclk),
         .i_mosi     (i_vec_mosi),
-        // SPI slave interface for everything else:
+        // SPI peripheral interface for everything else:
         .i_reg_ss_n (i_reg_csb),
         .i_reg_sclk (i_reg_sclk),
         .i_reg_mosi (i_reg_mosi),
-        // SPI slave interface for reading SPI flash memory (i.e. textures):
+        // SPI controller interface for reading SPI flash memory (i.e. textures):
         .o_tex_csb  (o_tex_csb),
         .o_tex_sclk (o_tex_sclk),
         .o_tex_out0 (o_tex_out0),
@@ -190,8 +217,8 @@ module top_ew_algofoogle(
         .i_inc_py   (i_mode[1]),
         .i_gen_tex  (i_mode[2]), // 1=Use bitwise-generated textures instead of SPI texture memory.
         // VGA outputs:
-        .hsync_n    (o_hsync),
-        .vsync_n    (o_vsync),
+        .hsync_n    (unreg_hsync),
+        .vsync_n    (unreg_vsync),
         .rgb        (rbzero_rgb_out),
         .o_hblank   (hblank),
         .o_vblank   (vblank),

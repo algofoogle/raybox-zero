@@ -12,8 +12,8 @@ Full source is embedded in <code>[`verilog/rtl/`](https://github.com/algofoogle/
 I have alternatives for snippets that instantiate and wire up my macro in user_project_wrapper, depending on what we agree our IO pad sharing will be (Ref: [EW pin allocation](https://github.com/algofoogle/journal/blob/master/0165-2023-10-24.md#ew-pin-allocation)):
 
 1.  [`SNIPPET1_NoShare.v`](https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/ew_caravel_snippets/SNIPPET1_NoShare.v): Straight, simple, [9 dedicated IO pads for Anton](#if-only-9-pads-are-available-to-me-in-total).
-2.  [`SNIPPET2_ShareIns.v`](https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/ew_caravel_snippets/SNIPPET2_ShareIns.v): 12-pads version, [Anton's 9, plus 3 extra shared INPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs)
-3.  `SNIPPET3_ShareMuxIO.v` (**NOT WRITTEN YET**): 13-pads version, [Anton's 9, plus shared/muxed INPUTS and OUTPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs-and-outputs) (Matt's mux idea?)
+2.  **[`SNIPPET2_ShareIns.v`](https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/ew_caravel_snippets/SNIPPET2_ShareIns.v): 12-pads version, [Anton's 9, plus 3 extra shared INPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs) - This seems to be the one we'll use**
+3.  `SNIPPET3_ShareMuxIO.v` (**NOT WRITTEN YET**): 13-pads version, [Anton's 9, plus shared/muxed INPUTS and OUTPUTS](#if-9-pads-available-plus-extra-sharedmuxed-inputs-and-outputs) (Matt's mux idea?) - **NOTE: Probably won't be needed; I don't think we'll do any muxing?**
 
 There are suitable IO pad `user_defines` included in the header of each snippet above.
 
@@ -184,6 +184,8 @@ These signals are numbered/listed in order of importance **(most important at th
 
 NOTE: In my instantiation Verilog snippets I've arbitrarily selected `la_data_in[114:64]` and used a convenience mapping to call them `anton_la_in[50:0]`. Hence, 0 below is LA[64], 1 below is LA[65], etc...
 
+The following list of LA pins assumes [`SNIPPET2_ShareIns.v`](https://github.com/algofoogle/raybox-zero/blob/ew/src/rtl/ew_caravel_snippets/SNIPPET2_ShareIns.v) is the one used.
+
 0.  `i_reset_lock_a`
 1.  `i_reset_lock_b`
 1.  `i_vec_csb`
@@ -234,7 +236,7 @@ NOTE: In my instantiation Verilog snippets I've arbitrarily selected `la_data_in
 1.  `i_mode[0]`
 1.  `i_mode[1]`
 1.  `i_mode[2]`
-1.  `i_tex_in[3]`
+1.  `i_reg_outs_enb` (`i_tex_in[3]` in SNIPPET1 version; no longer relevant)
 
 
 ## Macro Placement
