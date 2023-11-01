@@ -121,15 +121,22 @@ module rbzero(
   // is already known, i.e. wall_tracer has determined traced_wall/side/texu,
   // and they're all stable for the remainder of the line...
   wire [1:0] shifted_wall_id = traced_wall-1'd1;
-  wire [8:0] wall_slice_address = {shifted_wall_id, traced_side, traced_texu};
+  // Address we'd start reading from if it wasn't for adding the texture addends:
+  wire [23:0] wall_slice_base_address = {9'd0, shifted_wall_id, traced_side, traced_texu, 6'd0};
+  // Actual start address we'll send to the SPI memory to start reading from (i.e. base address offset by texture addend):
+  wire [23:0] wall_slice_start_address = wall_slice_base_address + texadd[shifted_wall_id];
+  // Wall slice BASE address pattern (i.e. without addend):
+  // ------------------000000 (Covers 0..63 texels in the slice)
+  // ------------UUUUUU------ texu (wall slice 0..63)
+  // -----------S------------ side 0 or 1
+  // ---------WW------------- Wall ID 0..3
+  // 000000000--------------- Unused (extra address range)
   //NOTE: Each texel is currently 8 bits in the ROM, i.e. 64 bytes per slice,
   // representing 64 pixels. In each byte, the packing is XBGRXBGR, i.e.
   // X---X--- Unused -- io3 input might not always be available as an IO pad.
   // -B---B-- B[0:1] //NOTE: These are all LSB first.
   // --G---G- G[0:1]
   // ---R---R R[0:1]
-  // Because each texel is 1 byte, the wall slice address ends up being shifted
-  // left 6 bits when sent to the ROM during the QSPI preamble.
   localparam [9:0] TSPI_CMD_LEN         = 8;  // Num bits to send for SPI command.
   localparam [9:0] TSPI_ADDR_LEN        = 24; // Num bits to send for SPI address.
   localparam [9:0] TSPI_DUMMY_LEN       = 8;  // Num clocks in dummy wait after sending ADDR.
@@ -180,10 +187,10 @@ module rbzero(
   wire [7:0] tspi_cmd = 8'h6B; // Quad Output Fast Read Array (6Bh).
   assign o_tex_out0 =
     (tspi_state<8)
-      ? tspi_cmd[7-tspi_state]:             // CMD[7:0]
-    (tspi_state>=17 && tspi_state<=25)
-      ? wall_slice_address[25-tspi_state]:  // ADDR[14:6] is wsa[8:0]
-    1'b0;                                   // 0 for all other preamble bits and beyond.
+      ? tspi_cmd[7-tspi_state]:                   // CMD[7:0]
+    (tspi_state<32)
+      ? wall_slice_start_address[31-tspi_state]:  // ADDR[23:0]
+    1'b0;                                         // 0 for all other preamble bits and beyond.
 /////SMELL: UPDATE THE TABLE BELOW!!!!!!!!!
   // The above combo logic for o_tex_csb and o_tex_mosi gives us the following output
   // for each 'state':
@@ -276,6 +283,7 @@ module rbzero(
     .mapdy    (mapdy),
     .mapdxw   (mapdxw),
     .mapdyw   (mapdyw),
+    .texadd   (texadd),
 
     .load_new (visible_frame_end)
   );
@@ -290,6 +298,7 @@ module rbzero(
   wire [5:0]  mapdy         /* verilator public */;
   wire [1:0]  mapdxw        /* verilator public */;
   wire [1:0]  mapdyw        /* verilator public */;
+  wire [23:0] texadd [0:3]  /* verilator public */;
 
   // --- Map ROM: ---
   wire [MAP_WBITS-1:0] tracer_map_col;
