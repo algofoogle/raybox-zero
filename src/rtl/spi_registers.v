@@ -7,24 +7,34 @@
 // Should it really be storing registers itself?
 
 module spi_registers(
-  input             clk,
-  input             reset,
-  input             i_sclk, i_ss_n, i_mosi, // SPI input.
+  input               clk,
+  input               reset,
+  input               i_sclk, i_ss_n, i_mosi, // SPI input.
 
-  output reg `RGB   sky, floor,     // Sky and floor colours.
-  output reg [5:0]  leak,           // Floor 'leak'.
-  output reg [5:0]  otherx, othery, // 'Other' map cell position.
-  output reg [5:0]  vshift,         // Texture V axis shift (texv addend).
-  output reg        vinf,           // Infinite V/height setting.
-  output reg [5:0]  mapdx, mapdy,   // Map 'dividing walls' on X and Y. 0=none
-  output reg [1:0]  mapdxw, mapdyw, // Map dividing wall, wall IDs (texture) for X and Y respectively
-  output reg [23:0] texadd [0:3],   // Texture address addends (array of 4)
+  output reg  `RGB    sky, floor,     // Sky and floor colours.
+  output reg  [5:0]   leak,           // Floor 'leak'.
+  output reg  [5:0]   otherx, othery, // 'Other' map cell position.
+  output reg  [5:0]   vshift,         // Texture V axis shift (texv addend).
+  output reg          vinf,           // Infinite V/height setting.
+  output reg  [5:0]   mapdx, mapdy,   // Map 'dividing walls' on X and Y. 0=none
+  output reg  [1:0]   mapdxw, mapdyw, // Map dividing wall, wall IDs (texture) for X and Y respectively
+  output wire [23:0]  texadd0,        // Texture address addend 0
+  output wire [23:0]  texadd1,        // Texture address addend 1
+  output wire [23:0]  texadd2,        // Texture address addend 2
+  output wire [23:0]  texadd3,        // Texture address addend 3
 
   input             load_new // Will go high at the moment that buffered data can go live.
 );
 
   reg spi_done;
+  
+  reg [23:0] texadd [0:3];
 
+  assign texadd0 = texadd[0];
+  assign texadd1 = texadd[1];
+  assign texadd2 = texadd[2];
+  assign texadd3 = texadd[3];
+  
   // Value in waiting:          | Is value ready to be presented? //
   reg `RGB    new_sky;          reg got_new_sky;
   reg `RGB    new_floor;        reg got_new_floor;

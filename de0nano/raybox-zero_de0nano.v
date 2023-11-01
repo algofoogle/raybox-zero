@@ -33,7 +33,7 @@ module raybox_zero_de0nano(
 
   // K4..K1 external buttons board (K4 is top, K1 is bottom):
   //NOTE: These buttons are active LOW, so we invert them here to make them active HIGH:
-  wire [4:1] K = ~{gpio1[22], gpio1[21], gpio1[19], gpio1[17]};
+  wire [4:1] K = ~{gpio1[20], gpio1[21], gpio1[19], gpio1[17]};
 
   // LEDs just show that we're alive:
   assign LED[0] = ~hsync;
@@ -214,9 +214,11 @@ module raybox_zero_de0nano(
   wire i_sclk     = pico_gpio[28];
   wire i_mosi     = pico_gpio[27];
   wire i_ss_n     = pico_gpio[26];
-  wire i_debug    = pico_gpio[22] | K[4];
-  wire i_inc_px   = K[1];
-  wire i_inc_py   = K[2];
+  wire i_debug_v  = pico_gpio[22] | K[4];
+  wire i_debug_m  = pico_gpio[20] | K[3];
+  wire i_gen_tex  = pico_gpio[19] | K[2];
+  wire i_inc_px   = K[1]; //NOTE: Both incs come from K1.
+  wire i_inc_py   = K[1]; //NOTE: Both incs come from K1.
   wire any_reset  = pico_gpio[21] | reset; // Reset can come from synchronised KEY[0] or from PicoDeo GPIO 21.
 
   // My Texture SPI flash ROM is wired up to my DE0-Nano as follows:
@@ -283,9 +285,11 @@ module raybox_zero_de0nano(
     .i_tex_in   (tex_in),
 
     // Debug/Demo:
-    .i_debug    (i_debug),
-    .i_inc_px   (i_inc_px),
-    .i_inc_py   (i_inc_py),
+    .i_debug_v  (i_debug_v),  // K[4]
+    .i_debug_m  (i_debug_m),  // K[3]
+    .i_gen_tex  (i_gen_tex),  // K[2]
+    .i_inc_px   (i_inc_px),   // K[1]
+    .i_inc_py   (i_inc_py),   // K[1] (yes, shared)
 
     // --- Outputs: ---
     .hsync_n    (hsync),

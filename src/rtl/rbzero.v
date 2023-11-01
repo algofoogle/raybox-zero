@@ -283,7 +283,10 @@ module rbzero(
     .mapdy    (mapdy),
     .mapdxw   (mapdxw),
     .mapdyw   (mapdyw),
-    .texadd   (texadd),
+    .texadd0  (texadd[0]),
+    .texadd1  (texadd[1]),
+    .texadd2  (texadd[2]),
+    .texadd3  (texadd[3]),
 
     .load_new (visible_frame_end)
   );
