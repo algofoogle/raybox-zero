@@ -51,8 +51,18 @@ module wall_tracer #(
   output reg [10:0]       o_size,     // Wall half-size.
   output reg [5:0]        o_texu,     // Texture 'u' coordinate (i.e. how far along the wall the hit was).
   output reg `F           o_texa,     // Addend for texv coord; actually visualWallDist: equiv to o_size rcp, used for texture scaling.
-  output reg `F           o_texVinit  // Initial texV (if o_size exceeds screen HALF_SIZE).
+  output reg `F           o_texVinit, // Initial texV (if o_size exceeds screen HALF_SIZE).
+
+  // HOT (LIVE) values as they are being calculated. This allows the texture memory to generate its address early
+  // (assuming the trace has actually finished before we get to about hpos==600):
+  output wire [1:0]       o_wall_hot,
+  output wire             o_side_hot,
+  output wire [5:0]       o_texu_hot
 );
+
+  assign o_wall_hot = wall;
+  assign o_side_hot = side;
+  assign o_texu_hot = texu;
 
   localparam `F HALF_SIZE_CLIP = HALF_SIZE[`QMNI:0]<<(`Qn-8); //SMELL: I can't remember what this shift is for.
 

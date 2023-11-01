@@ -120,9 +120,9 @@ module rbzero(
   // This assumes that by the time the SPI sequence starts, the wall slice address
   // is already known, i.e. wall_tracer has determined traced_wall/side/texu,
   // and they're all stable for the remainder of the line...
-  wire [1:0] shifted_wall_id = traced_wall-1'd1;
+  wire [1:0] shifted_wall_id = wall_hot-1'd1;
   // Address we'd start reading from if it wasn't for adding the texture addends:
-  wire [23:0] wall_slice_base_address = {9'd0, shifted_wall_id, traced_side, traced_texu, 6'd0};
+  wire [23:0] wall_slice_base_address = {9'd0, shifted_wall_id, side_hot, texu_hot, 6'd0};
   // Actual start address we'll send to the SPI memory to start reading from (i.e. base address offset by texture addend):
   wire [23:0] wall_slice_start_address = wall_slice_base_address + texadd[shifted_wall_id];
   // Wall slice BASE address pattern (i.e. without addend):
@@ -374,6 +374,10 @@ module rbzero(
   wire [5:0]  traced_texu;  // Texture 'u' coordinate value.
   wire `F     traced_texa;
   wire `F     traced_texVinit;
+  wire [1:0]  wall_hot;
+  wire        side_hot;
+  wire [5:0]  texu_hot;
+
   wall_tracer #(
     .MAP_WBITS(MAP_WBITS),
     .MAP_HBITS(MAP_HBITS),
@@ -410,7 +414,10 @@ module rbzero(
     .o_size   (traced_size),
     .o_texu   (traced_texu),
     .o_texa   (traced_texa),
-    .o_texVinit(traced_texVinit)
+    .o_texVinit(traced_texVinit),
+    .o_wall_hot(wall_hot),
+    .o_side_hot(side_hot),
+    .o_texu_hot(texu_hot)
   );
 
 `ifdef TRACE_STATE_DEBUG
