@@ -194,6 +194,7 @@ enum {
   LOCK_R,
   LOCK_MAP,
   LOCK_DEBUG,
+  LOCK_TRACE,
   LOCK__MAX
 };
 bool gLockInputs[LOCK__MAX] = {0};
@@ -488,10 +489,10 @@ void process_sdl_events() {
           else {
             // Not in Override Vectors mode; let the design handle motion.
             switch (e.key.keysym.sym) {
-              case SDLK_BACKQUOTE: //NOTE: As a scancode, the backtick is SDL_SCANCODE_GRAVE.
-                gLockInputs[LOCK_DEBUG] ^= 1; break;
-              // Toggle map input:
-              case SDLK_INSERT: gLockInputs[LOCK_MAP] ^= 1; break;
+              case SDLK_BACKQUOTE:  //NOTE: As a scancode, the backtick is SDL_SCANCODE_GRAVE.
+                                    gLockInputs[LOCK_DEBUG] ^= 1; break;
+              case SDLK_INSERT:     gLockInputs[LOCK_MAP] ^= 1; break;
+              case SDLK_t:          gLockInputs[LOCK_TRACE] ^= 1; break;
 #ifdef DESIGN_DIRECT_VECTOR_ACCESS
               // Toggle direction inputs (and turn off any that are opposing):
               case SDLK_UP:     if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveF=1; else if( (gLockInputs[LOCK_F] ^= 1) ) gLockInputs[LOCK_B] = false; break;
@@ -625,6 +626,7 @@ void handle_control_inputs(bool prepare, double t) {
     TB->m_core->reset     |= keystate[SDL_SCANCODE_R];
     TB->m_core->i_debug_v  = gLockInputs[LOCK_DEBUG]; // Toggle lock with backtick (`)
     TB->m_core->i_debug_m  = gLockInputs[LOCK_MAP] |  keystate[SDL_SCANCODE_TAB ]; // Toggle lock with INSERT key.
+    TB->m_core->i_debug_t  = gLockInputs[LOCK_TRACE]; // Toggle lock with T key.
     TB->m_core->i_inc_px   =                          keystate[SDL_SCANCODE_LEFTBRACKET];
     TB->m_core->i_inc_py   =                          keystate[SDL_SCANCODE_RIGHTBRACKET];
     TB->m_core->i_gen_tex  = gGenTex;

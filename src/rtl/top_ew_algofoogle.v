@@ -185,6 +185,7 @@ module top_ew_algofoogle(
         // Debug/demo signals:
         .i_debug_v  (i_debug_vec_overlay),
         .i_debug_m  (i_debug_map_overlay),
+        .i_debug_t  (i_debug_trace_overlay),
         .i_inc_px   (i_mode[0]),
         .i_inc_py   (i_mode[1]),
         .i_gen_tex  (i_mode[2]), // 1=Use bitwise-generated textures instead of SPI texture memory.

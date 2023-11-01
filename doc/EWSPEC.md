@@ -394,3 +394,91 @@ Many of these are not used, but they are still present around the edge of the ma
 1.  `i_mode[0]`
 1.  `i_mode[1]`
 1.  `i_mode[2]`
+
+
+## NOTES TO SELF
+
+These are intended just for Anton's own reference.
+
+### gpout selector values
+
+0.  primary; different depending on gpout:
+    | gpout | primary    |
+    |-------|------------|
+    | [0]   | green_lo   |
+    | [1]   | greeen_hi  |
+    | [2]   | red_lo     |
+    | [3]   | red_hi     |
+    | [4]   | blue_lo    |
+    | [5]   | blue_hi    |
+1.  alt; different depending on gpout:
+    | gpout | alt                 |
+    |-------|---------------------|
+    | [0]   | rbzero_reset        |
+    | [1]   | 1                   |
+    | [2]   | i_reset_lock_a      |
+    | [3]   | i_reset_lock_b      |
+    | [4]   | i_debug_vec_overlay |
+    | [5]   | 0                   |
+2.  clk
+3.  clk/4
+4.  tex_in[3]
+5.  vec_csb
+6.  vec_sclk
+7.  vec_mosi
+8.  rgb[0]
+9.  rgb[1]
+10. rgb[2]
+11. rgb[3]
+12. rgb[4]
+13. rgb[5]
+14. rgb[6]
+15. rgb[7]
+16. rgb[8]
+17. rgb[9]
+18. rgb[10]
+19. rgb[11]
+20. rgb[12]
+21. rgb[13]
+22. rgb[14]
+23. rgb[15]
+24. rgb[16]
+25. rgb[17]
+26. rgb[18]
+27. rgb[19]
+28. rgb[20]
+29. rgb[21]
+30. rgb[22]
+31. rgb[23]
+32. reg_csb
+33. reg_sclk
+34. reg_mosi
+35. hblank
+36. vblank
+37. tex_oeb0
+38. tex_in[0]
+39. tex_in[1]
+40. tex_in[2]
+41. mode[0]
+42. mode[1]
+43. mode[2]
+44. hpos[0]
+45. hpos[1]
+46. hpos[2]
+47. hpos[3]
+48. hpos[4]
+49. hpos[5]
+50. hpos[6]
+51. hpos[7]
+52. hpos[8]
+53. hpos[9]
+54. vpos[0]
+55. vpos[1]
+56. vpos[2]
+57. vpos[3]
+58. vpos[4]
+59. vpos[5]
+60. vpos[6]
+61. vpos[7]
+62. vpos[8]
+63. vpos[9]

@@ -7,7 +7,7 @@
 //SMELL: These should probably be defined by the target (e.g. TT04 or FPGA) rather than inline here:
 `define USE_MAP_OVERLAY
 `define USE_DEBUG_OVERLAY
-// `define TRACE_STATE_DEBUG  // Trace state is represented visually per each line on-screen.
+`define TRACE_STATE_DEBUG  // Trace state is represented visually per each line on-screen.
 
 module rbzero(
   input               clk,
@@ -29,6 +29,7 @@ module rbzero(
   // Debug/demo signals:
   input               i_debug_v,  // Show debug overlay for inspecting view vectors?
   input               i_debug_m,  // Show debug overlay for map
+  input               i_debug_t,  // Show debug overlay for the tracer FSM
   input               i_inc_px,   // DEMO: Increment playerX
   input               i_inc_py,   // DEMO: Increment playerY
   input               i_gen_tex,  // 1=Use bitwise-generated textures instead of SPI texture memory.
@@ -447,6 +448,7 @@ module rbzero(
 `endif//USE_MAP_OVERLAY
 
 `ifdef TRACE_STATE_DEBUG
+    .show_trace_debug(i_debug_t),
     .trace_state_debug(trace_state), //DEBUG.
 `endif//TRACE_STATE_DEBUG
 
