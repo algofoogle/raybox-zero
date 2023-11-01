@@ -16,20 +16,23 @@ module spi_registers(
   output reg [5:0]  otherx, othery, // 'Other' map cell position.
   output reg [5:0]  vshift,         // Texture V axis shift (texv addend).
   output reg        vinf,           // Infinite V/height setting.
+  output reg [5:0]  mapdx, mapdy,   // Map 'dividing walls' on X and Y. 0=none
+  output reg [1:0]  mapdxw, mapdyw, // Map dividing wall, wall IDs (texture) for X and Y respectively
 
   input             load_new // Will go high at the moment that buffered data can go live.
 );
 
   reg spi_done;
 
-  // Value in waiting: | Is value ready to be presented? //
+  // Value in waiting:   | Is value ready to be presented? //
   reg `RGB    new_sky;    reg got_new_sky;
   reg `RGB    new_floor;  reg got_new_floor;
   reg [5:0]   new_leak;   reg got_new_leak;
-  reg [11:0]  new_other;  reg got_new_other; // otherx and othery combined.
+  reg [11:0]  new_other;  reg got_new_other;  // otherx and othery combined.
   reg [5:0]   new_vshift; reg got_new_vshift;
   reg         new_vinf;   reg got_new_vinf;
-  //-------------------|---------------------------------//
+  reg [15:0]  new_mapd;   reg got_new_mapd;   // mapdx,mapdy, mapdxw,mapdyw combined.
+  //---------------------|---------------------------------//
 
   //SMELL: If we don't want to waste space with all these extra registers,
   // could we just transfer one 'waiting' value into a SINGLE selected register?
@@ -47,9 +50,12 @@ module spi_registers(
       leak    <= 6'd0;        got_new_leak    <= 0;
       vshift  <= 6'd0;        got_new_vshift  <= 0;
       vinf    <= 1'b0;        got_new_vinf    <= 0;
-
       otherx  <= 6'd0;        got_new_other   <= 0;
       othery  <= 6'd0;
+      mapdx   <= 6'd0;        got_new_mapd    <= 0;
+      mapdy   <= 6'd0;
+      mapdxw  <= 2'd0;
+      mapdyw  <= 2'd0;
 
 
     end else begin
@@ -61,6 +67,8 @@ module spi_registers(
         if (got_new_other ) begin {otherx,othery} <= new_other;   got_new_other   <= 0; end
         if (got_new_vshift) begin vshift          <= new_vshift;  got_new_vshift  <= 0; end
         if (got_new_vinf  ) begin vinf            <= new_vinf;    got_new_vinf    <= 0; end
+        if (got_new_mapd  ) begin {mapdx,mapdy,
+                                   mapdxw,mapdyw} <= new_mapd;    got_new_mapd    <= 0; end
       end
 
       if (spi_done) begin
@@ -71,6 +79,7 @@ module spi_registers(
         if (spi_cmd == CMD_OTHER  ) begin   new_other   <= spi_buffer[11:0];  got_new_other  <= 1;  end
         if (spi_cmd == CMD_VSHIFT ) begin   new_vshift  <= spi_buffer[5:0];   got_new_vshift <= 1;  end
         if (spi_cmd == CMD_VINF   ) begin   new_vinf    <= spi_buffer[0];     got_new_vinf   <= 1;  end
+        if (spi_cmd == CMD_MAPD   ) begin   new_mapd    <= spi_buffer[15:0];  got_new_mapd   <= 1;  end
       end else if (ss_active && sclk_rise && spi_frame_end) begin
         // Last bit is being clocked in...
         spi_done <= 1;
@@ -101,15 +110,15 @@ module spi_registers(
   wire mosi = mosi_buffer[1];
   //SMELL: Do we actually need to sync MOSI? It should be stable when we check it at the SCLK rising edge.
 
-
   localparam CMD_SKY    = 0;  localparam LEN_SKY    =  6; // Set sky colour (6b data)
   localparam CMD_FLOOR  = 1;  localparam LEN_FLOOR  =  6; // Set floor colour (6b data)
   localparam CMD_LEAK   = 2;  localparam LEN_LEAK   =  6; // Set floor 'leak' (in texels; 6b data)
   localparam CMD_OTHER  = 3;  localparam LEN_OTHER  = 12; // Set 'other wall cell' position: X and Y, both 6b each, for a total of 12b.
   localparam CMD_VSHIFT = 4;  localparam LEN_VSHIFT =  6; // Set texture V axis shift (texv addend). //SMELL: Make this more bits for finer grain.
   localparam CMD_VINF   = 5;  localparam LEN_VINF   =  1; // Set infinite V mode (infinite height/size).
+  localparam CMD_MAPD   = 6;  localparam LEN_MAPD   = 16; // Set mapdx,mapdy, mapdxw,mapdyw.
 
-  localparam SPI_BUFFER_SIZE = 12; // Should be set to whatever the largest LEN_* value is above.
+  localparam SPI_BUFFER_SIZE = 16; //NOTE: Should be set to whatever the largest LEN_* value is above.
   localparam SPI_BUFFER_LIMIT = SPI_BUFFER_SIZE-1;
 
   localparam SPI_CMD_BITS = 4;
@@ -122,6 +131,7 @@ module spi_registers(
         (spi_cmd == CMD_LEAK  ) ?   LEN_LEAK:
         (spi_cmd == CMD_OTHER ) ?   LEN_OTHER:
         (spi_cmd == CMD_VSHIFT) ?   LEN_VSHIFT:
+        (spi_cmd == CMD_MAPD  ) ?   LEN_MAPD:
       /*(spi_cmd == CMD_VINF  ) ?*/ LEN_VINF
       ) - 1
     );

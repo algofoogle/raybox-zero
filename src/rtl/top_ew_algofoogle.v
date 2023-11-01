@@ -183,7 +183,8 @@ module top_ew_algofoogle(
         .o_tex_oeb0 (o_tex_oeb0),
         .i_tex_in   (i_tex_in), //NOTE: io[3] is unused, currently.
         // Debug/demo signals:
-        .i_debug    (i_debug_vec_overlay),
+        .i_debug_v  (i_debug_vec_overlay),
+        .i_debug_m  (i_debug_map_overlay),
         .i_inc_px   (i_mode[0]),
         .i_inc_py   (i_mode[1]),
         .i_gen_tex  (i_mode[2]), // 1=Use bitwise-generated textures instead of SPI texture memory.

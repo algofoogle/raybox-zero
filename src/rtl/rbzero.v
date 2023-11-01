@@ -5,7 +5,7 @@
 `include "helpers.v"
 
 //SMELL: These should probably be defined by the target (e.g. TT04 or FPGA) rather than inline here:
-// `define USE_MAP_OVERLAY
+`define USE_MAP_OVERLAY
 `define USE_DEBUG_OVERLAY
 // `define TRACE_STATE_DEBUG  // Trace state is represented visually per each line on-screen.
 
@@ -27,10 +27,11 @@ module rbzero(
   output              o_tex_oeb0, // For QSPI io[0], oeb0==0 is OUTPUT, 1 is INPUT.
   input   [3:0]       i_tex_in,
   // Debug/demo signals:
-  input               i_debug,  // Show debug overlay for inspecting view vectors?
-  input               i_inc_px, // DEMO: Increment playerX
-  input               i_inc_py, // DEMO: Increment playerY
-  input               i_gen_tex, // 1=Use bitwise-generated textures instead of SPI texture memory.
+  input               i_debug_v,  // Show debug overlay for inspecting view vectors?
+  input               i_debug_m,  // Show debug overlay for map
+  input               i_inc_px,   // DEMO: Increment playerX
+  input               i_inc_py,   // DEMO: Increment playerY
+  input               i_gen_tex,  // 1=Use bitwise-generated textures instead of SPI texture memory.
   // VGA outputs:
   output wire         hsync_n, vsync_n,
   output wire [5:0]   rgb,
@@ -47,8 +48,8 @@ module rbzero(
 
   localparam [9:0]  H_VIEW    = 640;
   localparam        HALF_SIZE = H_VIEW/2;
-  localparam        MAP_WBITS = 5;
-  localparam        MAP_HBITS = 5;
+  localparam        MAP_WBITS = 5; // 32x...
+  localparam        MAP_HBITS = 5; // ...32 map
 `ifdef USE_MAP_OVERLAY
   localparam        MAP_SCALE = 3;
 `endif//USE_MAP_OVERLAY
@@ -271,6 +272,10 @@ module rbzero(
     .othery   (othery),
     .vshift   (texv_shift),
     .vinf     (vinf),
+    .mapdx    (mapdx),
+    .mapdy    (mapdy),
+    .mapdxw   (mapdxw),
+    .mapdyw   (mapdyw),
 
     .load_new (visible_frame_end)
   );
@@ -281,6 +286,10 @@ module rbzero(
   wire [5:0]  othery        /* verilator public */;
   wire [5:0]  texv_shift    /* verilator public */;
   wire        vinf          /* verilator public */;
+  wire [5:0]  mapdx         /* verilator public */;
+  wire [5:0]  mapdy         /* verilator public */;
+  wire [1:0]  mapdxw        /* verilator public */;
+  wire [1:0]  mapdyw        /* verilator public */;
 
   // --- Map ROM: ---
   wire [MAP_WBITS-1:0] tracer_map_col;
@@ -326,6 +335,8 @@ module rbzero(
     .o_map_row(overlay_map_row),
     .i_map_val(overlay_map_val),
     .in_map_overlay(map_en),
+    .i_otherx(otherx), .i_othery(othery),
+    .i_mapdx(mapdx), .i_mapdy(mapdy),
     .map_rgb(map_rgb)
   );
 `endif//USE_MAP_OVERLAY
@@ -370,11 +381,13 @@ module rbzero(
     // i.e. when 'hmax' goes high:
     .hmax     (hmax),
     // View vectors:
-    .playerX(playerX), .playerY(playerY),
-    .facingX(facingX), .facingY(facingY),
-    .vplaneX(vplaneX), .vplaneY(vplaneY),
-    .otherx   (otherx),
-    .othery   (othery),
+    .playerX(playerX),  .playerY(playerY),
+    .facingX(facingX),  .facingY(facingY),
+    .vplaneX(vplaneX),  .vplaneY(vplaneY),
+    // Special map overrides:
+    .otherx (otherx),   .othery (othery),
+    .mapdx  (mapdx),    .mapdy  (mapdy),
+    .mapdxw (mapdxw),   .mapdyw (mapdyw),
     // Map ROM access:
     .o_map_col(tracer_map_col),
     .o_map_row(tracer_map_row),
@@ -403,13 +416,13 @@ module rbzero(
     .visible  (visible),
 
 `ifdef USE_DEBUG_OVERLAY
-    .debug_en (debug_en & i_debug), .debug_rgb(debug_rgb),
+    .debug_en (debug_en & i_debug_v), .debug_rgb(debug_rgb),
 `else//!USE_DEBUG_OVERLAY
     .debug_en (1'b0), .debug_rgb(6'd0),
 `endif//USE_DEBUG_OVERLAY
 
 `ifdef USE_MAP_OVERLAY
-    .map_en   (map_en), .map_rgb(map_rgb),
+    .map_en   (map_en & i_debug_m), .map_rgb(map_rgb),
 `else//!USE_MAP_OVERLAY
     .map_en   (1'b0), .map_rgb(6'd0),
 `endif//USE_MAP_OVERLAY
