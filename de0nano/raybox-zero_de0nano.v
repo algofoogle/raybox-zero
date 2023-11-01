@@ -211,9 +211,15 @@ module raybox_zero_de0nano(
   };
 
   // These are our unsynchronised inputs (i.e. different clock domain):
+  // Vectors SPI access:
   wire i_sclk     = pico_gpio[28];
   wire i_mosi     = pico_gpio[27];
   wire i_ss_n     = pico_gpio[26];
+  // Registers SPI access:
+  wire i_reg_sclk = pico_gpio[18];
+  wire i_reg_mosi = pico_gpio[17];
+  wire i_reg_ss_n = pico_gpio[16];
+
   wire i_debug_v  = pico_gpio[22] | K[4];
   wire i_debug_m  = pico_gpio[20] | K[3];
   wire i_gen_tex  = pico_gpio[19] | K[2];
@@ -271,11 +277,14 @@ module raybox_zero_de0nano(
     // --- Inputs: ---
     .clk        (pixel_clock),
     .reset      (any_reset),
-    // SPI:
+    // SPI for vectors:
     .i_sclk     (i_sclk),
     .i_mosi     (i_mosi),
     .i_ss_n     (i_ss_n),
-    //SMELL: i_reg_* SPI is not connected!!!
+    // SPI for registers:
+    .i_reg_sclk (i_reg_sclk),
+    .i_reg_mosi (i_reg_mosi),
+    .i_reg_ss_n (i_reg_ss_n),
 
     // Texture SPI flash ROM:
     .o_tex_csb  (tex_csb),
