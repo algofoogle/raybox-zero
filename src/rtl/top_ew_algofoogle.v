@@ -17,6 +17,7 @@ module top_ew_algofoogle(
 `endif
 
     input   wire            i_clk,            // Internal clock source signal.
+    input   wire            i_test_wb_clk_i,  // Not actually used by our design; provided here just for loopback testing via gpout[1]:alt
     input   wire            i_la_invalid,     // Check a la_oenb bit; if 1, LAs are misconfigured (i.e. they're not being driven by the SoC).
     input   wire            i_reset_lock_a,   // Pair must have opposing values to release reset.
     input   wire            i_reset_lock_b,   // Pair must have opposing values to release reset.
@@ -133,7 +134,7 @@ module top_ew_algofoogle(
     );
     gpout_mux gpout1(
         //  Primary: Green[1]
-        .sel(i_gpout1_sel), .gpout(unreg_gpout[1]), .primary(rbzero_rgb_out[3]), .alt(1'b1),
+        .sel(i_gpout1_sel), .gpout(unreg_gpout[1]), .primary(rbzero_rgb_out[3]), .alt(i_test_wb_clk_i),
             .clk(i_clk), .reset(rbzero_reset),
             .vec_csb(i_vec_csb), .vec_sclk(i_vec_sclk), .vec_mosi(i_vec_mosi),
             .reg_csb(i_reg_csb), .reg_sclk(i_reg_sclk), .reg_mosi(i_reg_mosi),
