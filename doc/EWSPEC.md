@@ -395,6 +395,7 @@ Many of these are not used, but they are still present around the edge of the ma
 1.  `i_debug_trace_overlay`
 1.  `i_debug_map_overlay`
 1.  `i_clk`
+1.  `i_test_wb_clk_i`
 1.  `i_mode[0]`
 1.  `i_mode[1]`
 1.  `i_mode[2]`
@@ -422,7 +423,7 @@ These are intended just for Anton's own reference.
     | gpout | alt                 |
     |-------|---------------------|
     | [0]   | rbzero_reset        |
-    | [1]   | 1                   |
+    | [1]   | wb_clk_i            |
     | [2]   | i_reset_lock_a      |
     | [3]   | i_reset_lock_b      |
     | [4]   | i_debug_vec_overlay |
