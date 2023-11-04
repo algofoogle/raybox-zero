@@ -26,89 +26,30 @@ module spi_registers(
   input               load_new        // Will go high at the moment that buffered data can go live.
 );
 
-  reg spi_done;
-  
-  // Value in waiting:          | Is value ready to be presented? //
-  reg `RGB    new_sky;          reg got_new_sky;
-  reg `RGB    new_floor;        reg got_new_floor;
-  reg [5:0]   new_leak;         reg got_new_leak;
-  reg [11:0]  new_other;        reg got_new_other;    // otherx and othery combined.
-  reg [5:0]   new_vshift;       reg got_new_vshift;
-  reg         new_vinf;         reg got_new_vinf;
-  reg [15:0]  new_mapd;         reg got_new_mapd;     // mapdx,mapdy, mapdxw,mapdyw combined.
-  reg [23:0]  new_texadd0;      reg got_new_texadd0;
-  reg [23:0]  new_texadd1;      reg got_new_texadd1;
-  reg [23:0]  new_texadd2;      reg got_new_texadd2;
-  reg [23:0]  new_texadd3;      reg got_new_texadd3;
-  //----------------------------|---------------------------------//
-
+  // Values in waiting:
+  reg `RGB    buf_sky;
+  reg `RGB    buf_floor;
+  reg [5:0]   buf_leak;
+  reg [5:0]   buf_otherx;
+  reg [5:0]   buf_othery;
+  reg [5:0]   buf_vshift;
+  reg         buf_vinf;
+  reg [5:0]   buf_mapdx;
+  reg [5:0]   buf_mapdy;
+  reg [1:0]   buf_mapdxw;
+  reg [1:0]   buf_mapdyw;
+  reg [23:0]  buf_texadd0;
+  reg [23:0]  buf_texadd1;
+  reg [23:0]  buf_texadd2;
+  reg [23:0]  buf_texadd3;
   //SMELL: If we don't want to waste space with all these extra registers,
   // could we just transfer one 'waiting' value into a SINGLE selected register?
   // Only problem with doing so is that we can then only update 1 per frame
   // ...unless we implement the 'immediate' option and the host waits for VBLANK
   // in order for each to be live-loaded (safely).
 
-  always @(posedge clk) begin
 
-    if (reset) begin
-      
-      spi_done <= 0;
-      // Load default values, and flag that we have no ready values in waiting.
-      sky       <= 6'b01_01_01; got_new_sky     <= 0;
-      floor     <= 6'b10_10_10; got_new_floor   <= 0;
-      leak      <= 6'd0;        got_new_leak    <= 0;
-      vshift    <= 6'd0;        got_new_vshift  <= 0;
-      vinf      <= 1'b0;        got_new_vinf    <= 0;
-      otherx    <= 6'd0;        got_new_other   <= 0;
-      othery    <= 6'd0;
-      mapdx     <= 6'd0;        got_new_mapd    <= 0;
-      mapdy     <= 6'd0;
-      mapdxw    <= 2'd0;
-      mapdyw    <= 2'd0;
-      texadd0   <= 24'd0;       got_new_texadd0 <= 0;
-      texadd1   <= 24'd0;       got_new_texadd1 <= 0;
-      texadd2   <= 24'd0;       got_new_texadd2 <= 0;
-      texadd3   <= 24'd0;       got_new_texadd3 <= 0;
-
-    end else begin
-
-      if (load_new) begin
-        if (got_new_sky     ) begin sky             <= new_sky;       got_new_sky       <= 0; end
-        if (got_new_floor   ) begin floor           <= new_floor;     got_new_floor     <= 0; end
-        if (got_new_leak    ) begin leak            <= new_leak;      got_new_leak      <= 0; end
-        if (got_new_other   ) begin {otherx,othery} <= new_other;     got_new_other     <= 0; end
-        if (got_new_vshift  ) begin vshift          <= new_vshift;    got_new_vshift    <= 0; end
-        if (got_new_vinf    ) begin vinf            <= new_vinf;      got_new_vinf      <= 0; end
-        if (got_new_mapd    ) begin {mapdx,mapdy,
-                                    mapdxw,mapdyw}  <= new_mapd;      got_new_mapd      <= 0; end
-        if (got_new_texadd0 ) begin texadd0         <= new_texadd0;   got_new_texadd0   <= 0; end
-        if (got_new_texadd1 ) begin texadd1         <= new_texadd1;   got_new_texadd1   <= 0; end
-        if (got_new_texadd2 ) begin texadd2         <= new_texadd2;   got_new_texadd2   <= 0; end
-        if (got_new_texadd3 ) begin texadd3         <= new_texadd3;   got_new_texadd3   <= 0; end
-      end
-
-      if (spi_done) begin
-        spi_done <= 0;
-        if (spi_cmd == CMD_SKY    ) begin   new_sky       <= spi_buffer`RGB;    got_new_sky       <= 1; end
-        if (spi_cmd == CMD_FLOOR  ) begin   new_floor     <= spi_buffer`RGB;    got_new_floor     <= 1; end
-        if (spi_cmd == CMD_LEAK   ) begin   new_leak      <= spi_buffer[5:0];   got_new_leak      <= 1; end
-        if (spi_cmd == CMD_OTHER  ) begin   new_other     <= spi_buffer[11:0];  got_new_other     <= 1; end
-        if (spi_cmd == CMD_VSHIFT ) begin   new_vshift    <= spi_buffer[5:0];   got_new_vshift    <= 1; end
-        if (spi_cmd == CMD_VINF   ) begin   new_vinf      <= spi_buffer[0];     got_new_vinf      <= 1; end
-        if (spi_cmd == CMD_MAPD   ) begin   new_mapd      <= spi_buffer[15:0];  got_new_mapd      <= 1; end
-        if (spi_cmd == CMD_TEXADD0) begin   new_texadd0   <= spi_buffer[23:0];  got_new_texadd0   <= 1; end
-        if (spi_cmd == CMD_TEXADD1) begin   new_texadd1   <= spi_buffer[23:0];  got_new_texadd1   <= 1; end
-        if (spi_cmd == CMD_TEXADD2) begin   new_texadd2   <= spi_buffer[23:0];  got_new_texadd2   <= 1; end
-        if (spi_cmd == CMD_TEXADD3) begin   new_texadd3   <= spi_buffer[23:0];  got_new_texadd3   <= 1; end
-      end else if (ss_active && sclk_rise && spi_frame_end) begin
-        // Last bit is being clocked in...
-        spi_done <= 1;
-      end
-
-    end
-
-  end // clk.
-
+// ===== SPI INPUT SYNCHRONISATION =====
 
   // The following synchronises the 3 SPI inputs using the typical DFF pair approach
   // for metastability avoidance at the 2nd stage, but note that for SCLK this
@@ -116,19 +57,22 @@ module spi_registers(
 
   // Sync SCLK using 3-bit shift reg (to catch rising/falling edges):
   reg [2:0] sclk_buffer;
-  always @(posedge clk) sclk_buffer <= (reset ? 0 : {sclk_buffer[1:0], i_sclk});
+  always @(posedge clk) sclk_buffer <= (reset ? 3'd0 : {sclk_buffer[1:0], i_sclk});
   wire sclk_rise = (sclk_buffer[2:1]==2'b01);
 
   // Sync /SS; only needs 2 bits because we don't care about edges:
   reg [1:0] ss_buffer;
-  always @(posedge clk) ss_buffer <= (reset ? 0 : {ss_buffer[0], i_ss_n});
+  always @(posedge clk) ss_buffer <= (reset ? 2'd0 : {ss_buffer[0], i_ss_n});
   wire ss_active = ~ss_buffer[1];
 
   // Sync MOSI:
   reg [1:0] mosi_buffer;
-  always @(posedge clk) mosi_buffer <= (reset ? 0 : {mosi_buffer[0], i_mosi});
+  always @(posedge clk) mosi_buffer <= (reset ? 2'd0 : {mosi_buffer[0], i_mosi});
   wire mosi = mosi_buffer[1];
   //SMELL: Do we actually need to sync MOSI? It should be stable when we check it at the SCLK rising edge.
+
+
+// ===== COMMAND/REGISTER PARAMETERS AND SIZING =====
 
   localparam CMD_SKY    = 0;  localparam LEN_SKY    =  6; // Set sky colour (6b data)
   localparam CMD_FLOOR  = 1;  localparam LEN_FLOOR  =  6; // Set floor colour (6b data)
@@ -146,7 +90,7 @@ module spi_registers(
   localparam SPI_BUFFER_LIMIT = SPI_BUFFER_SIZE-1;
 
   localparam SPI_CMD_BITS = 4;
-  wire spi_command_end = (spi_counter == SPI_CMD_BITS-1);
+
   wire spi_frame_end =
     spi_counter == (
       SPI_CMD_BITS + (
@@ -163,28 +107,129 @@ module spi_registers(
       /*(spi_cmd == CMD_VINF    ) ?*/ LEN_VINF
       ) - 1
     );
-  reg [SPI_CMD_BITS-1:0] spi_cmd;
-  reg [6:0] spi_counter; // Enough to count the largest frame we support (74 counts, 0..73, for vectors).
-  reg [SPI_BUFFER_LIMIT:0] spi_buffer; // Receives the SPI data (after the command).
+
+
+// ===== MAIN SPI CONTROL/PAYLOAD REGISTERS =====
+
+  reg [6:0]                 spi_counter; // Enough to count the largest frame we support (74 counts, 0..73, for vectors).
+  reg [SPI_CMD_BITS-1:0]    spi_cmd;
+  reg [SPI_BUFFER_LIMIT:0]  spi_buffer; // Receives the SPI data (after the command).
+  reg                       spi_done;
+  
+
+// ===== MAIN SPI CLOCKED LOGIC =====
 
   always @(posedge clk) begin
-    if (reset || !ss_active) begin
-      // Deactivated; reset SPI:
+
+    // spi_counter:
+    if (reset)
       spi_counter <= 0;
-      // spi_cmd <= 0;
-      // spi_buffer <= 0;
-    end else if (sclk_rise) begin
-      // SPI is active, and we've got a rising SCLK edge, so this is a bit being clocked in:
-      if (spi_counter < SPI_CMD_BITS) begin
-        // Receiving a command.
-        spi_counter <= spi_counter + 1'd1;
-        spi_cmd <= {spi_cmd[SPI_CMD_BITS-2:0], mosi};
-      end else begin
-        // Receiving the data that goes along with the command.
-        spi_counter <= spi_frame_end ? 7'd0 : (spi_counter + 1'd1);
-        spi_buffer <= {spi_buffer[SPI_BUFFER_LIMIT-1:0], mosi};
-      end
+    else if (!ss_active)
+      spi_counter <= 0;
+    else if (sclk_rise && spi_counter < SPI_CMD_BITS)
+      spi_counter <= spi_counter + 1'd1;
+    else if (sclk_rise && !spi_frame_end)
+      spi_counter <= spi_counter + 1'd1;
+    // Stall SPI counter at expected end of frame.
+
+    // Load spi_cmd data:
+    if (reset)
+      spi_cmd <= 0;
+    else if (!ss_active)
+      spi_cmd <= 0;
+    else if (sclk_rise && spi_counter < SPI_CMD_BITS)
+      spi_cmd <= {spi_cmd[SPI_CMD_BITS-2:0], mosi};
+
+    // Load spi_buffer data:
+    if (reset)
+      spi_buffer <= 0;
+    else if (ss_active && sclk_rise && spi_counter >= SPI_CMD_BITS)
+      spi_buffer <= {spi_buffer[SPI_BUFFER_LIMIT-1:0], mosi};
+
+    // spi_done:
+    if (reset)
+      spi_done <= 0;
+    else if (!ss_active)
+      spi_done <= 0;
+    else if (spi_done)
+      spi_done <= 0;
+    else if (sclk_rise && spi_counter < SPI_CMD_BITS)
+      spi_done <= 0;
+    else if (sclk_rise && spi_frame_end)
+      spi_done <= 1;
+
+    // Handle live values:
+    if (reset) begin
+      // Load default values into our live regs
+      sky       <= 6'b01_01_01;
+      floor     <= 6'b10_10_10;
+      leak      <= 6'd0;
+      otherx    <= 6'd0;
+      othery    <= 6'd0;
+      vshift    <= 6'd0;
+      vinf      <= 1'b0;
+      mapdx     <= 6'd0;
+      mapdy     <= 6'd0;
+      mapdxw    <= 2'd0;
+      mapdyw    <= 2'd0;
+      texadd0   <= 24'd0;
+      texadd1   <= 24'd0;
+      texadd2   <= 24'd0;
+      texadd3   <= 24'd0;
+    end else if (load_new) begin
+      // Load from in-waiting buffers:
+      sky       <= buf_sky;
+      floor     <= buf_floor;
+      leak      <= buf_leak;
+      otherx    <= buf_otherx;
+      othery    <= buf_othery;
+      vshift    <= buf_vshift;
+      vinf      <= buf_vinf;
+      mapdx     <= buf_mapdx;
+      mapdy     <= buf_mapdy;
+      mapdxw    <= buf_mapdxw;
+      mapdyw    <= buf_mapdyw;
+      texadd0   <= buf_texadd0;
+      texadd1   <= buf_texadd1;
+      texadd2   <= buf_texadd2;
+      texadd3   <= buf_texadd3;
     end
+
+    // Handle loading in-waiting buffer regs from spi_buffer:
+    if (reset) begin
+      buf_sky       <= 6'b01_01_01;
+      buf_floor     <= 6'b10_10_10;
+      buf_leak      <= 6'd0;
+      buf_otherx    <= 6'd0;
+      buf_othery    <= 6'd0;
+      buf_vshift    <= 6'd0;
+      buf_vinf      <= 1'b0;
+      buf_mapdx     <= 6'd0;
+      buf_mapdy     <= 6'd0;
+      buf_mapdxw    <= 2'd0;
+      buf_mapdyw    <= 2'd0;
+      buf_texadd0   <= 24'd0;
+      buf_texadd1   <= 24'd0;
+      buf_texadd2   <= 24'd0;
+      buf_texadd3   <= 24'd0;
+    end else if (spi_done) begin
+      if (spi_cmd == CMD_SKY    ) buf_sky       <= spi_buffer`RGB;
+      if (spi_cmd == CMD_FLOOR  ) buf_floor     <= spi_buffer`RGB;
+      if (spi_cmd == CMD_LEAK   ) buf_leak      <= spi_buffer[5:0];
+      if (spi_cmd == CMD_OTHER  ){buf_otherx,
+                                  buf_othery}   <= spi_buffer[11:0];
+      if (spi_cmd == CMD_VSHIFT ) buf_vshift    <= spi_buffer[5:0];
+      if (spi_cmd == CMD_VINF   ) buf_vinf      <= spi_buffer[0];
+      if (spi_cmd == CMD_MAPD   ){buf_mapdx,
+                                  buf_mapdy,
+                                  buf_mapdxw,
+                                  buf_mapdyw}   <= spi_buffer[15:0];
+      if (spi_cmd == CMD_TEXADD0) buf_texadd0   <= spi_buffer[23:0];
+      if (spi_cmd == CMD_TEXADD1) buf_texadd1   <= spi_buffer[23:0];
+      if (spi_cmd == CMD_TEXADD2) buf_texadd2   <= spi_buffer[23:0];
+      if (spi_cmd == CMD_TEXADD3) buf_texadd3   <= spi_buffer[23:0];
+    end
+
   end
 
 endmodule
