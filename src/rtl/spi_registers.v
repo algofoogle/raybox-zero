@@ -18,22 +18,15 @@ module spi_registers(
   output reg          vinf,           // Infinite V/height setting.
   output reg  [5:0]   mapdx, mapdy,   // Map 'dividing walls' on X and Y. 0=none
   output reg  [1:0]   mapdxw, mapdyw, // Map dividing wall, wall IDs (texture) for X and Y respectively
-  output wire [23:0]  texadd0,        // Texture address addend 0
-  output wire [23:0]  texadd1,        // Texture address addend 1
-  output wire [23:0]  texadd2,        // Texture address addend 2
-  output wire [23:0]  texadd3,        // Texture address addend 3
+  output reg  [23:0]  texadd0,        // Texture address addend 0
+  output reg  [23:0]  texadd1,        // Texture address addend 1
+  output reg  [23:0]  texadd2,        // Texture address addend 2
+  output reg  [23:0]  texadd3,        // Texture address addend 3
 
-  input             load_new // Will go high at the moment that buffered data can go live.
+  input               load_new        // Will go high at the moment that buffered data can go live.
 );
 
   reg spi_done;
-  
-  reg [23:0] texadd [0:3];
-
-  assign texadd0 = texadd[0];
-  assign texadd1 = texadd[1];
-  assign texadd2 = texadd[2];
-  assign texadd3 = texadd[3];
   
   // Value in waiting:          | Is value ready to be presented? //
   reg `RGB    new_sky;          reg got_new_sky;
@@ -43,18 +36,17 @@ module spi_registers(
   reg [5:0]   new_vshift;       reg got_new_vshift;
   reg         new_vinf;         reg got_new_vinf;
   reg [15:0]  new_mapd;         reg got_new_mapd;     // mapdx,mapdy, mapdxw,mapdyw combined.
-  reg [23:0]  new_texadd [0:3]; reg got_new_texadd [0:3];
-  //---------------------|---------------------------------//
+  reg [23:0]  new_texadd0;      reg got_new_texadd0;
+  reg [23:0]  new_texadd1;      reg got_new_texadd1;
+  reg [23:0]  new_texadd2;      reg got_new_texadd2;
+  reg [23:0]  new_texadd3;      reg got_new_texadd3;
+  //----------------------------|---------------------------------//
 
   //SMELL: If we don't want to waste space with all these extra registers,
   // could we just transfer one 'waiting' value into a SINGLE selected register?
   // Only problem with doing so is that we can then only update 1 per frame
-  // (unless we implement the 'immediate' option and the host waits for VBLANK).
-
-  // assign texadd[0] = 24'hA5A5A5;
-  // assign texadd[1] = 24'hAA55AA;
-  // assign texadd[2] = 24'h55AA55;
-  // assign texadd[3] = 24'h123ABC;
+  // ...unless we implement the 'immediate' option and the host waits for VBLANK
+  // in order for each to be live-loaded (safely).
 
   always @(posedge clk) begin
 
@@ -73,26 +65,26 @@ module spi_registers(
       mapdy     <= 6'd0;
       mapdxw    <= 2'd0;
       mapdyw    <= 2'd0;
-      texadd[0] <= 24'd0;       got_new_texadd[0] <= 0;
-      texadd[1] <= 24'd0;       got_new_texadd[1] <= 0;
-      texadd[2] <= 24'd0;       got_new_texadd[2] <= 0;
-      texadd[3] <= 24'd0;       got_new_texadd[3] <= 0;
+      texadd0   <= 24'd0;       got_new_texadd0 <= 0;
+      texadd1   <= 24'd0;       got_new_texadd1 <= 0;
+      texadd2   <= 24'd0;       got_new_texadd2 <= 0;
+      texadd3   <= 24'd0;       got_new_texadd3 <= 0;
 
     end else begin
 
       if (load_new) begin
-        if (got_new_sky       ) begin sky             <= new_sky;       got_new_sky       <= 0; end
-        if (got_new_floor     ) begin floor           <= new_floor;     got_new_floor     <= 0; end
-        if (got_new_leak      ) begin leak            <= new_leak;      got_new_leak      <= 0; end
-        if (got_new_other     ) begin {otherx,othery} <= new_other;     got_new_other     <= 0; end
-        if (got_new_vshift    ) begin vshift          <= new_vshift;    got_new_vshift    <= 0; end
-        if (got_new_vinf      ) begin vinf            <= new_vinf;      got_new_vinf      <= 0; end
-        if (got_new_mapd      ) begin {mapdx,mapdy,
-                                      mapdxw,mapdyw}  <= new_mapd;      got_new_mapd      <= 0; end
-        if (got_new_texadd[0] ) begin texadd[0]       <= new_texadd[0]; got_new_texadd[0] <= 0; end
-        if (got_new_texadd[1] ) begin texadd[1]       <= new_texadd[1]; got_new_texadd[1] <= 0; end
-        if (got_new_texadd[2] ) begin texadd[2]       <= new_texadd[2]; got_new_texadd[2] <= 0; end
-        if (got_new_texadd[3] ) begin texadd[3]       <= new_texadd[3]; got_new_texadd[3] <= 0; end
+        if (got_new_sky     ) begin sky             <= new_sky;       got_new_sky       <= 0; end
+        if (got_new_floor   ) begin floor           <= new_floor;     got_new_floor     <= 0; end
+        if (got_new_leak    ) begin leak            <= new_leak;      got_new_leak      <= 0; end
+        if (got_new_other   ) begin {otherx,othery} <= new_other;     got_new_other     <= 0; end
+        if (got_new_vshift  ) begin vshift          <= new_vshift;    got_new_vshift    <= 0; end
+        if (got_new_vinf    ) begin vinf            <= new_vinf;      got_new_vinf      <= 0; end
+        if (got_new_mapd    ) begin {mapdx,mapdy,
+                                    mapdxw,mapdyw}  <= new_mapd;      got_new_mapd      <= 0; end
+        if (got_new_texadd0 ) begin texadd0         <= new_texadd0;   got_new_texadd0   <= 0; end
+        if (got_new_texadd1 ) begin texadd1         <= new_texadd1;   got_new_texadd1   <= 0; end
+        if (got_new_texadd2 ) begin texadd2         <= new_texadd2;   got_new_texadd2   <= 0; end
+        if (got_new_texadd3 ) begin texadd3         <= new_texadd3;   got_new_texadd3   <= 0; end
       end
 
       if (spi_done) begin
@@ -104,10 +96,10 @@ module spi_registers(
         if (spi_cmd == CMD_VSHIFT ) begin   new_vshift    <= spi_buffer[5:0];   got_new_vshift    <= 1; end
         if (spi_cmd == CMD_VINF   ) begin   new_vinf      <= spi_buffer[0];     got_new_vinf      <= 1; end
         if (spi_cmd == CMD_MAPD   ) begin   new_mapd      <= spi_buffer[15:0];  got_new_mapd      <= 1; end
-        if (spi_cmd == CMD_TEXADD0) begin   new_texadd[0] <= spi_buffer[23:0];  got_new_texadd[0] <= 1; end
-        if (spi_cmd == CMD_TEXADD1) begin   new_texadd[1] <= spi_buffer[23:0];  got_new_texadd[1] <= 1; end
-        if (spi_cmd == CMD_TEXADD2) begin   new_texadd[2] <= spi_buffer[23:0];  got_new_texadd[2] <= 1; end
-        if (spi_cmd == CMD_TEXADD3) begin   new_texadd[3] <= spi_buffer[23:0];  got_new_texadd[3] <= 1; end
+        if (spi_cmd == CMD_TEXADD0) begin   new_texadd0   <= spi_buffer[23:0];  got_new_texadd0   <= 1; end
+        if (spi_cmd == CMD_TEXADD1) begin   new_texadd1   <= spi_buffer[23:0];  got_new_texadd1   <= 1; end
+        if (spi_cmd == CMD_TEXADD2) begin   new_texadd2   <= spi_buffer[23:0];  got_new_texadd2   <= 1; end
+        if (spi_cmd == CMD_TEXADD3) begin   new_texadd3   <= spi_buffer[23:0];  got_new_texadd3   <= 1; end
       end else if (ss_active && sclk_rise && spi_frame_end) begin
         // Last bit is being clocked in...
         spi_done <= 1;
@@ -118,23 +110,23 @@ module spi_registers(
   end // clk.
 
 
-  //SMELL: ------------------ NEED TO IMPLEMENT/RESPECT RESETS FOR ALL THIS?? --------------------
   // The following synchronises the 3 SPI inputs using the typical DFF pair approach
-  // for metastability avoidance at the 2nd stage, but note that for SCLK and /SS this
-  // rolls into a 3rd stage so that we can use the state of stages 2 and 3 to detect
-  // a rising or falling edge...
+  // for metastability avoidance at the 2nd stage, but note that for SCLK this
+  // rolls into a 3rd stage so that stages 2 and 3 can detect a rising edge...
 
   // Sync SCLK using 3-bit shift reg (to catch rising/falling edges):
-  reg [2:0] sclk_buffer; always @(posedge clk) if (!reset) sclk_buffer <= {sclk_buffer[1:0], i_sclk};
+  reg [2:0] sclk_buffer;
+  always @(posedge clk) sclk_buffer <= (reset ? 0 : {sclk_buffer[1:0], i_sclk});
   wire sclk_rise = (sclk_buffer[2:1]==2'b01);
-  // wire sclk_fall = (sclk_buffer[2:1]==2'b10);
 
   // Sync /SS; only needs 2 bits because we don't care about edges:
-  reg [1:0] ss_buffer; always @(posedge clk) if (!reset) ss_buffer <= {ss_buffer[0], i_ss_n};
+  reg [1:0] ss_buffer;
+  always @(posedge clk) ss_buffer <= (reset ? 0 : {ss_buffer[0], i_ss_n});
   wire ss_active = ~ss_buffer[1];
 
   // Sync MOSI:
-  reg [1:0] mosi_buffer; always @(posedge clk) if (!reset) mosi_buffer <= {mosi_buffer[0], i_mosi};
+  reg [1:0] mosi_buffer;
+  always @(posedge clk) mosi_buffer <= (reset ? 0 : {mosi_buffer[0], i_mosi});
   wire mosi = mosi_buffer[1];
   //SMELL: Do we actually need to sync MOSI? It should be stable when we check it at the SCLK rising edge.
 
@@ -179,6 +171,8 @@ module spi_registers(
     if (reset || !ss_active) begin
       // Deactivated; reset SPI:
       spi_counter <= 0;
+      // spi_cmd <= 0;
+      // spi_buffer <= 0;
     end else if (sclk_rise) begin
       // SPI is active, and we've got a rising SCLK edge, so this is a bit being clocked in:
       if (spi_counter < SPI_CMD_BITS) begin
