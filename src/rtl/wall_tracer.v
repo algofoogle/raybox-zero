@@ -1,5 +1,5 @@
 `default_nettype none
-`timescale 1ns / 1ps
+// `timescale 1ns / 1ps
 
 `include "fixed_point_params.v"
 

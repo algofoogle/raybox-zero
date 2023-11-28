@@ -1,5 +1,5 @@
 `default_nettype none
-`timescale 1ns / 1ps
+// `timescale 1ns / 1ps
 
 
 //@@@ map_overlay can't work properly yet, because *for now* we need to assume the tracer wants

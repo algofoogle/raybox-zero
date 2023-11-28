@@ -5,7 +5,7 @@
 // ...which implements: https://observablehq.com/@drom/reciprocal-approximation
 
 `default_nettype none
-`timescale 1ns / 1ps
+// `timescale 1ns / 1ps
 
 
 module reciprocal #(

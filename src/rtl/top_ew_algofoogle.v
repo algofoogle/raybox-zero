@@ -1,5 +1,5 @@
 `default_nettype none
-`timescale 1ns / 1ps
+// `timescale 1ns / 1ps
 
 // This is the top wrapper for the algofoogle (Anton Maurovic) raybox-zero design
 // that is intended to be included as a GDS macro in the EllenWood chipIgnite

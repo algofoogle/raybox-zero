@@ -3,7 +3,7 @@
 //...in this case, hard-coded for 20-bit inputs, i.e. Q10.10.
 
 `default_nettype none
-`timescale 1ns / 1ps
+// `timescale 1ns / 1ps
 
 `include "fixed_point_params.v"
 
