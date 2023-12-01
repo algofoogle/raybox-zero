@@ -8,6 +8,70 @@
 // `timescale 1ns / 1ps
 
 
+`define FQMN [M-1:-N]
+
+// Sequential reciprocal 'device' that can be loaded, started,
+// and will provide a registered result when ready.
+module reciprocal_fsm #(
+  parameter [4:0] M = 12,         // Integer bits, inc. sign.
+  parameter       N = 12          // Fractional bits.
+) (
+  input   wire        i_clk,
+  input   wire        i_reset,
+  input   wire        i_start,
+  input   wire  `FQMN i_data,
+  input   wire        i_abs,  // 1=we want the absolute value only.
+  output  reg   `FQMN o_data,
+  output  reg         o_sat,  // 1=saturated
+  output  reg         o_done
+);
+
+  reg `FQMN operand;
+  reg abs;
+  wire `FQMN result;
+  wire sat;
+  reg [2:0] state;
+  localparam [2:0] IDLE=0, WS1=1, WS2=2, WS3=3, DONE=4;
+
+  reciprocal #(.M(M),.N(N)) rcp (
+    .i_data (operand),
+    .i_abs  (i_abs),
+    .o_data (result),
+    .o_sat  (sat)
+  );
+
+/* verilator lint_off CASEINCOMPLETE */
+  always @(posedge i_clk) begin
+    if (i_reset) begin
+      operand <= 0;
+      abs <= 0;
+      o_data <= 0;
+      o_sat <= 0;
+      o_done <= 0;
+      state <= IDLE;
+    end else case (state)
+      IDLE: if (i_start) begin
+        o_done <= 0;
+        operand <= i_data;
+        abs <= i_abs;
+        state <= WS1;
+      end
+      WS1: state <= WS2;
+      WS2: state <= WS3;
+      WS3: state <= DONE;
+      DONE: begin
+        o_data <= result;
+        o_sat <= sat;
+        o_done <= 1;
+        state <= IDLE;
+      end
+    endcase
+  end
+/* verilator lint_on CASEINCOMPLETE */
+
+endmodule
+
+
 module reciprocal #(
   parameter [4:0] M = 12,         // Integer bits, inc. sign.
   parameter       N = 12          // Fractional bits.
