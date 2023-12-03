@@ -3,13 +3,7 @@
 // --- top_raybox_zero_fsm ---
 // This is the top wrapper for raybox-zero, FSM version, when integrated in a
 // GFMPW-1 multi-project caravel. See here for more info:
-
-
-wrapper for the algofoogle (Anton Maurovic) raybox-zero design
-// that is intended to be included as a GDS macro in the EllenWood chipIgnite
-// Caravel submission.
-//
-// It defines the expected digital ports that will ultimately be needed.
+// https://github.com/algofoogle/journal/blob/master/0182-2023-12-03.md#test-6
 
 
 module top_raybox_zero_fsm(
