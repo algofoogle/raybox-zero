@@ -14,6 +14,7 @@ module top_raybox_zero_fsm(
 
     input   wire            i_clk,            // Clock source signal.
     input   wire            i_reset,
+    input   wire            i_reset_alt,        // Alternate reset.
 
     // Provides constant sources of '0' and '1' values that can be used for wiring up different
     // combinations of constants as required inside a user_project_wrapper (where only wires are
@@ -96,7 +97,7 @@ module top_raybox_zero_fsm(
         (0==i_reg_outs_enb) ?   {reg_gpout, reg_hsync, reg_vsync, reg_rgb}:
                                 {unreg_gpout, unreg_hsync, unreg_vsync, unreg_rgb};
 
-    wire rbzero_reset = i_reset;
+    wire rbzero_reset = i_reset | i_reset_alt;
 
     wire rbzero_clk = i_clk;
 

@@ -15,7 +15,8 @@
     // https://github.com/algofoogle/raybox-zero/blob/gf180/src/rtl/gfmpw1_snippets/GFMPW1_SNIPPET_top_raybox_zero_fsm.v
 
     wire rbz_fsm_clock_in = wb_clk_i;
-    wire rbz_fsm_reset_in = wb_rst_i | rbz_fsm_la_in[0]; // Reset by SoC reset OR LA.
+    wire rbz_fsm_reset = wb_rst_i;
+    wire rbz_fsm_reset_alt = rbz_fsm_la_in[0]; // Reset by SoC reset OR LA.
     wire [12:0] rbz_fsm_la_in = la_data_in[12:0]; // Can be reassigned, if desired.
     wire [15:0] a0s, a1s;                   // Low and high signals from our design that we can use to mix constants.
     assign io_out[34:19] = a0s[15:0]; // Irrelevant.
@@ -37,7 +38,8 @@
     `endif
 
         .i_clk                  (rbz_fsm_clock_in),
-        .i_reset                (rbz_fsm_reset_in),
+        .i_reset                (rbz_fsm_reset),
+        .i_reset_alt            (rbz_fsm_reset_alt),
 
         .zeros                  (a0s),  // A source of 16 constant '0' signals.
         .ones                   (a1s),  // A source of 16 constant '1' signals.
