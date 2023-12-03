@@ -18,18 +18,18 @@
     wire rbz_fsm_reset = wb_rst_i;
     wire rbz_fsm_reset_alt = rbz_fsm_la_in[0]; // Reset by SoC reset OR LA.
     wire [12:0] rbz_fsm_la_in = la_data_in[12:0]; // Can be reassigned, if desired.
-    wire [15:0] a0s, a1s;                   // Low and high signals from our design that we can use to mix constants.
-    assign io_out[34:19] = a0s[15:0]; // Irrelevant.
-    assign io_out[7:0] = a0s[15:8];  // Irrelevant.
+    wire [12:0] a0s;
+    wire [23:0] a1s;
+    // assign io_out[34:19] = a0s[15:0]; // Irrelevant.
+    // assign io_out[7:0] = a0s[15:8];  // Irrelevant.
 
     wire rbz_fsm_tex_oeb0;
-    assign io_oeb = {
-        a0s[15:13],         // 37:35 are OUT
-        a1s[15:0],          // 34:19 are IN
-        rbz_fsm_tex_oeb0,   // 18 is bidir (tex_io0)
-        a0s[12:3],          // 17:8 are OUT
-        a1s[15:8],          // 7:0 are IN or not otherwise used (i.e. under SoC control).
-    }; // 0001111111111111111*000000000011111111 where *=tex_io0 dir.
+    assign io_oeb[37:35]    = a0s[2:0];         // OUT
+    assign io_oeb[34:19]    = a1s[15:0];        // IN
+    assign io_oeb[18]       = rbz_fsm_tex_oeb0; // 18 is bidir (tex_io0)
+    assign io_oeb[17:8]     = a0s[12:3];        // OUT
+    assign io_oeb[7:0]      = a1s[23:16];       // IN (or otherwise unused i.e. under SoC control)
+    // io_oeb = 0001111111111111111*000000000011111111 where *=tex_io0 dir.
 
     top_raybox_zero_fsm top_raybox_zero_fsm(
     `ifdef USE_POWER_PINS
@@ -41,8 +41,8 @@
         .i_reset                (rbz_fsm_reset),
         .i_reset_alt            (rbz_fsm_reset_alt),
 
-        .zeros                  (a0s),  // A source of 16 constant '0' signals.
-        .ones                   (a1s),  // A source of 16 constant '1' signals.
+        .zeros                  (a0s),  // A source of 13 constant '0' signals.
+        .ones                   (a1s),  // A source of 24 constant '1' signals.
 
         .o_hsync                (io_out[8]),
         .o_vsync                (io_out[9]),

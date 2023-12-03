@@ -22,8 +22,8 @@ module top_raybox_zero_fsm(
     // I'm not certain, but I think providing multiple (i.e. vectors) like this is a good idea
     // so we can conveniently do index ranges, but *also* so we don't get fanout problems from
     // single constant driver cells...?
-    output  wire    [15:0]  zeros,
-    output  wire    [15:0]  ones,
+    output  wire    [12:0]  zeros,              // Represents 13 outputs.
+    output  wire    [23:0]  ones,               // Represents 24 inputs.
 
     // RAW VGA outputs:
     output  wire            o_hsync,          // 
@@ -64,8 +64,8 @@ module top_raybox_zero_fsm(
     output  wire    [2:0]   o_gpout
 );
 
-    assign zeros    = {16{1'b0}};
-    assign ones     = {16{1'b1}};
+    assign zeros    = {13{1'b0}};
+    assign ones     = {24{1'b1}};
 
     // These are the raw combinatorial signals.
     wire [2:0]  unreg_gpout;
