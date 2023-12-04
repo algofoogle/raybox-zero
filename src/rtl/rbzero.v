@@ -40,6 +40,11 @@ module rbzero(
   // Other outputs:
   output wire         o_hblank, // Asserted for the duration of the horizontal blanking interval.
   output wire         o_vblank, // Asserted for the duration of the vertical blanking interval.
+  output wire         o_hmax,
+  output wire         o_vmax,
+
+  // Debug outputs:
+  output wire         o_vinf, // Send out a copy of the VINF register, which can help with debugging 'reg' SPI.
 
   // hpos and vpos are currently supplied so a top module can do dithering,
   // but otherwise they're not really required, or even just bit-0 of each would do:
@@ -55,6 +60,8 @@ module rbzero(
   localparam        MAP_SCALE = 3;
 `endif//USE_MAP_OVERLAY
 
+  assign o_vinf = vinf;
+
   // --- VGA sync driver: ---
   wire hsync, vsync;
   wire visible;
@@ -62,6 +69,7 @@ module rbzero(
   // wire [9:0] hpos;
   // wire [9:0] vpos;
   wire hmax, vmax;
+  assign {o_hmax,o_vmax} = {hmax,vmax};
   vga_sync vga_sync(
     .clk      (clk),
     .reset    (reset),
