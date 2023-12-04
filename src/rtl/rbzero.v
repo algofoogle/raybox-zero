@@ -8,6 +8,8 @@
 `define USE_MAP_OVERLAY
 `define USE_DEBUG_OVERLAY
 `define TRACE_STATE_DEBUG  // Trace state is represented visually per each line on-screen.
+//`define STANDBY_RESET // If defined use extra logic to avoid clocking regs during reset (for power saving/stability).
+
 
 module rbzero(
   input               clk,
@@ -61,6 +63,12 @@ module rbzero(
 `endif//USE_MAP_OVERLAY
 
   assign o_vinf = vinf;
+
+`ifdef STANDBY_RESET
+  wire no_standby = !reset;  // Regs standby mode driven by reset.
+`else
+  wire no_standby = 1'b1; // CONSTANT: Regs standby disabled completely. Should get optimised out.
+`endif
 
   // --- VGA sync driver: ---
   wire hsync, vsync;
@@ -172,7 +180,7 @@ module rbzero(
   wire tspi_data_present = (tspi_state >= TSPI_PREAMBLE_LEN && tspi_state < TSPI_STREAM_LEN);
   //NOTE: BEWARE: Below, posedge of SPI_SCLK (not clk) is used, because this is where MISO output is stable...
   always @(posedge o_tex_sclk) begin
-    if (tspi_data_present && !reset) begin
+    if (tspi_data_present && no_standby) begin
       // Nibbles are streaming out via io[3:0], so shift them into our buffers...
       //NOTE: i_tex_in[0] is discarded for now.
       if (0==tspi_state[0]) begin
@@ -247,7 +255,7 @@ module rbzero(
   //NOTE: Because of 'texVV = texV + traced_texVinit' above, texV might be relative to
   // a positive, 0, or negative starting point as calculated by wall_tracer.
   //SMELL: Move this into some other module, e.g. row_render?
-  always @(posedge clk) if (!reset) texV <= (hmax ? `Qmnc'd0 : texV + traced_texa);
+  always @(posedge clk) if (no_standby) texV <= (hmax ? `Qmnc'd0 : texV + traced_texa);
 
   // --- Point-Of-View data, i.e. view vectors: ---
   wire `F playerX /* verilator public */;
