@@ -16,6 +16,7 @@ module top_raybox_zero_fsm(
     input   wire            i_reset,
     input   wire            i_reset_alt,        // Alternate reset.
 
+    //NOTE: zeros and ones are no longer needed because mux takes care of OEBs...
     // Provides constant sources of '0' and '1' values that can be used for wiring up different
     // combinations of constants as required inside a user_project_wrapper (where only wires are
     // allowed, and no cells OR instantiation of contants).
