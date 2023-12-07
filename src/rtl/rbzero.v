@@ -162,7 +162,7 @@ module rbzero(
   localparam [9:0] TSPI_READ_LEN        = TSPI_TEXEL_COUNT<<1; // For now: 128 QSPI nibbles, i.e. 64 bytes, 1 byte per texel.
   localparam [9:0] TSPI_STREAM_LEN      = TSPI_PREAMBLE_LEN + TSPI_READ_LEN; // Total SCLK cycles for full stream.
   localparam [9:0] TSPI_HPOS_READ_START = H_VIEW - TSPI_PREAMBLE_LEN; // hpos value when we can start SPI stream.
-  localparam [9:0] TSPI_HPOS_READ_STOP  = TSPI_HPOS_READ_START + TSPI_STREAM_LEN; // hpos value when SPI stream ends.
+  // localparam [9:0] TSPI_HPOS_READ_STOP  = TSPI_HPOS_READ_START + TSPI_STREAM_LEN; // hpos value when SPI stream ends.
   reg [TSPI_TEXEL_COUNT-1:0] tex_r1, tex_r0;
   reg [TSPI_TEXEL_COUNT-1:0] tex_g1, tex_g0;
   reg [TSPI_TEXEL_COUNT-1:0] tex_b1, tex_b0;

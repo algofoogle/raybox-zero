@@ -81,13 +81,13 @@ module wall_tracer #(
 
   // States for getting stepDistX = 1.0/rayDirX:
   localparam SDXPrep      = 0;
-  localparam SDXWait      = 1;
-  localparam SDXLoad      = 2;
+  // localparam SDXWait      = 1;
+  // localparam SDXLoad      = 2;
 
   // States for getting stepDistY = 1.0/rayDirY:
   localparam SDYPrep      = 3;
-  localparam SDYWait      = 4;
-  localparam SDYLoad      = 5;
+  // localparam SDYWait      = 4;
+  // localparam SDYLoad      = 5;
 
   // States for main line trace process:
   localparam TracePrepX   = 6;
@@ -96,8 +96,8 @@ module wall_tracer #(
 
   // States for wall rendered size reciprocal:
   localparam SizePrep     = 9;
-  localparam SizeWait     = 10;
-  localparam SizeLoad     = 11;
+  // localparam SizeWait     = 10;
+  // localparam SizeLoad     = 11;
 
   // States that share the multiplier, for working out texture coordinates stuff:
   localparam CalcTexU     = 12;
@@ -107,9 +107,9 @@ module wall_tracer #(
   localparam TraceDone    = 15;
 
   // Symbols representing different data sources for the reciprocal:
-  localparam [1:0] RCP_RDX    = 2'd0; // rayDirX.
-  localparam [1:0] RCP_RDY    = 2'd1; // rayDirY.
-  localparam [1:0] RCP_VDIST  = 2'd2; // vdist.
+  // localparam [1:0] RCP_RDX    = 2'd0; // rayDirX.
+  // localparam [1:0] RCP_RDY    = 2'd1; // rayDirY.
+  // localparam [1:0] RCP_VDIST  = 2'd2; // vdist.
 
 `ifdef TRACE_STATE_DEBUG
   assign o_state = state;

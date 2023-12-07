@@ -17,14 +17,14 @@ module top_raybox_zero_fsm(
     input   wire            i_reset_alt,        // Alternate reset.
 
     //NOTE: zeros and ones are no longer needed because mux takes care of OEBs...
-    // Provides constant sources of '0' and '1' values that can be used for wiring up different
-    // combinations of constants as required inside a user_project_wrapper (where only wires are
-    // allowed, and no cells OR instantiation of contants).
-    // I'm not certain, but I think providing multiple (i.e. vectors) like this is a good idea
-    // so we can conveniently do index ranges, but *also* so we don't get fanout problems from
-    // single constant driver cells...?
-    output  wire    [12:0]  zeros,              // Represents 13 outputs.
-    output  wire    [23:0]  ones,               // Represents 24 inputs.
+    // // Provides constant sources of '0' and '1' values that can be used for wiring up different
+    // // combinations of constants as required inside a user_project_wrapper (where only wires are
+    // // allowed, and no cells OR instantiation of contants).
+    // // I'm not certain, but I think providing multiple (i.e. vectors) like this is a good idea
+    // // so we can conveniently do index ranges, but *also* so we don't get fanout problems from
+    // // single constant driver cells...?
+    // output  wire    [12:0]  zeros,              // Represents 13 outputs.
+    // output  wire    [23:0]  ones,               // Represents 24 inputs.
 
     // RAW VGA outputs:
     output  wire            o_hsync,          // 
@@ -66,9 +66,9 @@ module top_raybox_zero_fsm(
     input   wire    [3:0]   i_gpout2_sel
 );
 
-    // These are for caravel to hard-wire OEBs; 37 are fixed dir, 1 is bidir (via o_tex_oeb0):
-    assign zeros    = {13{1'b0}};
-    assign ones     = {24{1'b1}};
+    // // These are for caravel to hard-wire OEBs; 37 are fixed dir, 1 is bidir (via o_tex_oeb0):
+    // assign zeros    = {13{1'b0}};
+    // assign ones     = {24{1'b1}};
 
     wire [3:0] gpout0_sel, gpout1_sel, gpout2_sel;
     wire reset_alt;

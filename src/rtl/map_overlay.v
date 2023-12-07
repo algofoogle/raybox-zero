@@ -8,7 +8,7 @@
 // the 'in_map_overlay' screen region.
 
 module map_overlay #(
-  parameter H_VIEW = 640,
+  // parameter H_VIEW = 640,
   parameter MAP_WBITS = 4,
   parameter MAP_HBITS = 4,
   parameter MAP_SCALE = 3 // Power of 2 scaling for overlay.
