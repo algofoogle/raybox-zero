@@ -14,7 +14,7 @@ module top_raybox_zero_fsm(
 
     input   wire            i_clk,            // Clock source signal.
     input   wire            i_reset,
-    input   wire            i_reset_alt,        // Alternate reset.
+    // input   wire            i_reset_alt,        // Alternate reset.
 
     //NOTE: zeros and ones are no longer needed because mux takes care of OEBs...
     // // Provides constant sources of '0' and '1' values that can be used for wiring up different
@@ -71,7 +71,7 @@ module top_raybox_zero_fsm(
     // assign ones     = {24{1'b1}};
 
     wire [3:0] gpout0_sel, gpout1_sel, gpout2_sel;
-    wire reset_alt;
+    // wire reset_alt;
 `ifdef REG_LA_INS
     // These are registered versions of i_gpout*_sel (2 cycle delay):
     stable_sync gpo0sel0R (i_clk, i_gpout0_sel[0], gpout0_sel[0]);
@@ -86,11 +86,12 @@ module top_raybox_zero_fsm(
     stable_sync gpo2sel1R (i_clk, i_gpout2_sel[1], gpout2_sel[1]);
     stable_sync gpo2sel2R (i_clk, i_gpout2_sel[2], gpout2_sel[2]);
     stable_sync gpo2sel3R (i_clk, i_gpout2_sel[3], gpout2_sel[3]);
-    // Registered version of i_reset_alt (2 cycle delay):
-    stable_sync reset_altR (i_clk, i_reset_alt, reset_alt);
+    // // Registered version of i_reset_alt (2 cycle delay):
+    // stable_sync reset_altR (i_clk, i_reset_alt, reset_alt);
 `else
     // Use LA inputs directly:
-    assign {gpout0_sel, gpout1_sel, gpout2_sel, reset_alt} = {i_gpout0_sel, i_gpout1_sel, i_gpout2_sel, i_reset_alt};
+    assign {gpout0_sel, gpout1_sel, gpout2_sel} =
+        {i_gpout0_sel, i_gpout1_sel, i_gpout2_sel};
 `endif
 
     // These are the raw combinatorial signals.
@@ -127,7 +128,7 @@ module top_raybox_zero_fsm(
     // - Direct access to clk.
     // - Direct access to rbzero_reset.
 
-    wire rbzero_reset = i_reset | reset_alt;
+    wire rbzero_reset = i_reset; // | reset_alt;
 
     wire rbzero_clk = i_clk;
 
