@@ -1,7 +1,7 @@
 `default_nettype none
 // `timescale 1ns / 1ps
 
-`include "fixed_point_params.v"
+// `include "fixed_point_params.v"
 
 //NOTE: I tend to use 'row' and 'line' interchangeably in these comments,
 // because 'line' is usually in the context of the screen (i.e. a scanline)

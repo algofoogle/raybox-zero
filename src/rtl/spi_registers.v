@@ -1,7 +1,7 @@
 `default_nettype none
 // `timescale 1ns / 1ps
 
-`include "helpers.v"
+// `include "helpers.v"
 
 // Well this is a funky SPI module! I'm sure there's a better way to do this...
 // Should it really be storing registers itself?

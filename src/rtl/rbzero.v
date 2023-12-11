@@ -1,8 +1,8 @@
 `default_nettype none
 // `timescale 1ns / 1ps
 
-`include "fixed_point_params.v"
-`include "helpers.v"
+// `include "fixed_point_params.v"
+// `include "helpers.v"
 
 //SMELL: These should probably be defined by the target (e.g. TT04 or FPGA) rather than inline here:
 `define USE_MAP_OVERLAY

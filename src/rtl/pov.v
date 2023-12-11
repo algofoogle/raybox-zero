@@ -1,8 +1,8 @@
 `default_nettype none
 // `timescale 1ns / 1ps
 
-`include "fixed_point_params.v"
-`include "helpers.v"
+// `include "fixed_point_params.v"
+// `include "helpers.v"
 
 
 module pov(

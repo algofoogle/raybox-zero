@@ -1,7 +1,7 @@
 `default_nettype none
 // `timescale 1ns / 1ps
 
-`include "fixed_point_params.v"
+// `include "fixed_point_params.v"
 
 module debug_overlay #(
   parameter H_VIEW = 640,
