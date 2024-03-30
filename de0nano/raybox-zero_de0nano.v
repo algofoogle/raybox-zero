@@ -22,8 +22,8 @@ module raybox_zero_de0nano(
 );
 
   // K4..K1 external buttons board (K4 is top, K1 is bottom):
-  //NOTE: These buttons are active LOW, so we invert them here to make them active HIGH:
-  wire [4:1] K = ~{gpio1[23], gpio1[21], gpio1[19], gpio1[17]};
+  //NOTE: These buttons are active HIGH (weakly pulled low by default):
+  wire [4:1] K = {gpio1_IN[1], gpio1[21], gpio1[19], gpio1_IN[0]};
 
   //SMELL: This is a bad way to do clock dividing.
   // Can we instead use the built-in FPGA clock divider?
@@ -34,13 +34,14 @@ module raybox_zero_de0nano(
   wire [5:0] rgb;
   // HSYNC and VSYNC out of rbzero design:
   wire hsync, vsync;  //NOTE: Inverted polarity; LOW during sync.
+  wire hblank, vblank; // Not typically needed but can be used for debugging and other things.
   // Pixel X/Y coming from rbzero, really only used if we're doing RGB1_DAC with dithering:
   wire [9:0] hpos, vpos;
   wire px0 = hpos[0]; // Bit 0 of VGA pixel X position.
   wire py0 = vpos[0]; // Bit 0 of VGA pixel Y position.
 
   // Standard RESET coming from DE0-Nano's KEY0
-  // (but note also 'any_reset' and its relatinoship to PicoDeo):
+  // (but note also 'any_reset' and its relationship to PicoDeo):
   wire reset;
   //NOTE: We might not need this metastability avoidance for our simple (and not-time-critical) inputs:
   stable_sync sync_reset (.clk(clock_25), .d(!KEY[0]), .q(reset));
@@ -56,6 +57,9 @@ module raybox_zero_de0nano(
 `ifdef RGB1_DAC
 
   // Implementation for Anton's older RGB111 VGA DAC adapter with dithering.
+  //NOTE NOTE NOTE: I don't expect I'll use this one at all anymore, so I
+  // haven't really bothered maintaining the documentation for it.
+  // See the RGB3_DAC version below, instead.
   /*
   Here's the pinout of the RGB111 DAC board as it applies to the DE0-Nano GPIO1 header:
     SIL header socket uses only LHS pins:
@@ -108,29 +112,62 @@ module raybox_zero_de0nano(
   // Implementation for Anton's newer RGB333 VGA DAC adapter,
   // though we only need to use the upper 2 bits of each channel since that's all rbzero gives us.
   /*
-  Here's the pinout of the RGB333 DAC board as it applies to the DE0-Nano GPIO1 header:
-           |     |     | 
-           +-----+-----+ 
-       G0  |io13 |io12 |  B0
-           +-----+-----+ 
-       G1  |io11 |io10 |  B1
-           +-----+-----+ 
-       G2  | io9 | io8 |  B2
-           +-----+-----+ 
-      GND  | GND |VCCS |  VCC_SYS
-           +-----+-----+ 
-    HSYNC  | io7 | io6 |  (NC)
-           +-----+-----+ 
-    VSYNC  | io5 | io4 |  (NC)
-           +-----+-----+ 
-       R0  | io3 | io2 |  (NC)
-           +-----+-----+ 
-       R1  | io1 | IN1 |  (NC)
-           +-----+-----+ 
-       R2  | io0 | IN0 |  (NC)
-           +-----+-----+ * PIN 1 of DE0-Nano GPIO1 header.
+  Here's the pinout of the DE0-Nano GPIO1 header, updated 2024-03-30 following changes to
+  accommodate earlier TT03p5 testing:
+
+    ______________________+-----+-----+_________________________________
+   /(ROM pin 6) SCLK O  40|io33 |io32 |39    (NC)                       \
+  |                       +-----+-----+                                  |
+  |             (NC)    38|io31 |io30 |37 I  io3 (ROM pin 7)             |
+  |                       +-----+-----+                                  |   BOTH sides are for
+  | (ROM pin 3)  io2 I  36|io29 |io28 |35 IO io0 (ROM pin 5) (MOSI)      |   SPI ROM module:
+  |                       +-----+-----+                                   >  Newer versions of raybox-zero
+  |             (NC)    34|io27 |io26 |33 I  io1 (ROM pin 2) (MISO)      |   use this for texture ROM.
+  |                       +-----+-----+                                  |   NC for older versions
+  | (ROM pin 1)  /CS O  32|io25 |io24 |31    (NC)                        |   (e.g. 1.0 and 1.1)
+  |                       +-----+-----+                                  |
+  | (ROM pin 4)  GND -  30| GND |VCC3 |29 +  VCC3P3 (+3V3) (ROM pin 8)   |
+   \______________________+-----+-----+_________________________________/
+              hblank O  28|io23 |io22 |27 O  vblank 
+                          +-----+-----+
+                  K3 I  26|io21 |io20 |25    (NC)
+                          +-----+-----+
+                  K2 I  24|io19 |io18 |23    (NC)
+                          +-----+-----+
+                (NC)    22|io17 |io16 |21    (NC)
+                          +-----+-----+
+  --------------(NC)----20|io15 |io14 |19----(NC) <-----(these 2 pins blocked by VGA DAC plug-in PCB below)
+    ______________________+-----+-----+_________________________________
+   /   (unused:0) G0 O  18|io13 |io12 |17 O  B0 (unused:0)              \
+  |                       +-----+-----+                                  |
+  |               G1 O  16|io11 |io10 |15 O  B1                          |
+  |                       +-----+-----+                                  |
+  |               G2 O  14| io9 | io8 |13 O  B2                          |
+  |                       +-----+-----+                                  |
+  |              GND -  12| GND |VCCS |11 +  VCC_SYS (+5V)               |
+  |                       +-----+-----+                                  |   BOTH sides are for
+  |            HSYNC O  10| io7 | io6 |9     (NC)                         >  VGA RGB333 DAC module
+  |                       +-----+-----+                                  |   with K1/K4 buttons
+  |            VSYNC O   8| io5 | io4 |7     (NC)                        |   on IN0/1 respectively.
+  |                       +-----+-----+                                  |
+  |    (unused:0) R0 O   6| io3 | io2 |5     (NC)                        |   NOTE: All pins inc. NC
+  |                       +-----+-----+                                  |   are populated in my header
+  |               R1 O   4| io1 | IN1 |3  I  K4                          |   as long pass-through pins
+  |                       +-----+-----+                                  |   so they can be used
+  |               R2 O   2| io0 | IN0 |1  I  K1                          |   for other purposes.
+   \______________________+-----+-----+_________________________________/
+                                     \
+                                      PIN 1 of GPIO1 header.
+  
+  The K1..K4 buttons are active-high. They are pulled low by 22k resistors when open,
+  and pulled high by 100R when pressed.
+  
+  The system clock is provided by the DE0-Nano's CLOCK_50 (50MHz) and is divided by 2 to make the typical
+  25MHz VGA clock.
+  
+  The DE0-Nano's KEY[0] provides the reset signal.
+
   NOTE: Compared to RGB1_DAC, HSYNC and VSYNC are swapped.
-  NOTE: NC pins are populated in the header as long pass-through pins so they can be used for other purposes.
   */
 
   reg [5:0] qrgb;
@@ -153,6 +190,9 @@ module raybox_zero_de0nano(
   // HSYNC/VSYNC:
   assign gpio1[  7] = hsync;
   assign gpio1[  5] = vsync;
+  // HBLANK/VBLANK:
+  assign gpio1[ 23] = hblank;
+  assign gpio1[ 22] = vblank;
 
   // Just for safety; these are the bidir pins attached to (but not used by) the DAC board:
   assign gpio1[  2] = 1'bz;
@@ -214,7 +254,7 @@ module raybox_zero_de0nano(
     // --- Inputs: ---
     .clk        (clock_25),
     .reset      (any_reset),
-    // SPI:
+    // SPI interface for host control of POV registers:
     .i_sclk     (i_sclk),
     .i_mosi     (i_mosi),
     .i_ss_n     (i_ss_n),
@@ -229,7 +269,18 @@ module raybox_zero_de0nano(
     .rgb        (rgb),
     // Just used to get low bit for dithering:
     .hpos       (hpos),
-    .vpos       (vpos)
+    .vpos       (vpos),
+    .o_hblank   (hblank),
+    .o_vblank   (vblank)
+
+    //NOT CURRENTLY IMPLEMENTED FROM rbzero MODULE,
+    //but see newer implementations (i.e. EW and GF180)
+    //for interfacing via PicoDeo.
+    // // SPI interface for everything else:
+    // input               i_reg_sclk,
+    // input               i_reg_mosi,
+    // input               i_reg_ss_n,
+
   );
 
 endmodule
