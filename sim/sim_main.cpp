@@ -140,9 +140,10 @@ bool          gSwapMouseXY = false;
 bool          gRotateView = false;
 bool          gEnableSPI = false;
 int           gMouseX, gMouseY;
-int           gColorSky = 0;
-int           gColorFloor = 0;
+int           gColorSky = 0b010101;
+int           gColorFloor = 0b101010;
 int           gLeak = 0;
+bool          gSPIPrintPayload = false;
 double        gMotionMultiplier = 1.0;
 #ifdef WINDOWS
 bool          gMouseCapture = true;
@@ -399,15 +400,24 @@ void process_sdl_events() {
           break;
         case SDLK_i:
           // Inspect: Print out current vector data as C++ code:
-          printf("\nInspection not implemented.\n");
-          // printf("\n// Vectors inspection data:\n");
-          // uint32_t v;
-          // v=TB->m_core->DESIGN->playerX; printf("TB->m_core->DESIGN->playerX = 0x%08X; // %lf\n", v, fixed2double(v));
-          // // ...
-          // printf("\n");
+          // printf("\nInspection not implemented.\n");
+          printf("\n// Vectors inspection data:\n");
+          uint32_t v;
+          v=TB->m_core->DESIGN->playerX; printf("TB->m_core->DESIGN->playerX = 0x%08X; // %lf\n", v, fixed2double(v));
+          v=TB->m_core->DESIGN->playerY; printf("TB->m_core->DESIGN->playerY = 0x%08X; // %lf\n", v, fixed2double(v));
+          v=TB->m_core->DESIGN->facingX; printf("TB->m_core->DESIGN->facingX = 0x%08X; // %lf\n", v, fixed2double(v));
+          v=TB->m_core->DESIGN->facingY; printf("TB->m_core->DESIGN->facingY = 0x%08X; // %lf\n", v, fixed2double(v));
+          v=TB->m_core->DESIGN->vplaneX; printf("TB->m_core->DESIGN->vplaneX = 0x%08X; // %lf\n", v, fixed2double(v));
+          v=TB->m_core->DESIGN->vplaneY; printf("TB->m_core->DESIGN->vplaneY = 0x%08X; // %lf\n", v, fixed2double(v));
+          // ...
+          printf("\n");
           if (KMOD_SHIFT & e.key.keysym.mod) {
             // Shift key held, so pause too.
             TB->pause(true);
+          }
+          if (KMOD_CTRL & e.key.keysym.mod) {
+            // CTRL key held, so print the next full SPI payload.
+            gSPIPrintPayload = true;
           }
           break;
         case SDLK_s: // Step-examine, basically the same as hitting X then P while already paused.
@@ -948,6 +958,15 @@ void update_spi_state() {
           bits.push_back(v & (1<<p));
           --p;
         }
+        // Print the SPI payload, if requested:
+        if (gSPIPrintPayload) {
+          gSPIPrintPayload = false;
+          printf("\nSPI POV payload: ");
+          for (int i = 0; i<74; ++i) {
+            putchar(bits[i]+'0');
+          }
+          printf("\n");
+        }
         // Get SPI inputs ready:
         TB->m_core->i_ss_n = 1; // Deasserted.
         TB->m_core->i_sclk = 0; // Deasserted.
@@ -1125,7 +1144,7 @@ int main(int argc, char **argv) {
 
     int old_reset = TB->m_core->reset;
     handle_control_inputs(false); // false = ACTIVE mode; add in actual HID=>signal input changes.
-    update_game_state();
+    // update_game_state();
     if (old_reset != TB->m_core->reset) {
       // Reset state changed, so we probably need to resync:
       h_adjust = HBP*2;
