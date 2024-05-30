@@ -24,7 +24,7 @@ module lzc(
 );
 
   function [4:0] f_lzc(input `INRANGE data);
-    casez (i_data)
+    casez (data)
       // SMELL: This is a sloppy way to do this, and is currently hard-coded for known bit range inputs only...
 `ifdef D17
       17'b1????????????????:  f_lzc =  0;

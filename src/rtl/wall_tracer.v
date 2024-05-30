@@ -238,7 +238,7 @@ module wall_tracer #(
   wire [10:0] size = size_full[2:-8];
   reciprocal_fsm #(.M(`Qm),.N(`Qn)) rcp_fsm (
     .i_clk    (clk),
-    .i_reset  (reset),
+    .i_reset  (do_reset), //@@@: SMELL: Should this be do_reset or just reset?
     .i_start  (rcp_start),
     .i_data   (rcp_in),
     .i_abs    (1'b1),
@@ -324,6 +324,7 @@ module wall_tracer #(
       // the least logic overall (I think) in order to get a perfectly balanced display.
 
       rcp_start <= 0;
+
       `ifdef RESET_TO_KNOWN
         // Set a known initial state for stuff:
         //SMELL: Don't actually need this, except to make simulation clearer,
@@ -341,8 +342,19 @@ module wall_tracer #(
         // rcp_sel <= RCP_RDX; // Reciprocal's data source is initially rayDirX.
         visualWallDist <= 0;
         wall <= 0;
-        // stepDistX <= 0;
-        // stepDistY <= 0; //SMELL: Uncomment these?
+        stepDistX <= 0;
+        stepDistY <= 0;
+
+        w <= 0;
+        trackDistX <= 0;
+        trackDistY <= 0;
+        mapX <= 0;
+        mapY <= 0;
+        o_wall <= 0;
+        o_wall_hot <= 0;
+        o_side_hot <= 0;
+        o_texu_hot <= 0;
+        size_full <= 0;
       `endif//RESET_TO_KNOWN
 
     end else begin
