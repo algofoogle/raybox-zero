@@ -7,7 +7,7 @@
 //SMELL: These should probably be defined by the target (e.g. TT04 or FPGA) rather than inline here:
 `define USE_MAP_OVERLAY
 `define USE_DEBUG_OVERLAY
-`define TRACE_STATE_DEBUG  // Trace state is represented visually per each line on-screen.
+//`define TRACE_STATE_DEBUG  // Trace state is represented visually per each line on-screen.
 //`define STANDBY_RESET // If defined use extra logic to avoid clocking regs during reset (for power saving/stability).
 
 

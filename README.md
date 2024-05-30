@@ -1,5 +1,8 @@
 # Raybox Zero
 
+> [!IMPORTANT]
+> A note on 'version 1.5': The branch `1.5-dev` is where I'm working on revisions since GFMPW-1 (which will be tagged '1.4'), in order to target TT07 (see https://github.com/algofoogle/tt07-raybox-zero) with a version that will be tagged '1.5'.
+
 This project is an attempt to do a minimalist ray caster (Wolf3D-like) VGA renderer in hardware, as a sort of primitive GPU, to be made as part of a community ASIC (silicon chip) via the [Tiny Tapeout] program. (See [tt04-raybox-zero])
 
 ![raybox-zero running on both an FPGA and in the software simulator](doc/fpga-vs-sim.jpg)
