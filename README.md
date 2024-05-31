@@ -1,13 +1,21 @@
 # Raybox Zero
 
-> [!IMPORTANT]
-> A note on 'version 1.5': The branch `1.5-dev` is where I'm working on revisions since GFMPW-1 (which will be tagged '1.4'), in order to target TT07 (see https://github.com/algofoogle/tt07-raybox-zero) with a version that will be tagged '1.5'.
-
-This project is an attempt to do a minimalist ray caster (Wolf3D-like) VGA renderer in hardware, as a sort of primitive GPU, to be made as part of a community ASIC (silicon chip) via the [Tiny Tapeout] program. (See [tt04-raybox-zero])
+This project is a minimalist ray caster (Wolf3D-like) VGA renderer in hardware, as a sort of primitive GPU, and besides targeting FPGAs it has been fabricated as part of at least one community ASIC (silicon chip) via the [Tiny Tapeout] program. (See [tt04-raybox-zero] and [tt07-raybox-zero]).
 
 ![raybox-zero running on both an FPGA and in the software simulator](doc/fpga-vs-sim.jpg)
 
-This is the baby cousin to my main [Raybox] HDL ray caster design, but has other features that are not yet in Raybox.
+This is the "baby cousin" of my original [Raybox] HDL ray caster design, but has other features that are not yet in Raybox.
+
+
+## Version history
+
+These are the notable versions of this project:
+
+*   1.0: [TT04 submission](https://github.com/algofoogle/tt04-raybox-zero): ASIC has severe rendering glitches due to an OpenLane synthesis bug.
+*   1.3 (not yet tagged): "EW" group submission to CI2311. Adds external SPI texture ROM option.
+*   1.4 (not yet tagged): Group submission to GFMPW-1. Has some fixes and other new features.
+*   1.5: [TT07 submission](https://github.com/algofoogle/tt07-raybox-zero): Expected to work properly on TT this time. Increased from 4x2 to 6x2.
+
 
 
 ## Controlling the design
