@@ -12,12 +12,12 @@
 `define Qm          11                  // Signed. 9 is minimum: Below 9, texv is broken. Below 8, rayAddend overflows.
 `define Qn          11                  // Currently 9 is lowest possible because of other bit-range maths, but 10+ is recommended.
 `define Qmnc        22          // <== MUST EQUAL Qmn+Qn. Sort of the same as `Qmn, but that isn't useful for all my Verilog needs.
+//NOTE: DON'T FORGET!!:
+// > When changing `Qm or `Qn, you also need to update the LZCs (inc. `SZ)
+// > and the equivalent values in sim_main.cpp if using the sim.
 `define Qmn         (`Qm+`Qn)
 `define QMI         (`Qm-1)             // Just for convenience; M-1.
 `define QMNI        (`Qmn-1)            // Just for convenience; full bit count -1 for upper vector index.
-//NOTE:
-// DON'T FORGET! When changing `Qm or `Qn, you also need to update the LZCs (inc. `SZ)
-// and the equivalent values in sim_main.cpp if using the sim.
 
 //SMELL: Base all of these hardcoded numbers on Qm and Qn values:
 `define Fn          [`QMI:-`Qn]
