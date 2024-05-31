@@ -1,5 +1,8 @@
 # Raybox Zero
 
+> [!IMPORTANT]
+> A note on 'version 1.5': The branch `1.5-dev` is where I'm working on revisions since GFMPW-1 (which will be tagged '1.4'), in order to target TT07 (see https://github.com/algofoogle/tt07-raybox-zero) with a version that will be tagged '1.5'.
+
 This project is an attempt to do a minimalist ray caster (Wolf3D-like) VGA renderer in hardware, as a sort of primitive GPU, to be made as part of a community ASIC (silicon chip) via the [Tiny Tapeout] program. (See [tt04-raybox-zero])
 
 ![raybox-zero running on both an FPGA and in the software simulator](doc/fpga-vs-sim.jpg)
@@ -83,12 +86,12 @@ These are some possible pinouts on TT04 or even more-constrained targets:
     *   CLK and RESET
     *   2 RGB *analog* output pins
     *   2 sync digital outputs
-    *   3 SPI slave pins (for host controller)
+    *   3 SPI peripheral pins (for host controller)
     *   4 SPI master pins (for RAM)
     *   13 total.
 *   Super-constrained pinout:
     *   CLK and RESET
-    *   4 SPI master pins (for RAM) -- use a "smart" slave that can provide both RAM and controller update registers.
+    *   4 SPI master pins (for RAM) -- use a "smart" peripheral that can provide both RAM and controller update registers.
     *   1 *analog* output pin -- composite video
     *   7 total.
 
@@ -120,7 +123,7 @@ These are some possible pinouts on TT04 or even more-constrained targets:
 *   Reciprocal approximator for Q10.10
 *   tracer logic and FSM
 *   map
-*   view vectors (and SPI slave controller)
+*   view vectors (and SPI peripheral controller)
 *   shared multiplier
 *   debug overlay
 *   external control pins

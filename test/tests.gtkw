@@ -1,0 +1,37 @@
+[*]
+[*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
+[*] Fri Dec  1 05:38:40 2023
+[*]
+[dumpfile] "/home/zerotoasic/anton/algofoogle-multi-caravel/verilog/rtl/raybox-zero/test/rbz_tb.vcd"
+[dumpfile_mtime] "Fri Dec  1 05:31:06 2023"
+[dumpfile_size] 420658
+[savefile] "/home/zerotoasic/anton/algofoogle-multi-caravel/verilog/rtl/raybox-zero/test/tests.gtkw"
+[timestart] 31310000
+[size] 2342 1426
+[pos] -1 -1
+*-17.700001 32240000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] rbz_tb.
+[treeopen] rbz_tb.uut.
+[treeopen] rbz_tb.uut.wall_tracer.
+[sst_width] 297
+[signals_width] 240
+[sst_expanded] 1
+[sst_vpaned_height] 446
+@28
+rbz_tb.uut.hsync_n
+rbz_tb.uut.vsync_n
+rbz_tb.uut.hmax
+@22
+rbz_tb.uut.wall_tracer.state[3:0]
+@28
+rbz_tb.clk
+rbz_tb.uut.wall_tracer.rcp_done
+@22
+rbz_tb.uut.wall_tracer.rcp_in[11:-12]
+rbz_tb.uut.wall_tracer.rcp_out[11:-12]
+@28
+rbz_tb.uut.wall_tracer.rcp_sat
+rbz_tb.uut.wall_tracer.rcp_start
+rbz_tb.uut.wall_tracer.rcp_fsm.state[2:0]
+[pattern_trace] 1
+[pattern_trace] 0

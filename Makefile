@@ -17,13 +17,19 @@
 
 # Main Verilog sources for our design:
 MAIN_VSOURCES = \
-	src/rtl/rbzero.v \
-	src/rtl/vga_sync.v \
-	src/rtl/vga_mux.v \
-	src/rtl/row_render.v \
-	src/rtl/lzc.v \
-	src/rtl/reciprocal.v \
-	src/rtl/wall_tracer.v \
+    src/rtl/fixed_point_params.v	\
+    src/rtl/helpers.v				\
+    src/rtl/debug_overlay.v			\
+    src/rtl/map_overlay.v			\
+    src/rtl/map_rom.v				\
+    src/rtl/pov.v					\
+	src/rtl/rbzero.v				\
+	src/rtl/vga_sync.v				\
+	src/rtl/vga_mux.v				\
+	src/rtl/row_render.v			\
+	src/rtl/lzc.v					\
+	src/rtl/reciprocal.v			\
+	src/rtl/wall_tracer.v			\
 	src/rtl/spi_registers.v
 
 # Extra source specific to the simualtion target:

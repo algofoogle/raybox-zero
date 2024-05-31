@@ -1,5 +1,5 @@
 `default_nettype none
-`timescale 1ns / 1ps
+// `timescale 1ns / 1ps
 
 module row_render #(
   parameter H_VIEW = 640
@@ -12,7 +12,7 @@ module row_render #(
   input wire  [5:0] texv, // Texture 'v' coordinate, 0..63
   input wire        vinf, // Infinite V mode?
   input wire  [5:0] leak, // How far up the wall does the 'floor leak'? 0 is normal (no leak).
-  output wire [5:0] rgb,  //NOTE: BBGGRR bit order.
+  output wire [5:0] gen_tex_rgb,  // Bitwise-generated texture, if desired. //NOTE: BBGGRR bit order.
   output wire hit         // Are we in this row or not?
 );
   localparam HALF_SIZE = H_VIEW/2;
@@ -28,9 +28,9 @@ module row_render #(
       )
     ));
 
-  //SMELL: For now, just arbitrarily assign a colour based on side. Later, do textures.
-
-  assign rgb =
+  // The following is just some bitwise maths to generate textures IF we don't have an external
+  // texture memory via SPI, and just want something to show off/test:
+  assign gen_tex_rgb =
     // Fancy colourful XOR pattern:
     wall == 1 ? ({texu[0],side,texu[2],side,texu[4],side} ^ {texv[0],1'b0,texv[2],1'b0,texv[4],1'b0}): // Fancy.
     // Blue bricks:

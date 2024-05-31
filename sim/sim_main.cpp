@@ -38,8 +38,8 @@ using namespace std;
 //#define USE_SPEAKER
 
 //SMELL: These must be set to the same numbers in fixed_point_params.v:
-#define Qm  10
-#define Qn  10
+#define Qm  11
+#define Qn  11
 //NOTE: Currently these don't have much (or any?) effect over SPI,
 // because the vectors have their own hard-coded ranges.
 
@@ -143,11 +143,16 @@ bool          gRotateView = false;
 bool          gEnableSPI = false;
 bool          gAnimateRegisters = false; // If true, do funky stuff with sky/floor colour and leak.
 bool          gInfiniteHeight = false;
+bool          gGenTex = false; // If true, select generated textures instead of texture memory.
 int           gMouseX, gMouseY;
 int           gColorSky = 0;
 int           gColorFloor = 0;
 int           gLeak = 0;
 int           gTexVShift = 0;
+int           gMapDX = 0;
+int           gMapDY = 0;
+int           gMapDXW = 0;
+int           gMapDYW = 0;
 bool          gMouseYTexV = false;
 double        gMotionMultiplier = 1.0;
 #ifdef WINDOWS
@@ -189,6 +194,7 @@ enum {
   LOCK_R,
   LOCK_MAP,
   LOCK_DEBUG,
+  LOCK_TRACE,
   LOCK__MAX
 };
 bool gLockInputs[LOCK__MAX] = {0};
@@ -293,6 +299,11 @@ void process_sdl_events() {
         case SDLK_F12:
           // Toggle mouse capture.
           toggle_mouse_capture();
+          break;
+        case SDLK_F11:
+          // Toggle generated/memory textures.
+          gGenTex = !gGenTex;
+          printf("Texture source: %s\n", gGenTex ? "Bitwise-generated" : "Texture SPI memory");
           break;
         case SDLK_F10:++fn_key;
         case SDLK_F9: ++fn_key;
@@ -440,6 +451,10 @@ void process_sdl_events() {
         case SDLK_f:
           printf("Stepping by 1 frame is not yet implemented!\n");
           break;
+        case SDLK_KP_8: gMapDX += 1; printf("gMapDX=%d\n", gMapDX); break;
+        case SDLK_KP_2: gMapDX -= 1; printf("gMapDX=%d\n", gMapDX); break;
+        case SDLK_KP_6: gMapDY += 1; printf("gMapDY=%d\n", gMapDY); break;
+        case SDLK_KP_4: gMapDY -= 1; printf("gMapDY=%d\n", gMapDY); break;
         case SDLK_o:
           gSwapMouseXY = !gSwapMouseXY;
           printf("Mouse axes are%s swapped\n", gSwapMouseXY ? "" : " NOT");
@@ -474,11 +489,11 @@ void process_sdl_events() {
           else {
             // Not in Override Vectors mode; let the design handle motion.
             switch (e.key.keysym.sym) {
-              case SDLK_BACKQUOTE: //NOTE: As a scancode, the backtick is SDL_SCANCODE_GRAVE.
-                gLockInputs[LOCK_DEBUG] ^= 1; break;
+              case SDLK_BACKQUOTE:  //NOTE: As a scancode, the backtick is SDL_SCANCODE_GRAVE.
+                                    gLockInputs[LOCK_DEBUG] ^= 1; break;
+              case SDLK_INSERT:     gLockInputs[LOCK_MAP] ^= 1; break;
+              case SDLK_t:          gLockInputs[LOCK_TRACE] ^= 1; break;
 #ifdef DESIGN_DIRECT_VECTOR_ACCESS
-              // Toggle map input:
-              case SDLK_INSERT: gLockInputs[LOCK_MAP] ^= 1; break;
               // Toggle direction inputs (and turn off any that are opposing):
               case SDLK_UP:     if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveF=1; else if( (gLockInputs[LOCK_F] ^= 1) ) gLockInputs[LOCK_B] = false; break;
               case SDLK_DOWN:   if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveB=1; else if( (gLockInputs[LOCK_B] ^= 1) ) gLockInputs[LOCK_F] = false; break;
@@ -609,10 +624,12 @@ void handle_control_inputs(bool prepare, double t) {
 
     // TB->m_core->show_debug = 1;
     TB->m_core->reset     |= keystate[SDL_SCANCODE_R];
-    TB->m_core->i_debug   = gLockInputs[LOCK_DEBUG]; // | keystate[SDL_SCANCODE_GRAVE];
-    // TB->m_core->show_map  |= keystate[SDL_SCANCODE_TAB ] | gLockInputs[LOCK_MAP];
-    TB->m_core->i_inc_px  = keystate[SDL_SCANCODE_LEFTBRACKET];
-    TB->m_core->i_inc_py  = keystate[SDL_SCANCODE_RIGHTBRACKET];
+    TB->m_core->i_debug_v  = gLockInputs[LOCK_DEBUG]; // Toggle lock with backtick (`)
+    TB->m_core->i_debug_m  = gLockInputs[LOCK_MAP] |  keystate[SDL_SCANCODE_TAB ]; // Toggle lock with INSERT key.
+    TB->m_core->i_debug_t  = gLockInputs[LOCK_TRACE]; // Toggle lock with T key.
+    TB->m_core->i_inc_px   =                          keystate[SDL_SCANCODE_LEFTBRACKET];
+    TB->m_core->i_inc_py   =                          keystate[SDL_SCANCODE_RIGHTBRACKET];
+    TB->m_core->i_gen_tex  = gGenTex;
 
     #ifdef DESIGN_DIRECT_VECTOR_ACCESS
       TB->m_core->moveF     |= keystate[SDL_SCANCODE_W   ] | gLockInputs[LOCK_F];
@@ -824,6 +841,7 @@ enum {
   CMD_OTHER,
   CMD_VSHIFT,
   CMD_VINF,
+  CMD_MAPD,
   CMD__MAX,
 };
 
@@ -891,6 +909,12 @@ int update_spi_registers_state() {
             break;
           case CMD_VINF:
             push_bits_onto_stack(bits, gInfiniteHeight, 1);
+            break;
+          case CMD_MAPD:
+            push_bits_onto_stack(bits, gMapDX, 6);
+            push_bits_onto_stack(bits, gMapDY, 6);
+            push_bits_onto_stack(bits, gMapDXW, 2);
+            push_bits_onto_stack(bits, gMapDYW, 2);
             break;
           default:
             printf("ERROR: Unknown register: %d\n", register_counter);
@@ -1354,7 +1378,7 @@ int main(int argc, char **argv) {
       // s += TB->log_vsync        ? "V" : ".";
       // s += gOverrideVectors     ? "O" : ".";
       // s += TB->examine_mode     ? "X" : ".";
-      // s += gLockInputs[LOCK_MAP]? "m" : ".";
+      s += gLockInputs[LOCK_MAP]? "m" : ".";
       s += gLockInputs[LOCK_DEBUG]? "D" : ".";
     #ifdef DESIGN_DIRECT_VECTOR_ACCESS
       s += gLockInputs[LOCK_L]  ? "<" : ".";
@@ -1363,6 +1387,7 @@ int main(int argc, char **argv) {
       s += gLockInputs[LOCK_R]  ? ">" : ".";
     #endif
       s += gMouseCapture        ? "*" : ".";
+      s += gGenTex              ? "1" : "0";
       s += "] ";
 #ifdef INSPECT_INTERNAL
       s += " pX,Y=("
