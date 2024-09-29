@@ -1,3 +1,4 @@
 *.bak
 .vscode
 JUNK
+__pycache__
