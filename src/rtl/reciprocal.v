@@ -10,6 +10,13 @@
 
 `define FQMN [M-1:-N]
 
+`ifdef QUARTUS
+    `define DEBUG_COEFFS
+`elsif __openlane__
+    `define DEBUG_COEFFS
+`endif
+
+
 // Sequential reciprocal 'device' that can be loaded, started,
 // and will provide a registered result when ready.
 module reciprocal_fsm #(
@@ -103,11 +110,13 @@ module reciprocal #(
 
   localparam S = M-1; // Sign bit (top-most bit index too).
 
+`ifdef DEBUG_COEFFS
   initial begin
     //NOTE: In Quartus, at compile-time, this should hopefully spit out the params from above
     // in the compilation log, and in OpenLane it should be in logs/synthesis/1-synthesis.log:
     $display("reciprocal params for SQ%0d.%0d:  n1466=%X, n10012=%X, nSat=%X", M, N, n1466, n10012, nSat);
   end
+`endif
 
   /*
   Reciprocal approximation algorithm for numbers in the range [0.5,1)
