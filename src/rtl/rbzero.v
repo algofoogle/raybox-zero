@@ -11,6 +11,7 @@
 //`define STANDBY_RESET // If defined use extra logic to avoid clocking regs during reset (for power saving/stability).
 `define RESET_TEXTURE_MEMORY // Should there be an explicit reset for local texture memory?
 `define RESET_TEXTURE_MEMORY_PATTERNED // If defined with RESET_TEXTURE_MEMORY, texture memory reset is a pattern instead of black.
+`define DEBUG_NO_TEXTURE_LOAD // If defined, prevent texture loading
 
 module rbzero(
   input               clk,
@@ -182,6 +183,7 @@ module rbzero(
   //NOTE: BEWARE: Below, posedge of SPI_SCLK (not clk) is used, because this is where MISO output is stable...
   always @(posedge o_tex_sclk) begin
 `ifdef RESET_TEXTURE_MEMORY
+    // This is reset logic for the texture memory DFFs; not normally needed, and included for debugging.
     if (reset) begin
       `ifdef RESET_TEXTURE_MEMORY_PATTERNED
         tex_r0 <= 64'b1111_1111__1111_1111___1111_1111__1111_1111____0000_0000__0000_0000___0000_0000__0000_0000;
@@ -201,6 +203,7 @@ module rbzero(
     end else
 `endif // RESET_TEXTURE_MEMORY
     if (tspi_data_present && no_standby) begin
+`ifndef DEBUG_NO_TEXTURE_LOAD
       // Nibbles are streaming out via io[3:0], so shift them into our buffers...
       //NOTE: i_tex_in[0] is discarded for now.
       if (0==tspi_state[0]) begin
@@ -214,6 +217,7 @@ module rbzero(
         tex_g1 <= {i_tex_in[1], tex_g1[TSPI_TEXEL_COUNT-1:1]};
         tex_b1 <= {i_tex_in[2], tex_b1[TSPI_TEXEL_COUNT-1:1]};
       end
+`endif // DEBUG_NO_TEXTURE_LOAD
     end
   end
   // Set dir of io[0] to INPUT once we hit the DUMMY part of the preamble
