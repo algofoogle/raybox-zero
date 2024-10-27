@@ -9,7 +9,8 @@
 `define USE_DEBUG_OVERLAY
 //`define TRACE_STATE_DEBUG  // Trace state is represented visually per each line on-screen.
 //`define STANDBY_RESET // If defined use extra logic to avoid clocking regs during reset (for power saving/stability).
-
+`define RESET_TEXTURE_MEMORY // Should there be an explicit reset for local texture memory?
+`define RESET_TEXTURE_MEMORY_PATTERNED // If defined with RESET_TEXTURE_MEMORY, texture memory reset is a pattern instead of black.
 
 module rbzero(
   input               clk,
@@ -102,7 +103,7 @@ module rbzero(
       : 6'd0;                       // Clamp to 0 to fix texture underflow.
 
   // At vdist of 1.0, a 64p texture is stretched to 512p, hence texv is 64/512 (>>3) of int(texV).
-  //NOTE: Would it be possible to do primitive texture 'filtering' using 50/50 checker dither for texxture sub-pixels?
+  //NOTE: Would it be possible to do primitive texture 'filtering' using 50/50 checker dither for texture sub-pixels?
   row_render row_render(
     // Inputs:
     .wall     (traced_wall),
@@ -180,6 +181,25 @@ module rbzero(
   wire tspi_data_present = (tspi_state >= TSPI_PREAMBLE_LEN && tspi_state < TSPI_STREAM_LEN);
   //NOTE: BEWARE: Below, posedge of SPI_SCLK (not clk) is used, because this is where MISO output is stable...
   always @(posedge o_tex_sclk) begin
+`ifdef RESET_TEXTURE_MEMORY
+    if (reset) begin
+      `ifdef RESET_TEXTURE_MEMORY_PATTERNED
+        tex_r0 <= 64'b1111_1111__1111_1111___1111_1111__1111_1111____0000_0000__0000_0000___0000_0000__0000_0000;
+        tex_r1 <= 64'b1111_1111__1111_1111___0000_0000__0000_0000____1111_1111__1111_1111___0000_0000__0000_0000;
+        tex_g0 <= 64'b1111_1111__0000_0000___1111_1111__0000_0000____1111_1111__0000_0000___1111_1111__0000_0000;
+        tex_g1 <= 64'b1111_0000__1111_0000___1111_0000__1111_0000____1111_0000__1111_0000___1111_0000__1111_0000;
+        tex_b0 <= 64'b1100_1100__1100_1100___1100_1100__1100_1100____1100_1100__1100_1100___1100_1100__1100_1100;
+        tex_b1 <= 64'b1010_1010__1010_1010___1010_1010__1010_1010____1010_1010__1010_1010___1010_1010__1010_1010;
+      `else
+        tex_r0 <= 64'b0;
+        tex_r1 <= 64'b0;
+        tex_g0 <= 64'b0;
+        tex_g1 <= 64'b0;
+        tex_b0 <= 64'b0;
+        tex_b1 <= 64'b0;
+      `endif
+    end else
+`endif // RESET_TEXTURE_MEMORY
     if (tspi_data_present && no_standby) begin
       // Nibbles are streaming out via io[3:0], so shift them into our buffers...
       //NOTE: i_tex_in[0] is discarded for now.
