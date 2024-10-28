@@ -493,17 +493,17 @@ void process_sdl_events() {
                                     gLockInputs[LOCK_DEBUG] ^= 1; break;
               case SDLK_INSERT:     gLockInputs[LOCK_MAP] ^= 1; break;
               case SDLK_t:          gLockInputs[LOCK_TRACE] ^= 1; break;
-#ifdef DESIGN_DIRECT_VECTOR_ACCESS
-              // Toggle direction inputs (and turn off any that are opposing):
-              case SDLK_UP:     if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveF=1; else if( (gLockInputs[LOCK_F] ^= 1) ) gLockInputs[LOCK_B] = false; break;
-              case SDLK_DOWN:   if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveB=1; else if( (gLockInputs[LOCK_B] ^= 1) ) gLockInputs[LOCK_F] = false; break;
-              case SDLK_LEFT:   if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveL=1; else if( (gLockInputs[LOCK_L] ^= 1) ) gLockInputs[LOCK_R] = false; break;
-              case SDLK_RIGHT:  if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveR=1; else if( (gLockInputs[LOCK_R] ^= 1) ) gLockInputs[LOCK_L] = false; break;
-              // NOTE: If SHIFT is held, send momentary (1-frame) signal inputs instead of locks.
-              //SMELL: This won't work if we're calling handle_control_inputs more often than once per frame...?
-#else//!DESIGN_DIRECT_VECTOR_ACCESS
-              #warning SPI vector access not yet implemented
-#endif//DESIGN_DIRECT_VECTOR_ACCESS
+// #ifdef DESIGN_DIRECT_VECTOR_ACCESS
+//               // Toggle direction inputs (and turn off any that are opposing):
+//               case SDLK_UP:     if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveF=1; else if( (gLockInputs[LOCK_F] ^= 1) ) gLockInputs[LOCK_B] = false; break;
+//               case SDLK_DOWN:   if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveB=1; else if( (gLockInputs[LOCK_B] ^= 1) ) gLockInputs[LOCK_F] = false; break;
+//               case SDLK_LEFT:   if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveL=1; else if( (gLockInputs[LOCK_L] ^= 1) ) gLockInputs[LOCK_R] = false; break;
+//               case SDLK_RIGHT:  if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveR=1; else if( (gLockInputs[LOCK_R] ^= 1) ) gLockInputs[LOCK_L] = false; break;
+//               // NOTE: If SHIFT is held, send momentary (1-frame) signal inputs instead of locks.
+//               //SMELL: This won't work if we're calling handle_control_inputs more often than once per frame...?
+// #else//!DESIGN_DIRECT_VECTOR_ACCESS
+//               #warning SPI vector access not yet implemented
+// #endif//DESIGN_DIRECT_VECTOR_ACCESS
             }
           }
           break;
@@ -587,15 +587,15 @@ void handle_control_inputs(bool prepare, double t) {
   if (prepare) {
     // PREPARE mode: Clear all inputs, so process_sdl_events has a chance to preset MOMENTARY inputs:
     TB->m_core->reset     = 0;
-  #ifdef DESIGN_DIRECT_VECTOR_ACCESS
-      TB->m_core->show_map  = 0;
-      TB->m_core->moveF     = 0;
-      TB->m_core->moveL     = 0;
-      TB->m_core->moveB     = 0;
-      TB->m_core->moveR     = 0;
-  #else//!DESIGN_DIRECT_VECTOR_ACCESS
-      #warning SPI vector access not yet implemented
-  #endif//DESIGN_DIRECT_VECTOR_ACCESS
+  // #ifdef DESIGN_DIRECT_VECTOR_ACCESS
+  //     TB->m_core->show_map  = 0;
+  //     TB->m_core->moveF     = 0;
+  //     TB->m_core->moveL     = 0;
+  //     TB->m_core->moveB     = 0;
+  //     TB->m_core->moveR     = 0;
+  // #else//!DESIGN_DIRECT_VECTOR_ACCESS
+  //     #warning SPI vector access not yet implemented
+  // #endif//DESIGN_DIRECT_VECTOR_ACCESS
 
 #ifdef DEBUG_BUTTON_INPUTS
     TB->m_core->debugA    = 0;
@@ -631,14 +631,14 @@ void handle_control_inputs(bool prepare, double t) {
     TB->m_core->i_inc_py   =                          keystate[SDL_SCANCODE_RIGHTBRACKET];
     TB->m_core->i_gen_tex  = gGenTex;
 
-    #ifdef DESIGN_DIRECT_VECTOR_ACCESS
-      TB->m_core->moveF     |= keystate[SDL_SCANCODE_W   ] | gLockInputs[LOCK_F];
-      TB->m_core->moveL     |= keystate[SDL_SCANCODE_A   ] | gLockInputs[LOCK_L];
-      TB->m_core->moveB     |= keystate[SDL_SCANCODE_S   ] | gLockInputs[LOCK_B];
-      TB->m_core->moveR     |= keystate[SDL_SCANCODE_D   ] | gLockInputs[LOCK_R];
-    #else//!DESIGN_DIRECT_VECTOR_ACCESS
-      #warning SPI vector access not yet implemented
-    #endif//DESIGN_DIRECT_VECTOR_ACCESS
+    // #ifdef DESIGN_DIRECT_VECTOR_ACCESS
+    //   TB->m_core->moveF     |= keystate[SDL_SCANCODE_W   ] | gLockInputs[LOCK_F];
+    //   TB->m_core->moveL     |= keystate[SDL_SCANCODE_A   ] | gLockInputs[LOCK_L];
+    //   TB->m_core->moveB     |= keystate[SDL_SCANCODE_S   ] | gLockInputs[LOCK_B];
+    //   TB->m_core->moveR     |= keystate[SDL_SCANCODE_D   ] | gLockInputs[LOCK_R];
+    // #else//!DESIGN_DIRECT_VECTOR_ACCESS
+    //   #warning SPI vector access not yet implemented
+    // #endif//DESIGN_DIRECT_VECTOR_ACCESS
 
 #ifdef DEBUG_BUTTON_INPUTS
     TB->m_core->debugA    |= keystate[SDL_SCANCODE_KP_4];
