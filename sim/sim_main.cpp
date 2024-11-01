@@ -33,6 +33,19 @@ using namespace std;
 
 #define HILITE      0b0001'1111
 
+
+//NOTE: These should reflect whatever is in src/config/rbz_options.v:
+#define USE_MAP_OVERLAY
+#define USE_DEBUG_OVERLAY
+#define TRACE_STATE_DEBUG  // Trace state is represented visually per each line on-screen.
+//#define STANDBY_RESET // If defined use extra logic to avoid clocking regs during reset (for power saving/stability).
+//#define RESET_TEXTURE_MEMORY // Should there be an explicit reset for local texture memory?
+//#define RESET_TEXTURE_MEMORY_PATTERNED // If defined with RESET_TEXTURE_MEMORY, texture memory reset is a pattern instead of black.
+//#define DEBUG_NO_TEXTURE_LOAD // If defined, prevent texture loading
+// #define NO_EXTERNAL_TEXTURES
+
+
+
 //#define DESIGN_DIRECT_VECTOR_ACCESS   // Defined=new_playerX etc are exposed; else=SPI only.
 //#define DEBUG_BUTTON_INPUTS
 //#define USE_SPEAKER
@@ -629,7 +642,9 @@ void handle_control_inputs(bool prepare, double t) {
     TB->m_core->i_debug_t  = gLockInputs[LOCK_TRACE]; // Toggle lock with T key.
     TB->m_core->i_inc_px   =                          keystate[SDL_SCANCODE_LEFTBRACKET];
     TB->m_core->i_inc_py   =                          keystate[SDL_SCANCODE_RIGHTBRACKET];
+#ifndef NO_EXTERNAL_TEXTURES
     TB->m_core->i_gen_tex  = gGenTex;
+#endif // NO_EXTERNAL_TEXTURES
 
     // #ifdef DESIGN_DIRECT_VECTOR_ACCESS
     //   TB->m_core->moveF     |= keystate[SDL_SCANCODE_W   ] | gLockInputs[LOCK_F];

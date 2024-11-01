@@ -46,18 +46,19 @@ module wall_tracer #(
 `endif//TRACE_STATE_DEBUG
 
   // Tracing result, per line:
+`ifndef NO_EXTERNAL_TEXTURES
+  // HOT (LIVE) values as they are being calculated. This allows the texture memory to generate its address early
+  // (assuming the trace has actually finished before we get to about hpos==600):
+  output reg [1:0]        o_wall_hot,
+  output reg              o_side_hot,
+  output reg [5:0]        o_texu_hot,
+`endif // NO_EXTERNAL_TEXTURES
   output reg [1:0]        o_wall,     // Wall ID that we hit (per map).
   output reg              o_side,     // Light or dark side?
   output reg [10:0]       o_size,     // Wall half-size.
   output reg [5:0]        o_texu,     // Texture 'u' coordinate (i.e. how far along the wall the hit was).
   output reg `F           o_texa,     // Addend for texv coord; actually visualWallDist: equiv to o_size rcp, used for texture scaling.
-  output reg `F           o_texVinit, // Initial texV (if o_size exceeds screen HALF_SIZE).
-
-  // HOT (LIVE) values as they are being calculated. This allows the texture memory to generate its address early
-  // (assuming the trace has actually finished before we get to about hpos==600):
-  output reg [1:0]        o_wall_hot,
-  output reg              o_side_hot,
-  output reg [5:0]        o_texu_hot
+  output reg `F           o_texVinit  // Initial texV (if o_size exceeds screen HALF_SIZE).
 );
 
 
@@ -351,9 +352,11 @@ module wall_tracer #(
         mapX <= 0;
         mapY <= 0;
         o_wall <= 0;
-        o_wall_hot <= 0;
-        o_side_hot <= 0;
-        o_texu_hot <= 0;
+        `ifndef NO_EXTERNAL_TEXTURES
+          o_wall_hot <= 0;
+          o_side_hot <= 0;
+          o_texu_hot <= 0;
+        `endif // NO_EXTERNAL_TEXTURES
         size_full <= 0;
       `endif//RESET_TO_KNOWN
 
@@ -459,9 +462,11 @@ module wall_tracer #(
             w <= w - 1;
           end else begin
             state <= TraceDone;
-            o_wall_hot <= wall;
-            o_side_hot <= side;
-            o_texu_hot <= texu;
+            `ifndef NO_EXTERNAL_TEXTURES
+              o_wall_hot <= wall;
+              o_side_hot <= side;
+              o_texu_hot <= texu;
+            `endif // NO_EXTERNAL_TEXTURES
           end
         end 
         //SMELL: Multiplier is not in use after TracePrepX/Y so it doesn't actually need its own state... could be used in parallel, in other states.

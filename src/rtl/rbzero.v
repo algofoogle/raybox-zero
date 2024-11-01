@@ -12,6 +12,7 @@
 //`define RESET_TEXTURE_MEMORY // Should there be an explicit reset for local texture memory?
 //`define RESET_TEXTURE_MEMORY_PATTERNED // If defined with RESET_TEXTURE_MEMORY, texture memory reset is a pattern instead of black.
 //`define DEBUG_NO_TEXTURE_LOAD // If defined, prevent texture loading
+//`define NO_EXTERNAL_TEXTURES
 
 module rbzero(
   input               clk,
@@ -24,19 +25,23 @@ module rbzero(
   input               i_reg_ss_n, // aka /CS, aka csb.
   input               i_reg_sclk,
   input               i_reg_mosi,
+`ifndef NO_EXTERNAL_TEXTURES
   // SPI master for reading external flash ROM (e.g. texture data):
   output              o_tex_csb, // aka /CS
   output              o_tex_sclk,
   output              o_tex_out0,
   output              o_tex_oeb0, // For QSPI io[0], oeb0==0 is OUTPUT, 1 is INPUT.
   input   [3:0]       i_tex_in,
+`endif // NO_EXTERNAL_TEXTURES
   // Debug/demo signals:
   input               i_debug_v,  // Show debug overlay for inspecting view vectors?
   input               i_debug_m,  // Show debug overlay for map
   input               i_debug_t,  // Show debug overlay for the tracer FSM
   input               i_inc_px,   // DEMO: Increment playerX
   input               i_inc_py,   // DEMO: Increment playerY
+`ifndef NO_EXTERNAL_TEXTURES
   input               i_gen_tex,  // 1=Use bitwise-generated textures instead of SPI texture memory.
+`endif // NO_EXTERNAL_TEXTURES
   // VGA outputs:
   output wire         hsync_n, vsync_n,
   output wire [5:0]   rgb,
@@ -123,6 +128,9 @@ module rbzero(
   wire `RGB gen_tex_rgb; // i_gen_tex selects between this or external texture SPI memory.
   //SMELL: i_gen_tex==1 doesn't disable SPI texture memory access.
 
+`ifdef NO_EXTERNAL_TEXTURES
+  assign wall_rgb = gen_tex_rgb;
+`else // NO_EXTERNAL_TEXTURES
   // Texture pixel colour comes from looking up within the texel colour buffers
   // we loaded during the Texture SPI read sequence below...
   assign wall_rgb =
@@ -133,7 +141,9 @@ module rbzero(
       {tex_g1[texv], tex_g0[texv]},
       {tex_r1[texv], tex_r0[texv]}
     };
+`endif // NO_EXTERNAL_TEXTURES
 
+`ifndef NO_EXTERNAL_TEXTURES
   //SMELL: Put the following into another module, or move it into row_render?
   // Load the next line's wall slice texture via QSPI.
   // This assumes that by the time the SPI sequence starts, the wall slice address
@@ -232,48 +242,7 @@ module rbzero(
     (tspi_state<32)
       ? wall_slice_start_address[31-tspi_state]:  // ADDR[23:0]
     1'b0;                                         // 0 for all other preamble bits and beyond.
-/////SMELL: UPDATE THE TABLE BELOW!!!!!!!!!
-  // The above combo logic for o_tex_csb and o_tex_mosi gives us the following output
-  // for each 'state':
-  //
-  // | state    | o_tex_csb| o_tex_out0| note                                   |
-  // |---------:|---------:|----------:|:---------------------------------------|
-  // | (n)      | 1        | 0         | (any state not otherwise covered)      |
-  // |  0       | 0        | 0         | CMD[7]; chip ON                        |
-  // |  1       | 0        | 0         | CMD[6]                                 |
-  // |  2       | 0        | 0         | CMD[5]                                 |
-  // |  3       | 0        | 0         | CMD[4]                                 |
-  // |  4       | 0        | 0         | CMD[3]                                 |
-  // |  5       | 0        | 0         | CMD[2]                                 |
-  // |  6       | 0        | 1         | CMD[1]                                 |
-  // |  7       | 0        | 1         | CMD[0] => CMD 03h (READ) loaded.       |
-  // |  8       | 0        | 0         | ADDR[23]                               |
-  // |  9       | 0        | 0         | ADDR[22]                               |
-  // | 10       | 0        | 0         | ADDR[21]                               |
-  // | 11       | 0        | 0         | ADDR[20]                               |
-  // | 12       | 0        | 0         | ADDR[19]                               |
-  // | 13       | 0        | 0         | ADDR[18]                               |
-  // | 14       | 0        | 0         | ADDR[17]                               |
-  // | 15       | 0        | 0         | ADDR[16]                               |
-  // | 16       | 0        | 0         | ADDR[15]                               |
-  // | 17       | 0        | 0         | ADDR[14]                               |
-  // | 18       | 0        | 0         | ADDR[13]                               |
-  // | 19       | 0        | 0         | ADDR[12]                               |
-  // | 20       | 0        | wsa[8]    | ADDR[11]                               |
-  // | 21       | 0        | wsa[7]    | ADDR[10]                               |
-  // | 22       | 0        | wsa[6]    | ADDR[9]                                |
-  // | 23       | 0        | wsa[5]    | ADDR[8]                                |
-  // | 24       | 0        | wsa[4]    | ADDR[7]                                |
-  // | 25       | 0        | wsa[3]    | ADDR[6]                                |
-  // | 26       | 0        | wsa[2]    | ADDR[5]                                |
-  // | 27       | 0        | wsa[1]    | ADDR[4]                                |
-  // | 28       | 0        | wsa[0]    | ADDR[3]                                |
-  // | 29       | 0        | 0         | ADDR[2]                                |
-  // | 30       | 0        | 0         | ADDR[1]                                |
-  // | 31       | 0        | 0         | ADDR[0]                                |
-  // | 32..95   | 0        | 0         | (64 states) MOSI=dummy, MISO=read bit  |
-  // | 96       | 1        | 0         | Chip OFF                               |
-
+`endif // NO_EXTERNAL_TEXTURES
 
   // texV scans the texture 'v' coordinate range with a step size of 'traced_texa'.
   //NOTE: Because of 'texVV = texV + traced_texVinit' above, texV might be relative to
@@ -418,9 +387,11 @@ module rbzero(
   wire [5:0]  traced_texu;  // Texture 'u' coordinate value.
   wire `F     traced_texa;
   wire `F     traced_texVinit;
+`ifndef NO_EXTERNAL_TEXTURES
   wire [1:0]  wall_hot;
   wire        side_hot;
   wire [5:0]  texu_hot;
+`endif // NO_EXTERNAL_TEXTURES
 
   wall_tracer #(
     .MAP_WBITS(MAP_WBITS),
@@ -453,15 +424,17 @@ module rbzero(
 `ifdef TRACE_STATE_DEBUG
     .o_state  (trace_state), //DEBUG.
 `endif//TRACE_STATE_DEBUG
+`ifndef NO_EXTERNAL_TEXTURES
+    .o_wall_hot(wall_hot),
+    .o_side_hot(side_hot),
+    .o_texu_hot(texu_hot),
+`endif // NO_EXTERNAL_TEXTURES
     .o_wall   (traced_wall),
     .o_side   (traced_side),
     .o_size   (traced_size),
     .o_texu   (traced_texu),
     .o_texa   (traced_texa),
-    .o_texVinit(traced_texVinit),
-    .o_wall_hot(wall_hot),
-    .o_side_hot(side_hot),
-    .o_texu_hot(texu_hot)
+    .o_texVinit(traced_texVinit)
   );
 
 `ifdef TRACE_STATE_DEBUG

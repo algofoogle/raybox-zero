@@ -8,3 +8,4 @@
 //`define RESET_TEXTURE_MEMORY // Should there be an explicit reset for local texture memory?
 //`define RESET_TEXTURE_MEMORY_PATTERNED // If defined with RESET_TEXTURE_MEMORY, texture memory reset is a pattern instead of black.
 //`define DEBUG_NO_TEXTURE_LOAD // If defined, prevent texture loading
+//`define NO_EXTERNAL_TEXTURES
