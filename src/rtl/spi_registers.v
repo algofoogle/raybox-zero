@@ -18,11 +18,12 @@ module spi_registers(
   output reg          vinf,           // Infinite V/height setting.
   output reg  [5:0]   mapdx, mapdy,   // Map 'dividing walls' on X and Y. 0=none
   output reg  [1:0]   mapdxw, mapdyw, // Map dividing wall, wall IDs (texture) for X and Y respectively
+`ifndef NO_EXTERNAL_TEXTURES
   output reg  [23:0]  texadd0,        // Texture address addend 0
   output reg  [23:0]  texadd1,        // Texture address addend 1
   output reg  [23:0]  texadd2,        // Texture address addend 2
   output reg  [23:0]  texadd3,        // Texture address addend 3
-
+`endif // NO_EXTERNAL_TEXTURES
   input               load_new        // Will go high at the moment that buffered data can go live.
 );
 
@@ -38,10 +39,12 @@ module spi_registers(
   reg [5:0]   buf_mapdy;
   reg [1:0]   buf_mapdxw;
   reg [1:0]   buf_mapdyw;
+`ifndef NO_EXTERNAL_TEXTURES
   reg [23:0]  buf_texadd0;
   reg [23:0]  buf_texadd1;
   reg [23:0]  buf_texadd2;
   reg [23:0]  buf_texadd3;
+`endif // NO_EXTERNAL_TEXTURES
   //SMELL: If we don't want to waste space with all these extra registers,
   // could we just transfer one 'waiting' value into a SINGLE selected register?
   // Only problem with doing so is that we can then only update 1 per frame
@@ -81,12 +84,18 @@ module spi_registers(
   localparam CMD_VSHIFT = 4;  localparam LEN_VSHIFT =  6; // Set texture V axis shift (texv addend). //SMELL: Make this more bits for finer grain.
   localparam CMD_VINF   = 5;  localparam LEN_VINF   =  1; // Set infinite V mode (infinite height/size).
   localparam CMD_MAPD   = 6;  localparam LEN_MAPD   = 16; // Set mapdx,mapdy, mapdxw,mapdyw.
+`ifndef NO_EXTERNAL_TEXTURES
   localparam CMD_TEXADD0= 7;  localparam LEN_TEXADD0= 24;
   localparam CMD_TEXADD1= 8;  localparam LEN_TEXADD1= 24;
   localparam CMD_TEXADD2= 9;  localparam LEN_TEXADD2= 24;
   localparam CMD_TEXADD3=10;  localparam LEN_TEXADD3= 24;
+`endif
 
+`ifdef NO_EXTERNAL_TEXTURES
+  localparam SPI_BUFFER_SIZE = 16; //NOTE: Should be set to whatever the largest LEN_* value is above.
+`else // NO_EXTERNAL_TEXTURES
   localparam SPI_BUFFER_SIZE = 24; //NOTE: Should be set to whatever the largest LEN_* value is above.
+`endif
   localparam SPI_BUFFER_LIMIT = SPI_BUFFER_SIZE-1;
 
   localparam SPI_CMD_BITS = 4;
@@ -100,10 +109,12 @@ module spi_registers(
         (spi_cmd == CMD_OTHER   ) ?   LEN_OTHER:
         (spi_cmd == CMD_VSHIFT  ) ?   LEN_VSHIFT:
         (spi_cmd == CMD_MAPD    ) ?   LEN_MAPD:
+`ifndef NO_EXTERNAL_TEXTURES
         (spi_cmd == CMD_TEXADD0 ) ?   LEN_TEXADD0:
         (spi_cmd == CMD_TEXADD1 ) ?   LEN_TEXADD1:
         (spi_cmd == CMD_TEXADD2 ) ?   LEN_TEXADD2:
         (spi_cmd == CMD_TEXADD3 ) ?   LEN_TEXADD3:
+`endif // NO_EXTERNAL_TEXTURES
       /*(spi_cmd == CMD_VINF    ) ?*/ LEN_VINF
       ) - 1
     );
@@ -111,7 +122,7 @@ module spi_registers(
 
 // ===== MAIN SPI CONTROL/PAYLOAD REGISTERS =====
 
-  reg [6:0]                 spi_counter; // Enough to count the largest frame we support (74 counts, 0..73, for vectors).
+  reg [4:0]                 spi_counter; // To count largest supported frame (28-32 for standard regs, or would be 6:0 for vectors: 74 counts, 0..73).
   reg [SPI_CMD_BITS-1:0]    spi_cmd;
   reg [SPI_BUFFER_LIMIT:0]  spi_buffer; // Receives the SPI data (after the command).
   reg                       spi_done;
@@ -172,10 +183,12 @@ module spi_registers(
       mapdy     <= 6'd0;
       mapdxw    <= 2'd0;
       mapdyw    <= 2'd0;
+`ifndef NO_EXTERNAL_TEXTURES
       texadd0   <= 24'd0;
       texadd1   <= 24'd0;
       texadd2   <= 24'd0;
       texadd3   <= 24'd0;
+`endif // NO_EXTERNAL_TEXTURES
     end else if (load_new) begin
       // Load from in-waiting buffers:
       sky       <= buf_sky;
@@ -189,10 +202,12 @@ module spi_registers(
       mapdy     <= buf_mapdy;
       mapdxw    <= buf_mapdxw;
       mapdyw    <= buf_mapdyw;
+`ifndef NO_EXTERNAL_TEXTURES
       texadd0   <= buf_texadd0;
       texadd1   <= buf_texadd1;
       texadd2   <= buf_texadd2;
       texadd3   <= buf_texadd3;
+`endif // NO_EXTERNAL_TEXTURES
     end
 
     // Handle loading in-waiting buffer regs from spi_buffer:
@@ -208,10 +223,12 @@ module spi_registers(
       buf_mapdy     <= 6'd0;
       buf_mapdxw    <= 2'd0;
       buf_mapdyw    <= 2'd0;
+`ifndef NO_EXTERNAL_TEXTURES
       buf_texadd0   <= 24'd0;
       buf_texadd1   <= 24'd0;
       buf_texadd2   <= 24'd0;
       buf_texadd3   <= 24'd0;
+`endif // NO_EXTERNAL_TEXTURES
     end else if (spi_done) begin
       if (spi_cmd == CMD_SKY    ) buf_sky       <= spi_buffer`RGB;
       if (spi_cmd == CMD_FLOOR  ) buf_floor     <= spi_buffer`RGB;
@@ -224,10 +241,12 @@ module spi_registers(
                                   buf_mapdy,
                                   buf_mapdxw,
                                   buf_mapdyw}   <= spi_buffer[15:0];
+`ifndef NO_EXTERNAL_TEXTURES
       if (spi_cmd == CMD_TEXADD0) buf_texadd0   <= spi_buffer[23:0];
       if (spi_cmd == CMD_TEXADD1) buf_texadd1   <= spi_buffer[23:0];
       if (spi_cmd == CMD_TEXADD2) buf_texadd2   <= spi_buffer[23:0];
       if (spi_cmd == CMD_TEXADD3) buf_texadd3   <= spi_buffer[23:0];
+`endif // NO_EXTERNAL_TEXTURES
     end
 
   end

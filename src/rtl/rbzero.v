@@ -293,10 +293,12 @@ module rbzero(
     .mapdy    (mapdy),
     .mapdxw   (mapdxw),
     .mapdyw   (mapdyw),
+`ifndef NO_EXTERNAL_TEXTURES
     .texadd0  (texadd[0]),
     .texadd1  (texadd[1]),
     .texadd2  (texadd[2]),
     .texadd3  (texadd[3]),
+`endif // NO_EXTERNAL_TEXTURES
 
     .load_new (visible_frame_end)
   );
@@ -311,7 +313,9 @@ module rbzero(
   wire [5:0]  mapdy         /* verilator public */;
   wire [1:0]  mapdxw        /* verilator public */;
   wire [1:0]  mapdyw        /* verilator public */;
+`ifndef NO_EXTERNAL_TEXTURES
   wire [23:0] texadd [0:3]  /* verilator public */;
+`endif // NO_EXTERNAL_TEXTURES
 
   // --- Map ROM: ---
   wire [MAP_WBITS-1:0] tracer_map_col;
