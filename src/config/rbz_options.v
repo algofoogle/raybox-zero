@@ -9,3 +9,7 @@
 //`define RESET_TEXTURE_MEMORY_PATTERNED // If defined with RESET_TEXTURE_MEMORY, texture memory reset is a pattern instead of black.
 //`define DEBUG_NO_TEXTURE_LOAD // If defined, prevent texture loading
 //`define NO_EXTERNAL_TEXTURES
+//`define ALT_FIXED_POINT_PARAMS
+//    `define Qm    11   // Signed. 9 is minimum: Below 9, texv is broken. Below 8, rayAddend overflows.
+//    `define Qn    11   // Currently 9 is lowest possible because of other bit-range maths, but 10+ is recommended.
+//    `define Qmnc  22   // <== MUST EQUAL Qmn+Qn. Sort of the same as `Qmn, but that isn't useful for all my Verilog needs.

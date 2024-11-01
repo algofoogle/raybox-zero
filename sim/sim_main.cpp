@@ -50,7 +50,8 @@ using namespace std;
 //#define DEBUG_BUTTON_INPUTS
 //#define USE_SPEAKER
 
-//SMELL: These must be set to the same numbers in fixed_point_params.v:
+//SMELL: These must be set to the same numbers in fixed_point_params.v
+// (or rbz_options.v if it defines ALT_FIXED_POINT_PARAMS):
 #define Qm  11
 #define Qn  11
 //NOTE: Currently these don't have much (or any?) effect over SPI,
