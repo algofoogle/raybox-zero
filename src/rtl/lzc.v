@@ -9,14 +9,15 @@
 
 `define INRANGE [`Qm-1:-`Qn]
 
-//NOTE: The FIRST defined of the following will be used:
+//NOTE: The FIRST defined of the following will be used
+// BUT this should now be done via fixed_point_params.v or rbz_options.v:
 // `define D17 // 17-bit range, e.g. Q8.9
 // `define D18 // 18-bit range, e.g. Q9.9
 // `define D19 // 19-bit range, e.g. Q9.10
 // `define D20 // 20-bit range, e.g. Q10.10
-`define D22 // 22-bit range, e.g. Q11.11
-`define D24 // 24-bit range, e.g. Q12.12
-`define D30 // 30-bit range, e.g. Q15.15, mostly for testing.
+// `define D22 // 22-bit range, e.g. Q11.11
+// `define D24 // 24-bit range, e.g. Q12.12
+// `define D30 // 30-bit range, e.g. Q15.15, mostly for testing.
 
 module lzc(
   input `INRANGE i_data,
@@ -190,6 +191,8 @@ module lzc(
       30'b00000000000000000000000000001?:  f_lzc = 28;
       30'b000000000000000000000000000001:  f_lzc = 29;
       30'b000000000000000000000000000000:  f_lzc = 30;
+`else
+      $error("One of D17, 18, 19, 20, 22, 24, or 30 must be defined");
 `endif
     endcase
 

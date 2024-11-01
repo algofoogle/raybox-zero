@@ -15,6 +15,7 @@
     `define Qm          11                  // Signed. 9 is minimum: Below 9, texv is broken. Below 8, rayAddend overflows.
     `define Qn          11                  // Currently 9 is lowest possible because of other bit-range maths, but 10+ is recommended.
     `define Qmnc        22          // <== MUST EQUAL Qmn+Qn. Sort of the same as `Qmn, but that isn't useful for all my Verilog needs.
+    `define D22 // Must be based on Qmnc. Valid defines (per lzc.v) are: D17, D18, D19, D20, D22, D24, D30
 `endif
 //NOTE: DON'T FORGET!!:
 // > When changing `Qm or `Qn, you also need to update the LZCs (inc. `SZ)
