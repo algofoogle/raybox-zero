@@ -21,10 +21,10 @@ module row_render #(
   //SMELL: Instead of combo logic, could use a register and check for enter/leave:
 
   wire [5:0] texvcomp = leakfix ? texvorg : texv;
-  wire seam = (hpos < HALF_SIZE && texvcomp == -6'd1) || (hpos >= HALF_SIZE && texvcomp == 6'd0);
+  wire seam = (hpos < HALF_SIZE && texvorg == -6'd1) || (hpos >= HALF_SIZE && texvorg == 6'd0);
 
   assign hit =
-    (texv >= leak) &                      // 'Leaking' means background is visible instead of texture, up to 'leak' point. Can fake 'wading'.
+    (texvcomp >= leak) &                      // 'Leaking' means background is visible instead of texture, up to 'leak' point. Can fake 'wading'.
     (vinf | (
       (!seam) & // Don't render the very edges where there is an erroneous seam (i.e. fix texture under/overflow).
       (
