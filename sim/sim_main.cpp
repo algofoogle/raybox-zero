@@ -72,6 +72,8 @@ using namespace std;
   #define CLOCK_HZ    25'000'000
 #endif
 
+#define TEX_VSHIFT_SCALER 10
+
 #define S1(s1) #s1
 #define S2(s2) S1(s2)
 
@@ -573,7 +575,9 @@ void recalc_view(const Uint8* k, int mouseX, int mouseY, double t) {
     // When SHIFT key is held, scale motion speed to 180%.
     r *= 1.8;
   }
-  if (!k[SDL_SCANCODE_LCTRL] && !k[SDL_SCANCODE_RCTRL]) { // Ignore arrows if CTRL is held (because it's used for vector scaling control).
+  bool ctrl = k[SDL_SCANCODE_LCTRL] || k[SDL_SCANCODE_RCTRL];
+  bool shift = k[SDL_SCANCODE_LSHIFT] || k[SDL_SCANCODE_RSHIFT];
+  if (!ctrl) { // Ignore arrows if CTRL is held (because it's used for vector scaling control).
     if (k[SDL_SCANCODE_LEFT])   rotate_view( r);
     if (k[SDL_SCANCODE_RIGHT])  rotate_view(-r);
   }
@@ -583,6 +587,16 @@ void recalc_view(const Uint8* k, int mouseX, int mouseY, double t) {
   if (gMouseYTexV) {
     int delta = gSwapMouseXY ? mouseX : mouseY;
     gTexVShift += (gSwapMouseXY ? 1 : -1) * delta;
+  }
+  if (shift) {
+    // SHIFT+arrow adjusts VSHIFT:
+    if (k[SDL_SCANCODE_UP])   gTexVShift += TEX_VSHIFT_SCALER;
+    if (k[SDL_SCANCODE_DOWN]) gTexVShift -= TEX_VSHIFT_SCALER;
+  }
+  else {
+    // Arrow without SHIFT adjusts LEAK:
+    if (k[SDL_SCANCODE_UP])   gLeak += 1;
+    if (k[SDL_SCANCODE_DOWN]) gLeak -= 1;
   }
   if (gSwapMouseXY) {
     // A/D slide gTexVShift to create illusion of moving left/right IF using infinite height mode.
@@ -834,6 +848,7 @@ void render_text(SDL_Renderer* renderer, TTF_Font* font, int x, int y, string s)
 
 void update_game_state() {
   static int frame = 0;
+  static bool need_state_reset = true;
   if (gAnimateRegisters) {
     gColorSky   += 3; if (gColorSky>63)   gColorSky   -= 64;
     // gColorFloor = 0x20;
@@ -841,8 +856,10 @@ void update_game_state() {
     ++frame;
     gLeak = 8 + int(8.0 * sin(double(frame)/10.0));
     // gTexVShift += 1;
+    need_state_reset = true;
   }
-  else {
+  else if (need_state_reset) {
+    need_state_reset = false;
     gColorSky   = 0x15; //0b01_01_01;
     gColorFloor = 0x2A; //0b10_10_10;
     gLeak       = 0;
@@ -921,7 +938,7 @@ int update_spi_registers_state() {
             push_bits_onto_stack(bits, 0, 12); // For now, otherX/Y is hard-coded to 0.
             break;
           case CMD_VSHIFT:
-            push_bits_onto_stack(bits, gTexVShift / 10, 6);
+            push_bits_onto_stack(bits, gTexVShift / TEX_VSHIFT_SCALER, 6);
             break;
           case CMD_VINF:
             push_bits_onto_stack(bits, gInfiniteHeight, 1);
