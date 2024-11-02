@@ -97,16 +97,19 @@ module rbzero(
     .visible  (visible)
   );
 
+  wire fixed_leak = 1'b1; // 0=classic (leak moves with Vshift), 1=alt (leak is fixed to the floor).
+
   // --- Row-level renderer: ---
   wire        wall_en;              // Asserted for the duration of the textured wall being visible on screen.
   wire [5:0]  wall_rgb;             // Colour of the current wall pixel being scanned.
   reg `F      texV;                 // Note big 'V': Fixed-point accumulator for working out texv per pixel. //SMELL: Wasted excess precision.
   wire `F     texVshift = {{(`Qm-9){1'b0}},texv_shift,{(`Qn+3){1'b0}}};
-  wire `F     texVV = texV + traced_texVinit + texVshift; //NOTE: Instead of having this adder, could just use traced_texVinit as the texV hmax reset (though it does make it 'gritty').
-  wire [5:0]  texv =
-    (texVV >= 0 || vinf)
-      ? texVV[8:3]
-      : 6'd0;                       // Clamp to 0 to fix texture underflow.
+  wire `F     texVVorg = texV + traced_texVinit;
+  wire `F     texVV = texVVorg + texVshift; //NOTE: Instead of having this adder, could just use traced_texVinit as the texV hmax reset (though it does make it 'gritty').
+  wire [5:0]  texv = texVV[8:3];
+    // (texVV >= 0 || vinf)
+    //   ? texVV[8:3]
+    //   : 6'd0;                       // Clamp to 0 to fix texture underflow.
 
   // At vdist of 1.0, a 64p texture is stretched to 512p, hence texv is 64/512 (>>3) of int(texV).
   //NOTE: Would it be possible to do primitive texture 'filtering' using 50/50 checker dither for texture sub-pixels?
@@ -117,8 +120,10 @@ module rbzero(
     .size     (traced_size),
     .texu     (traced_texu),        //SMELL: Need to clamp texu/v so they don't wrap due to fixed-point precision loss.
     .texv     (texv),
+    .texvorg  (texVVorg[8:3]),
     .vinf     (vinf),
     .leak     (floor_leak),
+    .leakfix  (fixed_leak),
     .hpos     (hpos),
     // Outputs:
     .hit      (wall_en),
