@@ -1,13 +1,18 @@
 `default_nettype none
 // `timescale 1ns / 1ps
 
-// `include "fixed_point_params.v"
-// `include "helpers.v"
+`ifndef RBZ_OPTIONS
+  // These are Verilator/VSCode hints, only. RBZ_OPTIONS should otherwise always be defined for deploying raybox-zero.
+  `include "helpers.v"
+  `include "fixed_point_params.v"
+`endif
 
 // These can be defined by the target (e.g. TT04 or FPGA) rather than inline here:
 //`define USE_MAP_OVERLAY
 //`define USE_DEBUG_OVERLAY
 //`define TRACE_STATE_DEBUG  // Trace state is represented visually per each line on-screen.
+//`define USE_LEAK_FIXED  // If enabled, modify CMD_VINF to support an extra bit controlling whether LEAK is floating (default) or fixed.
+//`define USE_POV_VIA_SPI_REGS
 //`define STANDBY_RESET // If defined use extra logic to avoid clocking regs during reset (for power saving/stability).
 //`define RESET_TEXTURE_MEMORY // Should there be an explicit reset for local texture memory?
 //`define RESET_TEXTURE_MEMORY_PATTERNED // If defined with RESET_TEXTURE_MEMORY, texture memory reset is a pattern instead of black.
@@ -17,10 +22,14 @@
 module rbzero(
   input               clk,
   input               reset,
+`ifndef USE_POV_VIA_SPI_REGS
   // SPI slave for updating vectors:
   input               i_ss_n,
   input               i_sclk,
   input               i_mosi,
+`else // USE_POV_VIA_SPI_REGS
+  // POV regs are instead accessed via spi_registers (the inputs below)...
+`endif // USE_POV_VIA_SPI_REGS
   // SPI slave for everything else:
   input               i_reg_ss_n, // aka /CS, aka csb.
   input               i_reg_sclk,
@@ -34,9 +43,15 @@ module rbzero(
   input   [3:0]       i_tex_in,
 `endif // NO_EXTERNAL_TEXTURES
   // Debug/demo signals:
+`ifdef USE_DEBUG_OVERLAY
   input               i_debug_v,  // Show debug overlay for inspecting view vectors?
+`endif // USE_DEBUG_OVERLAY
+`ifdef USE_MAP_OVERLAY
   input               i_debug_m,  // Show debug overlay for map
+`endif // USE_MAP_OVERLAY
+`ifdef TRACE_STATE_DEBUG
   input               i_debug_t,  // Show debug overlay for the tracer FSM
+`endif // TRACE_STATE_DEBUG
   input               i_inc_px,   // DEMO: Increment playerX
   input               i_inc_py,   // DEMO: Increment playerY
 `ifndef NO_EXTERNAL_TEXTURES
@@ -69,6 +84,30 @@ module rbzero(
   localparam        MAP_SCALE = 3;
 `endif//USE_MAP_OVERLAY
 
+  wire `RGB   color_sky     /* verilator public */;
+  wire `RGB   color_floor   /* verilator public */;
+  wire [5:0]  floor_leak    /* verilator public */;
+  wire [5:0]  otherx        /* verilator public */;
+  wire [5:0]  othery        /* verilator public */;
+  wire [5:0]  texv_shift    /* verilator public */;
+  wire        vinf          /* verilator public */;
+`ifndef NO_DIV_WALLS
+  wire [5:0]  mapdx         /* verilator public */;
+  wire [5:0]  mapdy         /* verilator public */;
+  wire [1:0]  mapdxw        /* verilator public */;
+  wire [1:0]  mapdyw        /* verilator public */;
+`endif // NO_DIV_WALLS
+`ifndef NO_EXTERNAL_TEXTURES
+  wire [23:0] texadd [0:3]  /* verilator public */;
+`endif // NO_EXTERNAL_TEXTURES
+  // --- Point-Of-View data, i.e. view vectors: ---
+  wire `F playerX /* verilator public */;
+  wire `F playerY /* verilator public */;
+  wire `F facingX /* verilator public */;
+  wire `F facingY /* verilator public */;
+  wire `F vplaneX /* verilator public */;
+  wire `F vplaneY /* verilator public */;
+
   assign o_vinf = vinf;
 
 `ifdef STANDBY_RESET
@@ -97,16 +136,33 @@ module rbzero(
     .visible  (visible)
   );
 
+  wire leakfixed; // Driven by spi_registers. 0=classic (leak moves with Vshift), 1=alt (leak is fixed to the floor).
+  //NOTE: If USE_LEAK_FIXED is NOT defined, then spi_registers sets this to const 0.
+
+  // --- Row-level ray caster/tracer: ---
+  wire [1:0]  traced_wall;
+  wire        traced_side;
+  wire [10:0] traced_size;  // Calculated from traced_vdist, in this module.
+  wire [5:0]  traced_texu;  // Texture 'u' coordinate value.
+  wire `F     traced_texa;
+  wire `F     traced_texVinit;
+`ifndef NO_EXTERNAL_TEXTURES
+  wire [1:0]  wall_hot;
+  wire        side_hot;
+  wire [5:0]  texu_hot;
+`endif // NO_EXTERNAL_TEXTURES
+
   // --- Row-level renderer: ---
   wire        wall_en;              // Asserted for the duration of the textured wall being visible on screen.
   wire [5:0]  wall_rgb;             // Colour of the current wall pixel being scanned.
   reg `F      texV;                 // Note big 'V': Fixed-point accumulator for working out texv per pixel. //SMELL: Wasted excess precision.
   wire `F     texVshift = {{(`Qm-9){1'b0}},texv_shift,{(`Qn+3){1'b0}}};
-  wire `F     texVV = texV + traced_texVinit + texVshift; //NOTE: Instead of having this adder, could just use traced_texVinit as the texV hmax reset (though it does make it 'gritty').
-  wire [5:0]  texv =
-    (texVV >= 0 || vinf)
-      ? texVV[8:3]
-      : 6'd0;                       // Clamp to 0 to fix texture underflow.
+  wire `F     texVVorg = texV + traced_texVinit;
+  wire `F     texVV = texVVorg + texVshift; //NOTE: Instead of having this adder, could just use traced_texVinit as the texV hmax reset (though it does make it 'gritty').
+  wire [5:0]  texv = texVV[8:3];
+
+  wire `RGB gen_tex_rgb; // i_gen_tex selects between this or external texture SPI memory.
+  //SMELL: i_gen_tex==1 doesn't disable SPI texture memory access.
 
   // At vdist of 1.0, a 64p texture is stretched to 512p, hence texv is 64/512 (>>3) of int(texV).
   //NOTE: Would it be possible to do primitive texture 'filtering' using 50/50 checker dither for texture sub-pixels?
@@ -117,16 +173,15 @@ module rbzero(
     .size     (traced_size),
     .texu     (traced_texu),        //SMELL: Need to clamp texu/v so they don't wrap due to fixed-point precision loss.
     .texv     (texv),
+    .texvorg  (texVVorg[8:3]),
     .vinf     (vinf),
     .leak     (floor_leak),
+    .leakfix  (leakfixed),
     .hpos     (hpos),
     // Outputs:
     .hit      (wall_en),
     .gen_tex_rgb(gen_tex_rgb)
   );
-
-  wire `RGB gen_tex_rgb; // i_gen_tex selects between this or external texture SPI memory.
-  //SMELL: i_gen_tex==1 doesn't disable SPI texture memory access.
 
 `ifdef NO_EXTERNAL_TEXTURES
   assign wall_rgb = gen_tex_rgb;
@@ -250,16 +305,11 @@ module rbzero(
   //SMELL: Move this into some other module, e.g. row_render?
   always @(posedge clk) if (no_standby) texV <= (hmax ? `Qmnc'd0 : texV + traced_texa);
 
-  // --- Point-Of-View data, i.e. view vectors: ---
-  wire `F playerX /* verilator public */;
-  wire `F playerY /* verilator public */;
-  wire `F facingX /* verilator public */;
-  wire `F facingY /* verilator public */;
-  wire `F vplaneX /* verilator public */;
-  wire `F vplaneY /* verilator public */;
   wire visible_frame_end = (hpos==799 && vpos==479); // The moment when SPI-loaded vector data could be used.
   assign o_hblank = hpos >= 640;
   assign o_vblank = vpos >= 480;
+
+`ifndef USE_POV_VIA_SPI_REGS
   pov pov(
     .clk      (clk),
     .reset    (reset),
@@ -273,6 +323,7 @@ module rbzero(
     .facingX(facingX), .facingY(facingY),
     .vplaneX(vplaneX), .vplaneY(vplaneY)
   );
+`endif // USE_POV_VIA_SPI_REGS
 
   spi_registers spi_registers(
     .clk      (clk),
@@ -289,10 +340,15 @@ module rbzero(
     .othery   (othery),
     .vshift   (texv_shift),
     .vinf     (vinf),
+    .o_leakfixed(leakfixed),
+
+`ifndef NO_DIV_WALLS
     .mapdx    (mapdx),
     .mapdy    (mapdy),
     .mapdxw   (mapdxw),
     .mapdyw   (mapdyw),
+`endif // NO_DIV_WALLS
+
 `ifndef NO_EXTERNAL_TEXTURES
     .texadd0  (texadd[0]),
     .texadd1  (texadd[1]),
@@ -300,22 +356,16 @@ module rbzero(
     .texadd3  (texadd[3]),
 `endif // NO_EXTERNAL_TEXTURES
 
+`ifdef USE_POV_VIA_SPI_REGS
+    .i_inc_px (i_inc_px),
+    .i_inc_py (i_inc_py),
+    .playerX(playerX), .playerY(playerY),
+    .facingX(facingX), .facingY(facingY),
+    .vplaneX(vplaneX), .vplaneY(vplaneY),
+`endif // USE_POV_VIA_SPI_REGS
+
     .load_new (visible_frame_end)
   );
-  wire `RGB   color_sky     /* verilator public */;
-  wire `RGB   color_floor   /* verilator public */;
-  wire [5:0]  floor_leak    /* verilator public */;
-  wire [5:0]  otherx        /* verilator public */;
-  wire [5:0]  othery        /* verilator public */;
-  wire [5:0]  texv_shift    /* verilator public */;
-  wire        vinf          /* verilator public */;
-  wire [5:0]  mapdx         /* verilator public */;
-  wire [5:0]  mapdy         /* verilator public */;
-  wire [1:0]  mapdxw        /* verilator public */;
-  wire [1:0]  mapdyw        /* verilator public */;
-`ifndef NO_EXTERNAL_TEXTURES
-  wire [23:0] texadd [0:3]  /* verilator public */;
-`endif // NO_EXTERNAL_TEXTURES
 
   // --- Map ROM: ---
   wire [MAP_WBITS-1:0] tracer_map_col;
@@ -362,7 +412,9 @@ module rbzero(
     .i_map_val(overlay_map_val),
     .in_map_overlay(map_en),
     .i_otherx(otherx), .i_othery(othery),
+`ifndef NO_DIV_WALLS
     .i_mapdx(mapdx), .i_mapdy(mapdy),
+`endif // NO_DIV_WALLS
     .map_rgb(map_rgb)
   );
 `endif//USE_MAP_OVERLAY
@@ -383,19 +435,6 @@ module rbzero(
   );
 `endif//USE_DEBUG_OVERLAY
 
-
-  // --- Row-level ray caster/tracer: ---
-  wire [1:0]  traced_wall;
-  wire        traced_side;
-  wire [10:0] traced_size;  // Calculated from traced_vdist, in this module.
-  wire [5:0]  traced_texu;  // Texture 'u' coordinate value.
-  wire `F     traced_texa;
-  wire `F     traced_texVinit;
-`ifndef NO_EXTERNAL_TEXTURES
-  wire [1:0]  wall_hot;
-  wire        side_hot;
-  wire [5:0]  texu_hot;
-`endif // NO_EXTERNAL_TEXTURES
 
   wall_tracer #(
     .MAP_WBITS(MAP_WBITS),
@@ -418,8 +457,10 @@ module rbzero(
     .vplaneX(vplaneX),  .vplaneY(vplaneY),
     // Special map overrides:
     .otherx (otherx),   .othery (othery),
+`ifndef NO_DIV_WALLS
     .mapdx  (mapdx),    .mapdy  (mapdy),
     .mapdxw (mapdxw),   .mapdyw (mapdyw),
+`endif // NO_DIV_WALLS
     // Map ROM access:
     .o_map_col(tracer_map_col),
     .o_map_row(tracer_map_row),

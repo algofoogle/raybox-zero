@@ -38,12 +38,13 @@ using namespace std;
 #define USE_MAP_OVERLAY
 #define USE_DEBUG_OVERLAY
 #define TRACE_STATE_DEBUG  // Trace state is represented visually per each line on-screen.
+#define USE_LEAK_FIXED  // If enabled, modify CMD_VINF to support an extra bit controlling whether LEAK is floating (default) or fixed.
+// #define USE_POV_VIA_SPI_REGS  // If defined, POV access is via spi_registers.v, else it is via pov.v
 //#define STANDBY_RESET // If defined use extra logic to avoid clocking regs during reset (for power saving/stability).
 //#define RESET_TEXTURE_MEMORY // Should there be an explicit reset for local texture memory?
 //#define RESET_TEXTURE_MEMORY_PATTERNED // If defined with RESET_TEXTURE_MEMORY, texture memory reset is a pattern instead of black.
 //#define DEBUG_NO_TEXTURE_LOAD // If defined, prevent texture loading
-// #define NO_EXTERNAL_TEXTURES
-
+//#define NO_EXTERNAL_TEXTURES
 
 
 //#define DESIGN_DIRECT_VECTOR_ACCESS   // Defined=new_playerX etc are exposed; else=SPI only.
@@ -56,6 +57,10 @@ using namespace std;
 #define Qn  11
 //NOTE: Currently these don't have much (or any?) effect over SPI,
 // because the vectors have their own hard-coded ranges.
+
+// These return subsets (of precalculated fixed-point numbers) to match POV register packing:
+#define UQ6_9(fpn)   (((fpn)>>(Qn-9)) & ((1<<(6+9))-1))
+#define SQ2_9(fpn)   (((fpn)>>(Qn-9)) & ((1<<(2+9))-1))
 
 // #define USE_POWER_PINS //NOTE: This is automatically set in the Makefile, now.
 #define INSPECT_INTERNAL //NOTE: This is automatically set in the Makefile, now.
@@ -158,12 +163,13 @@ bool          gSwapMouseXY = false;
 bool          gRotateView = false;
 bool          gEnableSPI = false;
 bool          gAnimateRegisters = false; // If true, do funky stuff with sky/floor colour and leak.
-bool          gInfiniteHeight = false;
 bool          gGenTex = false; // If true, select generated textures instead of texture memory.
+bool          gInfiniteHeight = false;
+bool          gLeakFixed = false;
+int           gLeak = 0;
 int           gMouseX, gMouseY;
 int           gColorSky = 0;
 int           gColorFloor = 0;
-int           gLeak = 0;
 int           gTexVShift = 0;
 int           gMapDX = 0;
 int           gMapDY = 0;
@@ -409,8 +415,16 @@ void process_sdl_events() {
           printf("Funky register animation is %s\n", gAnimateRegisters ? "ON" : "off");
           break;
         case SDLK_BACKSLASH:
-          gInfiniteHeight = !gInfiniteHeight;
-          printf("Infinite height is %s\n", gInfiniteHeight ? "ON" : "off");
+          if (KMOD_SHIFT & e.key.keysym.mod) {
+            #ifdef USE_LEAK_FIXED
+              // Shift-backslash: Toggle fixed leak.
+              gLeakFixed = !gLeakFixed;
+              printf("LEAK mode is %s\n", gLeakFixed ? "FIXED" : "FLOATING");
+            #endif // USE_LEAK_FIXED
+          } else {
+            gInfiniteHeight = !gInfiniteHeight;
+            printf("Infinite height is %s\n", gInfiniteHeight ? "ON" : "off");
+          }
           break;
         case SDLK_v:
           TB->log_vsync = !TB->log_vsync;
@@ -588,15 +602,17 @@ void recalc_view(const Uint8* k, int mouseX, int mouseY, double t) {
     int delta = gSwapMouseXY ? mouseX : mouseY;
     gTexVShift += (gSwapMouseXY ? 1 : -1) * delta;
   }
-  if (shift) {
-    // SHIFT+arrow adjusts VSHIFT:
-    if (k[SDL_SCANCODE_UP])   gTexVShift += TEX_VSHIFT_SCALER;
-    if (k[SDL_SCANCODE_DOWN]) gTexVShift -= TEX_VSHIFT_SCALER;
-  }
-  else {
-    // Arrow without SHIFT adjusts LEAK:
-    if (k[SDL_SCANCODE_UP])   gLeak += 1;
-    if (k[SDL_SCANCODE_DOWN]) gLeak -= 1;
+  if (!ctrl) { // CTRL+arrows is for vector scaling, so mask it out here.
+    if (shift) {
+      // SHIFT+arrow adjusts VSHIFT:
+      if (k[SDL_SCANCODE_UP])   gTexVShift += TEX_VSHIFT_SCALER;
+      if (k[SDL_SCANCODE_DOWN]) gTexVShift -= TEX_VSHIFT_SCALER;
+    }
+    else {
+      // Arrow without SHIFT adjusts LEAK:
+      if (k[SDL_SCANCODE_UP])   gLeak += 1;
+      if (k[SDL_SCANCODE_DOWN]) gLeak -= 1;
+    }
   }
   if (gSwapMouseXY) {
     // A/D slide gTexVShift to create illusion of moving left/right IF using infinite height mode.
@@ -868,13 +884,20 @@ void update_game_state() {
 
 
 enum {
-  CMD_SKY = 0,
-  CMD_FLOOR,
-  CMD_LEAK,
-  CMD_OTHER,
-  CMD_VSHIFT,
-  CMD_VINF,
-  CMD_MAPD,
+  CMD_SKY     = 0,
+  CMD_FLOOR   = 1,
+  CMD_LEAK    = 2,
+  CMD_OTHER   = 3,
+  CMD_VSHIFT  = 4,
+  CMD_VINF    = 5, CMD_VOPTS = 5, // Same command, but depends on USE_LEAK_FIXED.
+  CMD_MAPD    = 6,
+  CMD_TEXADD0 = 7,
+  CMD_TEXADD1 = 8,
+  CMD_TEXADD2 = 9,
+  CMD_TEXADD3 = 10,
+#ifdef USE_POV_VIA_SPI_REGS
+  CMD_POV     = 11,
+#endif // USE_POV_VIA_SPI_REGS
   CMD__MAX,
 };
 
@@ -886,8 +909,14 @@ void push_bits_onto_stack(vector<bool>& bits, uint32_t data, int num_bits) {
 }
 
 
+// This gets called right next to every TB->tick() call.
+// It has its own counters to keep track of when to update SPI inputs to TB.
+// Currently it's designed to constantly stream in the current POV/REG states
+// via SPI, even if they haven't updated. However, it does need to take a
+// snapshot of the current POV states when starting each new streaming
+// (because they could otherwise be changing):
 int update_spi_registers_state() {
-  static int spi_next_countdown = 5; // For now run at one fifth of the clock. Later, we could add some jitter.
+  static int spi_next_countdown = 5; // For now run at one fifth of the clock. Some jitter gets added to this too.
   static int spi_state_counter = 0; // Tracks which state we're up to, incrementing when spi_next_countdown==0.
 
   static vector<bool> bits;
@@ -897,8 +926,6 @@ int update_spi_registers_state() {
   const int last_register = CMD__MAX-1;
 
   static int register_counter = first_register;
-
-  static int hits = 0;
 
   //NOTE: States:
   // 0 = SS and SCLK deasserted.
@@ -940,15 +967,38 @@ int update_spi_registers_state() {
           case CMD_VSHIFT:
             push_bits_onto_stack(bits, gTexVShift / TEX_VSHIFT_SCALER, 6);
             break;
+#ifdef USE_LEAK_FIXED
+          case CMD_VOPTS:
+            push_bits_onto_stack(bits, gInfiniteHeight, 1);
+            push_bits_onto_stack(bits, gLeakFixed, 1);
+            break;
+#else // USE_LEAK_FIXED
           case CMD_VINF:
             push_bits_onto_stack(bits, gInfiniteHeight, 1);
             break;
+#endif
           case CMD_MAPD:
             push_bits_onto_stack(bits, gMapDX, 6);
             push_bits_onto_stack(bits, gMapDY, 6);
             push_bits_onto_stack(bits, gMapDXW, 2);
             push_bits_onto_stack(bits, gMapDYW, 2);
             break;
+          case CMD_TEXADD0:
+          case CMD_TEXADD1:
+          case CMD_TEXADD2:
+          case CMD_TEXADD3:
+            // NOT IMPLEMENTED yet.
+            break;
+#ifdef USE_POV_VIA_SPI_REGS
+          case CMD_POV:
+            push_bits_onto_stack(bits, UQ6_9(double2fixed(gView.px           )), 15);
+            push_bits_onto_stack(bits, UQ6_9(double2fixed(gView.py           )), 15);
+            push_bits_onto_stack(bits, SQ2_9(double2fixed(gView.fx * gView.sf)), 11);
+            push_bits_onto_stack(bits, SQ2_9(double2fixed(gView.fy * gView.sf)), 11);
+            push_bits_onto_stack(bits, SQ2_9(double2fixed(gView.vx * gView.sv)), 11);
+            push_bits_onto_stack(bits, SQ2_9(double2fixed(gView.vy * gView.sv)), 11);
+            break;
+#endif // USE_POV_VIA_SPI_REGS
           default:
             printf("ERROR: Unknown register: %d\n", register_counter);
             break;
@@ -997,25 +1047,13 @@ int update_spi_registers_state() {
         break;
       }
     }
-    hits++;
-    // if (hits>81900 && hits<83000) {
-    //   printf("Hits:%d\tEnd:%d\tStep:%d\t/SS:%d\tCLK:%d\tMOSI:%d\n",
-    //     hits,
-    //     frame_end,
-    //     spi_state_counter,
-    //     TB->m_core->i_reg_ss_n,
-    //     TB->m_core->i_reg_sclk,
-    //     TB->m_core->i_reg_mosi
-    //   );
-    // }
   }
-  return hits;
-
+  return 0;
 }
 
 
-
-// This gets called right next to every TB->tick() call.
+#ifndef USE_POV_VIA_SPI_REGS
+// If USE_POV_VIA_SPI_REGS is NOT in effect, this gets called right next to every TB->tick() call.
 // It has its own counters to keep track of when to update SPI inputs to TB.
 // Currently it's designed to constantly stream in the current vector states
 // via SPI, even if they haven't updated. However, it does need to take a
@@ -1024,9 +1062,7 @@ int update_spi_registers_state() {
 void update_spi_state() {
   static int spi_next_countdown = 5; // For now run at one fifth of the clock. Later, we could add some jitter.
   static int spi_state_counter = 0; // Tracks which state we're up to, incrementing when spi_next_countdown==0.
-
   static vector<bool> bits;
-
   //NOTE: States:
   // 0 = SS and SCLK deasserted.
   // 1 = SS asserted.
@@ -1091,7 +1127,7 @@ void update_spi_state() {
     }
   }
 }
-
+#endif // USE_POV_VIA_SPI_REGS
 
 
 int main(int argc, char **argv) {
@@ -1262,7 +1298,11 @@ int main(int argc, char **argv) {
       bool vsync_stopped = false;
       int hits = 0;
       if (gEnableSPI) {
+#ifdef USE_POV_VIA_SPI_REGS
+        // POV is updated via common spi_registers interface.
+#else
         update_spi_state();
+#endif // USE_POV_VIA_SPI_REGS
         hits = update_spi_registers_state();
       }
       TB->tick();      hsync_stopped |= TB->hsync_stopped();      vsync_stopped |= TB->vsync_stopped();
