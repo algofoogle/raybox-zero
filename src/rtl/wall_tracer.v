@@ -1,7 +1,12 @@
 `default_nettype none
 // `timescale 1ns / 1ps
 
-// `include "fixed_point_params.v"
+`ifndef RBZ_OPTIONS
+  // These are Verilator/VSCode hints, only. RBZ_OPTIONS should otherwise always be defined for deploying raybox-zero.
+  `include "helpers.v"
+  `include "fixed_point_params.v"
+`endif
+
 
 //NOTE: I tend to use 'row' and 'line' interchangeably in these comments,
 // because 'line' is usually in the context of the screen (i.e. a scanline)
@@ -169,6 +174,13 @@ module wall_tracer #(
   // Holds texture 'u' coordinate value until it needs to be presented at output:
   reg [5:0] texu;
 
+  wire `F mul_in_a, mul_in_b;
+  wire `F2 mul_out;
+
+  reg [1:0] wall;
+  reg side;
+  reg [3:0] state; //SMELL: Size this according to actual no. of states.
+
   // Get fractional part [0,1) of where the ray hits the wall,
   // i.e. how far along the individual wall cell the hit occurred,
   // which will then be used to determine the wall texture stripe.
@@ -237,6 +249,13 @@ module wall_tracer #(
   // wire [10:0] size = rcp_out[2:-8];
   reg `F size_full;
   wire [10:0] size = size_full[2:-8];
+
+  `ifdef RESET_TO_KNOWN
+    wire do_reset = vsync || reset;
+  `else//!RESET_TO_KNOWN
+    wire do_reset = vsync;
+  `endif//RESET_TO_KNOWN
+
   reciprocal_fsm #(.M(`Qm),.N(`Qn)) rcp_fsm (
     .i_clk    (clk),
     .i_reset  (do_reset), //@@@: SMELL: Should this be do_reset or just reset?
@@ -260,20 +279,21 @@ module wall_tracer #(
   // so (for example) we set mul_in_a to stepDistX WHILE state==TracePrepX, because that state will
   // then directly sample the resulting mul_out value 'within' the TracePrepX state
   // (or more-accurately, as it leaves that state).
-  wire `F mul_in_a =
+
+  assign mul_in_a =
     (state==TracePrepX) ? stepDistX:
     (state==TracePrepY) ? stepDistY:
     (state==CalcTexU)   ? ( side ? rayDirX : rayDirY ):
     // state==CalcTexVInit:
                           (size_full-HALF_SIZE_CLIP);
 
-  wire `F mul_in_b =
+  assign mul_in_b =
     (state==TracePrepX) ? partialX:
     (state==TracePrepY) ? partialY:
     // state==CalcTexU or CalcTexVInit:
                           visualWallDist;
 
-  wire `F2 mul_out = mul_in_a * mul_in_b;
+  assign mul_out = mul_in_a * mul_in_b;
   //NOTE: Try making these unsigned, since I think we're always going to be using them for non-negative values.
 
   // Map cell we're testing:
@@ -288,16 +308,6 @@ module wall_tracer #(
 
   // Used to indicate whether X/Y-stepping is the next target:
   wire needStepX = trackDistX < trackDistY; //NOTE: UNSIGNED comparison per def'n of trackX/Ydist.
-
-  reg [1:0] wall;
-  reg side;
-  reg [3:0] state; //SMELL: Size this according to actual no. of states.
-
-  `ifdef RESET_TO_KNOWN
-    wire do_reset = vsync || reset;
-  `else//!RESET_TO_KNOWN
-    wire do_reset = vsync;
-  `endif//RESET_TO_KNOWN
 
   // int line_counter; // DEBUG.
 

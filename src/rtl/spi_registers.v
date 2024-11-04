@@ -213,6 +213,13 @@ module spi_registers(
   wire mosi = mosi_buffer[1];
   //SMELL: Do we actually need to sync MOSI? It should be stable when we check it at the SCLK rising edge.
 
+// ===== MAIN SPI CONTROL/PAYLOAD REGISTERS =====
+
+  reg [6:0]                 spi_counter; // To count largest supported frame (74 for vectors, 0..73).
+  reg [SPI_CMD_BITS-1:0]    spi_cmd;
+  reg [SPI_BUFFER_LIMIT:0]  spi_buffer; // Receives the SPI data (after the command).
+  reg                       spi_done;
+
   wire spi_frame_end =
     spi_counter == (
       SPI_CMD_BITS + (
@@ -239,14 +246,6 @@ module spi_registers(
       ) - 1
     );
 
-
-// ===== MAIN SPI CONTROL/PAYLOAD REGISTERS =====
-
-  reg [6:0]                 spi_counter; // To count largest supported frame (74 for vectors, 0..73).
-  reg [SPI_CMD_BITS-1:0]    spi_cmd;
-  reg [SPI_BUFFER_LIMIT:0]  spi_buffer; // Receives the SPI data (after the command).
-  reg                       spi_done;
-  
 
 // ===== MAIN SPI CLOCKED LOGIC =====
 

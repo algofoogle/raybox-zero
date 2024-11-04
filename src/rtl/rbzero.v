@@ -84,6 +84,28 @@ module rbzero(
   localparam        MAP_SCALE = 3;
 `endif//USE_MAP_OVERLAY
 
+  wire `RGB   color_sky     /* verilator public */;
+  wire `RGB   color_floor   /* verilator public */;
+  wire [5:0]  floor_leak    /* verilator public */;
+  wire [5:0]  otherx        /* verilator public */;
+  wire [5:0]  othery        /* verilator public */;
+  wire [5:0]  texv_shift    /* verilator public */;
+  wire        vinf          /* verilator public */;
+  wire [5:0]  mapdx         /* verilator public */;
+  wire [5:0]  mapdy         /* verilator public */;
+  wire [1:0]  mapdxw        /* verilator public */;
+  wire [1:0]  mapdyw        /* verilator public */;
+`ifndef NO_EXTERNAL_TEXTURES
+  wire [23:0] texadd [0:3]  /* verilator public */;
+`endif // NO_EXTERNAL_TEXTURES
+  // --- Point-Of-View data, i.e. view vectors: ---
+  wire `F playerX /* verilator public */;
+  wire `F playerY /* verilator public */;
+  wire `F facingX /* verilator public */;
+  wire `F facingY /* verilator public */;
+  wire `F vplaneX /* verilator public */;
+  wire `F vplaneY /* verilator public */;
+
   assign o_vinf = vinf;
 
 `ifdef STANDBY_RESET
@@ -115,6 +137,19 @@ module rbzero(
   wire leakfixed; // Driven by spi_registers. 0=classic (leak moves with Vshift), 1=alt (leak is fixed to the floor).
   //NOTE: If USE_LEAK_FIXED is NOT defined, then spi_registers sets this to const 0.
 
+  // --- Row-level ray caster/tracer: ---
+  wire [1:0]  traced_wall;
+  wire        traced_side;
+  wire [10:0] traced_size;  // Calculated from traced_vdist, in this module.
+  wire [5:0]  traced_texu;  // Texture 'u' coordinate value.
+  wire `F     traced_texa;
+  wire `F     traced_texVinit;
+`ifndef NO_EXTERNAL_TEXTURES
+  wire [1:0]  wall_hot;
+  wire        side_hot;
+  wire [5:0]  texu_hot;
+`endif // NO_EXTERNAL_TEXTURES
+
   // --- Row-level renderer: ---
   wire        wall_en;              // Asserted for the duration of the textured wall being visible on screen.
   wire [5:0]  wall_rgb;             // Colour of the current wall pixel being scanned.
@@ -123,6 +158,9 @@ module rbzero(
   wire `F     texVVorg = texV + traced_texVinit;
   wire `F     texVV = texVVorg + texVshift; //NOTE: Instead of having this adder, could just use traced_texVinit as the texV hmax reset (though it does make it 'gritty').
   wire [5:0]  texv = texVV[8:3];
+
+  wire `RGB gen_tex_rgb; // i_gen_tex selects between this or external texture SPI memory.
+  //SMELL: i_gen_tex==1 doesn't disable SPI texture memory access.
 
   // At vdist of 1.0, a 64p texture is stretched to 512p, hence texv is 64/512 (>>3) of int(texV).
   //NOTE: Would it be possible to do primitive texture 'filtering' using 50/50 checker dither for texture sub-pixels?
@@ -142,9 +180,6 @@ module rbzero(
     .hit      (wall_en),
     .gen_tex_rgb(gen_tex_rgb)
   );
-
-  wire `RGB gen_tex_rgb; // i_gen_tex selects between this or external texture SPI memory.
-  //SMELL: i_gen_tex==1 doesn't disable SPI texture memory access.
 
 `ifdef NO_EXTERNAL_TEXTURES
   assign wall_rgb = gen_tex_rgb;
@@ -323,27 +358,6 @@ module rbzero(
 `endif // USE_POV_VIA_SPI_REGS
     .load_new (visible_frame_end)
   );
-  wire `RGB   color_sky     /* verilator public */;
-  wire `RGB   color_floor   /* verilator public */;
-  wire [5:0]  floor_leak    /* verilator public */;
-  wire [5:0]  otherx        /* verilator public */;
-  wire [5:0]  othery        /* verilator public */;
-  wire [5:0]  texv_shift    /* verilator public */;
-  wire        vinf          /* verilator public */;
-  wire [5:0]  mapdx         /* verilator public */;
-  wire [5:0]  mapdy         /* verilator public */;
-  wire [1:0]  mapdxw        /* verilator public */;
-  wire [1:0]  mapdyw        /* verilator public */;
-`ifndef NO_EXTERNAL_TEXTURES
-  wire [23:0] texadd [0:3]  /* verilator public */;
-`endif // NO_EXTERNAL_TEXTURES
-  // --- Point-Of-View data, i.e. view vectors: ---
-  wire `F playerX /* verilator public */;
-  wire `F playerY /* verilator public */;
-  wire `F facingX /* verilator public */;
-  wire `F facingY /* verilator public */;
-  wire `F vplaneX /* verilator public */;
-  wire `F vplaneY /* verilator public */;
 
   // --- Map ROM: ---
   wire [MAP_WBITS-1:0] tracer_map_col;
@@ -411,19 +425,6 @@ module rbzero(
   );
 `endif//USE_DEBUG_OVERLAY
 
-
-  // --- Row-level ray caster/tracer: ---
-  wire [1:0]  traced_wall;
-  wire        traced_side;
-  wire [10:0] traced_size;  // Calculated from traced_vdist, in this module.
-  wire [5:0]  traced_texu;  // Texture 'u' coordinate value.
-  wire `F     traced_texa;
-  wire `F     traced_texVinit;
-`ifndef NO_EXTERNAL_TEXTURES
-  wire [1:0]  wall_hot;
-  wire        side_hot;
-  wire [5:0]  texu_hot;
-`endif // NO_EXTERNAL_TEXTURES
 
   wall_tracer #(
     .MAP_WBITS(MAP_WBITS),
