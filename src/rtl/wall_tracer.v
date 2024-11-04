@@ -120,6 +120,8 @@ module wall_tracer #(
   // localparam [1:0] RCP_RDY    = 2'd1; // rayDirY.
   // localparam [1:0] RCP_VDIST  = 2'd2; // vdist.
 
+  reg [3:0] state; //SMELL: Size this according to actual no. of states.
+
 `ifdef TRACE_STATE_DEBUG
   assign o_state = state;
 `endif//TRACE_STATE_DEBUG
@@ -182,7 +184,6 @@ module wall_tracer #(
 
   reg [1:0] wall;
   reg side;
-  reg [3:0] state; //SMELL: Size this according to actual no. of states.
 
   // Get fractional part [0,1) of where the ray hits the wall,
   // i.e. how far along the individual wall cell the hit occurred,

@@ -183,21 +183,6 @@ module rbzero(
     .gen_tex_rgb(gen_tex_rgb)
   );
 
-`ifdef NO_EXTERNAL_TEXTURES
-  assign wall_rgb = gen_tex_rgb;
-`else // NO_EXTERNAL_TEXTURES
-  // Texture pixel colour comes from looking up within the texel colour buffers
-  // we loaded during the Texture SPI read sequence below...
-  assign wall_rgb =
-    i_gen_tex ? gen_tex_rgb:  // If i_gen_tex==1, use generated texture.
-    // Otherwise, use texture from SPI texture memory...
-    {
-      {tex_b1[texv], tex_b0[texv]},
-      {tex_g1[texv], tex_g0[texv]},
-      {tex_r1[texv], tex_r0[texv]}
-    };
-`endif // NO_EXTERNAL_TEXTURES
-
 `ifndef NO_EXTERNAL_TEXTURES
   //SMELL: Put the following into another module, or move it into row_render?
   // Load the next line's wall slice texture via QSPI.
@@ -297,6 +282,21 @@ module rbzero(
     (tspi_state<32)
       ? wall_slice_start_address[31-tspi_state]:  // ADDR[23:0]
     1'b0;                                         // 0 for all other preamble bits and beyond.
+`endif // NO_EXTERNAL_TEXTURES
+
+`ifdef NO_EXTERNAL_TEXTURES
+  assign wall_rgb = gen_tex_rgb;
+`else // NO_EXTERNAL_TEXTURES
+  // Texture pixel colour comes from looking up within the texel colour buffers
+  // we loaded during the Texture SPI read sequence below...
+  assign wall_rgb =
+    i_gen_tex ? gen_tex_rgb:  // If i_gen_tex==1, use generated texture.
+    // Otherwise, use texture from SPI texture memory...
+    {
+      {tex_b1[texv], tex_b0[texv]},
+      {tex_g1[texv], tex_g0[texv]},
+      {tex_r1[texv], tex_r0[texv]}
+    };
 `endif // NO_EXTERNAL_TEXTURES
 
   // texV scans the texture 'v' coordinate range with a step size of 'traced_texa'.
@@ -435,6 +435,9 @@ module rbzero(
   );
 `endif//USE_DEBUG_OVERLAY
 
+`ifdef TRACE_STATE_DEBUG
+  wire [3:0] trace_state;
+`endif//TRACE_STATE_DEBUG
 
   wall_tracer #(
     .MAP_WBITS(MAP_WBITS),
@@ -481,10 +484,6 @@ module rbzero(
     .o_texa   (traced_texa),
     .o_texVinit(traced_texVinit)
   );
-
-`ifdef TRACE_STATE_DEBUG
-  wire [3:0] trace_state;
-`endif//TRACE_STATE_DEBUG
 
   // --- Combined pixel colour driver/mux: ---
   wire [5:0] bg = hpos < HALF_SIZE
