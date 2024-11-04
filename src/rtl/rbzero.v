@@ -91,10 +91,12 @@ module rbzero(
   wire [5:0]  othery        /* verilator public */;
   wire [5:0]  texv_shift    /* verilator public */;
   wire        vinf          /* verilator public */;
+`ifndef NO_DIV_WALLS
   wire [5:0]  mapdx         /* verilator public */;
   wire [5:0]  mapdy         /* verilator public */;
   wire [1:0]  mapdxw        /* verilator public */;
   wire [1:0]  mapdyw        /* verilator public */;
+`endif // NO_DIV_WALLS
 `ifndef NO_EXTERNAL_TEXTURES
   wire [23:0] texadd [0:3]  /* verilator public */;
 `endif // NO_EXTERNAL_TEXTURES
@@ -339,16 +341,21 @@ module rbzero(
     .vshift   (texv_shift),
     .vinf     (vinf),
     .o_leakfixed(leakfixed),
+
+`ifndef NO_DIV_WALLS
     .mapdx    (mapdx),
     .mapdy    (mapdy),
     .mapdxw   (mapdxw),
     .mapdyw   (mapdyw),
+`endif // NO_DIV_WALLS
+
 `ifndef NO_EXTERNAL_TEXTURES
     .texadd0  (texadd[0]),
     .texadd1  (texadd[1]),
     .texadd2  (texadd[2]),
     .texadd3  (texadd[3]),
 `endif // NO_EXTERNAL_TEXTURES
+
 `ifdef USE_POV_VIA_SPI_REGS
     .i_inc_px (i_inc_px),
     .i_inc_py (i_inc_py),
@@ -356,6 +363,7 @@ module rbzero(
     .facingX(facingX), .facingY(facingY),
     .vplaneX(vplaneX), .vplaneY(vplaneY),
 `endif // USE_POV_VIA_SPI_REGS
+
     .load_new (visible_frame_end)
   );
 
@@ -404,7 +412,9 @@ module rbzero(
     .i_map_val(overlay_map_val),
     .in_map_overlay(map_en),
     .i_otherx(otherx), .i_othery(othery),
+`ifndef NO_DIV_WALLS
     .i_mapdx(mapdx), .i_mapdy(mapdy),
+`endif // NO_DIV_WALLS
     .map_rgb(map_rgb)
   );
 `endif//USE_MAP_OVERLAY
@@ -447,8 +457,10 @@ module rbzero(
     .vplaneX(vplaneX),  .vplaneY(vplaneY),
     // Special map overrides:
     .otherx (otherx),   .othery (othery),
+`ifndef NO_DIV_WALLS
     .mapdx  (mapdx),    .mapdy  (mapdy),
     .mapdxw (mapdxw),   .mapdyw (mapdyw),
+`endif // NO_DIV_WALLS
     // Map ROM access:
     .o_map_col(tracer_map_col),
     .o_map_row(tracer_map_row),

@@ -38,8 +38,11 @@ module wall_tracer #(
   input                   hmax,   // High: Present last trace result on o_size and start next line.
   input `F playerX, playerY, facingX, facingY, vplaneX, vplaneY,
   input [5:0]             otherx, othery,
+
+`ifndef NO_DIV_WALLS
   input [5:0]             mapdx, mapdy, // Map dividers X and Y: 0 means 'none'
   input [1:0]             mapdxw, mapdyw, // Wall ID for map dividers
+`endif // NO_DIV_WALLS
 
   // Interface to map ROM:
   output [MAP_WBITS-1:0]  o_map_col,
@@ -414,6 +417,7 @@ module wall_tracer #(
         end
 
         TraceStep: begin
+`ifndef NO_DIV_WALLS
           //SMELL: The 'specials' here (other and mapd) are hard-coded for a 32x32 map. Remove hardcoding!
           if (valid_distance && o_map_col == mapdx[4:0] && mapdx[4:0] != 0) begin
             // HIT: 'mapdx' stripe.
@@ -423,7 +427,9 @@ module wall_tracer #(
             // HIT: 'mapdy' stripe.
             wall <= mapdyw;
             state <= SizePrep;
-          end else if (valid_distance && o_map_col == otherx[4:0] && o_map_row == othery[4:0]) begin
+          end else
+`endif // NO_DIV_WALLS
+          if (valid_distance && o_map_col == otherx[4:0] && o_map_row == othery[4:0]) begin
             // HIT: 'other' block.
             wall <= 0;
             state <= SizePrep;
