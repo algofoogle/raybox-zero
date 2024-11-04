@@ -42,8 +42,8 @@ using namespace std;
 //#define RESET_TEXTURE_MEMORY // Should there be an explicit reset for local texture memory?
 //#define RESET_TEXTURE_MEMORY_PATTERNED // If defined with RESET_TEXTURE_MEMORY, texture memory reset is a pattern instead of black.
 //#define DEBUG_NO_TEXTURE_LOAD // If defined, prevent texture loading
-// #define NO_EXTERNAL_TEXTURES
-
+//#define NO_EXTERNAL_TEXTURES
+#define USE_LEAK_FIXED
 
 
 //#define DESIGN_DIRECT_VECTOR_ACCESS   // Defined=new_playerX etc are exposed; else=SPI only.
@@ -56,6 +56,10 @@ using namespace std;
 #define Qn  11
 //NOTE: Currently these don't have much (or any?) effect over SPI,
 // because the vectors have their own hard-coded ranges.
+
+// These return subsets (of precalculated fixed-point numbers) to match POV register packing:
+#define UQ6_9(fpn)   (((fpn)>>(Qn-9)) & ((1<<(6+9))-1))
+#define SQ2_9(fpn)   (((fpn)>>(Qn-9)) & ((1<<(2+9))-1))
 
 // #define USE_POWER_PINS //NOTE: This is automatically set in the Makefile, now.
 #define INSPECT_INTERNAL //NOTE: This is automatically set in the Makefile, now.
@@ -158,12 +162,13 @@ bool          gSwapMouseXY = false;
 bool          gRotateView = false;
 bool          gEnableSPI = false;
 bool          gAnimateRegisters = false; // If true, do funky stuff with sky/floor colour and leak.
-bool          gInfiniteHeight = false;
 bool          gGenTex = false; // If true, select generated textures instead of texture memory.
+bool          gInfiniteHeight = false;
+bool          gLeakFixed = false;
+int           gLeak = 0;
 int           gMouseX, gMouseY;
 int           gColorSky = 0;
 int           gColorFloor = 0;
-int           gLeak = 0;
 int           gTexVShift = 0;
 int           gMapDX = 0;
 int           gMapDY = 0;
@@ -409,8 +414,16 @@ void process_sdl_events() {
           printf("Funky register animation is %s\n", gAnimateRegisters ? "ON" : "off");
           break;
         case SDLK_BACKSLASH:
-          gInfiniteHeight = !gInfiniteHeight;
-          printf("Infinite height is %s\n", gInfiniteHeight ? "ON" : "off");
+          if (KMOD_SHIFT & e.key.keysym.mod) {
+            #ifdef USE_LEAK_FIXED
+              // Shift-backslash: Toggle fixed leak.
+              gLeakFixed = !gLeakFixed;
+              printf("LEAK mode is %s\n", gLeakFixed ? "FIXED" : "FLOATING");
+            #endif // USE_LEAK_FIXED
+          } else {
+            gInfiniteHeight = !gInfiniteHeight;
+            printf("Infinite height is %s\n", gInfiniteHeight ? "ON" : "off");
+          }
           break;
         case SDLK_v:
           TB->log_vsync = !TB->log_vsync;
@@ -588,15 +601,17 @@ void recalc_view(const Uint8* k, int mouseX, int mouseY, double t) {
     int delta = gSwapMouseXY ? mouseX : mouseY;
     gTexVShift += (gSwapMouseXY ? 1 : -1) * delta;
   }
-  if (shift) {
-    // SHIFT+arrow adjusts VSHIFT:
-    if (k[SDL_SCANCODE_UP])   gTexVShift += TEX_VSHIFT_SCALER;
-    if (k[SDL_SCANCODE_DOWN]) gTexVShift -= TEX_VSHIFT_SCALER;
-  }
-  else {
-    // Arrow without SHIFT adjusts LEAK:
-    if (k[SDL_SCANCODE_UP])   gLeak += 1;
-    if (k[SDL_SCANCODE_DOWN]) gLeak -= 1;
+  if (!ctrl) { // CTRL+arrows is for vector scaling, so mask it out here.
+    if (shift) {
+      // SHIFT+arrow adjusts VSHIFT:
+      if (k[SDL_SCANCODE_UP])   gTexVShift += TEX_VSHIFT_SCALER;
+      if (k[SDL_SCANCODE_DOWN]) gTexVShift -= TEX_VSHIFT_SCALER;
+    }
+    else {
+      // Arrow without SHIFT adjusts LEAK:
+      if (k[SDL_SCANCODE_UP])   gLeak += 1;
+      if (k[SDL_SCANCODE_DOWN]) gLeak -= 1;
+    }
   }
   if (gSwapMouseXY) {
     // A/D slide gTexVShift to create illusion of moving left/right IF using infinite height mode.
@@ -868,13 +883,18 @@ void update_game_state() {
 
 
 enum {
-  CMD_SKY = 0,
-  CMD_FLOOR,
-  CMD_LEAK,
-  CMD_OTHER,
-  CMD_VSHIFT,
-  CMD_VINF,
-  CMD_MAPD,
+  CMD_SKY     = 0,
+  CMD_FLOOR   = 1,
+  CMD_LEAK    = 2,
+  CMD_OTHER   = 3,
+  CMD_VSHIFT  = 4,
+  CMD_VINF    = 5, CMD_VOPTS = 5, // Same command, but depends on USE_LEAK_FIXED.
+  CMD_MAPD    = 6,
+  CMD_TEXADD0 = 7,
+  CMD_TEXADD1 = 8,
+  CMD_TEXADD2 = 9,
+  CMD_TEXADD3 = 10,
+  CMD_POV     = 11,
   CMD__MAX,
 };
 
@@ -886,8 +906,14 @@ void push_bits_onto_stack(vector<bool>& bits, uint32_t data, int num_bits) {
 }
 
 
+// This gets called right next to every TB->tick() call.
+// It has its own counters to keep track of when to update SPI inputs to TB.
+// Currently it's designed to constantly stream in the current POV/REG states
+// via SPI, even if they haven't updated. However, it does need to take a
+// snapshot of the current POV states when starting each new streaming
+// (because they could otherwise be changing):
 int update_spi_registers_state() {
-  static int spi_next_countdown = 5; // For now run at one fifth of the clock. Later, we could add some jitter.
+  static int spi_next_countdown = 5; // For now run at one fifth of the clock. Some jitter gets added to this too.
   static int spi_state_counter = 0; // Tracks which state we're up to, incrementing when spi_next_countdown==0.
 
   static vector<bool> bits;
@@ -897,8 +923,6 @@ int update_spi_registers_state() {
   const int last_register = CMD__MAX-1;
 
   static int register_counter = first_register;
-
-  static int hits = 0;
 
   //NOTE: States:
   // 0 = SS and SCLK deasserted.
@@ -940,14 +964,35 @@ int update_spi_registers_state() {
           case CMD_VSHIFT:
             push_bits_onto_stack(bits, gTexVShift / TEX_VSHIFT_SCALER, 6);
             break;
+#ifdef USE_LEAK_FIXED
+          case CMD_VOPTS:
+            push_bits_onto_stack(bits, gInfiniteHeight, 1);
+            push_bits_onto_stack(bits, gLeakFixed, 1);
+            break;
+#else // USE_LEAK_FIXED
           case CMD_VINF:
             push_bits_onto_stack(bits, gInfiniteHeight, 1);
             break;
+#endif
           case CMD_MAPD:
             push_bits_onto_stack(bits, gMapDX, 6);
             push_bits_onto_stack(bits, gMapDY, 6);
             push_bits_onto_stack(bits, gMapDXW, 2);
             push_bits_onto_stack(bits, gMapDYW, 2);
+            break;
+          case CMD_TEXADD0:
+          case CMD_TEXADD1:
+          case CMD_TEXADD2:
+          case CMD_TEXADD3:
+            // NOT IMPLEMENTED yet.
+            break;
+          case CMD_POV:
+            push_bits_onto_stack(bits, UQ6_9(double2fixed(gView.px           )), 15);
+            push_bits_onto_stack(bits, UQ6_9(double2fixed(gView.py           )), 15);
+            push_bits_onto_stack(bits, SQ2_9(double2fixed(gView.fx * gView.sf)), 11);
+            push_bits_onto_stack(bits, SQ2_9(double2fixed(gView.fy * gView.sf)), 11);
+            push_bits_onto_stack(bits, SQ2_9(double2fixed(gView.vx * gView.sv)), 11);
+            push_bits_onto_stack(bits, SQ2_9(double2fixed(gView.vy * gView.sv)), 11);
             break;
           default:
             printf("ERROR: Unknown register: %d\n", register_counter);
@@ -997,101 +1042,9 @@ int update_spi_registers_state() {
         break;
       }
     }
-    hits++;
-    // if (hits>81900 && hits<83000) {
-    //   printf("Hits:%d\tEnd:%d\tStep:%d\t/SS:%d\tCLK:%d\tMOSI:%d\n",
-    //     hits,
-    //     frame_end,
-    //     spi_state_counter,
-    //     TB->m_core->i_reg_ss_n,
-    //     TB->m_core->i_reg_sclk,
-    //     TB->m_core->i_reg_mosi
-    //   );
-    // }
   }
-  return hits;
-
+  return 0;
 }
-
-
-
-// This gets called right next to every TB->tick() call.
-// It has its own counters to keep track of when to update SPI inputs to TB.
-// Currently it's designed to constantly stream in the current vector states
-// via SPI, even if they haven't updated. However, it does need to take a
-// snapshot of the current vector states when starting each new streaming
-// (because they could otherwise be changing):
-void update_spi_state() {
-  static int spi_next_countdown = 5; // For now run at one fifth of the clock. Later, we could add some jitter.
-  static int spi_state_counter = 0; // Tracks which state we're up to, incrementing when spi_next_countdown==0.
-
-  static vector<bool> bits;
-
-  //NOTE: States:
-  // 0 = SS and SCLK deasserted.
-  // 1 = SS asserted.
-  // 2 = First MOSI + SCLK deasserted.
-  // 3 = First MOSI + SCLK asserted.
-  // Repeat above 2 states for remaining 73 bits (up to states 148 and 149)
-  // 150 = SCLK deasserted; i.e. 74*2 + 2
-  if (0 == --spi_next_countdown) {
-    spi_next_countdown = 5 + (rand() % 5); // Jitter.
-    switch (spi_state_counter) {
-      case 0:
-      {
-        // Take a snapshot of gView now, converting vectors into the SPI bit stream:
-        int p;
-        uint32_t v;
-        bits.clear();
-        for (int i=0; i<74; ++i) {
-          switch (i) {
-            case 0:   v = double2fixed(gView.px           ); p = Qn+5; break;
-            case 15:  v = double2fixed(gView.py           ); p = Qn+5; break;
-            case 30:  v = double2fixed(gView.fx * gView.sf); p = Qn+1; break;
-            case 41:  v = double2fixed(gView.fy * gView.sf); p = Qn+1; break;
-            case 52:  v = double2fixed(gView.vx * gView.sv); p = Qn+1; break;
-            case 63:  v = double2fixed(gView.vy * gView.sv); p = Qn+1; break;
-          }
-          bits.push_back(v & (1<<p));
-          --p;
-        }
-        // Get SPI inputs ready:
-        TB->m_core->i_ss_n = 1; // Deasserted.
-        TB->m_core->i_sclk = 0; // Deasserted.
-        break;
-      }
-      case 1:
-      {
-        TB->m_core->i_ss_n = 0; // Asserted.
-        break;
-      }
-      case 150:
-      {
-        TB->m_core->i_sclk = 0; // Deasserted.
-        break;
-      }
-      default:
-      {
-        // Get a bit.
-        int bit_index = (spi_state_counter>>1)-1;
-        TB->m_core->i_mosi = bits[bit_index];
-        if (spi_state_counter&1) {
-          // Assert SCLK.
-          TB->m_core->i_sclk = 1;
-        }
-        else {
-          // Deassert SCLK.
-          TB->m_core->i_sclk = 0;
-        }
-        break;
-      }
-    }
-    if (151 == ++spi_state_counter) {
-      spi_state_counter = 0;
-    }
-  }
-}
-
 
 
 int main(int argc, char **argv) {
@@ -1262,7 +1215,7 @@ int main(int argc, char **argv) {
       bool vsync_stopped = false;
       int hits = 0;
       if (gEnableSPI) {
-        update_spi_state();
+        //update_spi_state();
         hits = update_spi_registers_state();
       }
       TB->tick();      hsync_stopped |= TB->hsync_stopped();      vsync_stopped |= TB->vsync_stopped();

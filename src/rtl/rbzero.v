@@ -1,13 +1,17 @@
 `default_nettype none
 // `timescale 1ns / 1ps
 
-// `include "fixed_point_params.v"
-// `include "helpers.v"
+`ifndef RBZ_OPTIONS
+  // These are Verilator/VSCode hints, only. RBZ_OPTIONS should otherwise always be defined for deploying raybox-zero.
+  `include "helpers.v"
+  `include "fixed_point_params.v"
+`endif
 
 // These can be defined by the target (e.g. TT04 or FPGA) rather than inline here:
 //`define USE_MAP_OVERLAY
 //`define USE_DEBUG_OVERLAY
 //`define TRACE_STATE_DEBUG  // Trace state is represented visually per each line on-screen.
+//`define USE_LEAK_FIXED  // If enabled, modify CMD_VINF to support an extra bit controlling whether LEAK is floating (default) or fixed.
 //`define STANDBY_RESET // If defined use extra logic to avoid clocking regs during reset (for power saving/stability).
 //`define RESET_TEXTURE_MEMORY // Should there be an explicit reset for local texture memory?
 //`define RESET_TEXTURE_MEMORY_PATTERNED // If defined with RESET_TEXTURE_MEMORY, texture memory reset is a pattern instead of black.
@@ -97,7 +101,8 @@ module rbzero(
     .visible  (visible)
   );
 
-  wire fixed_leak = 1'b1; // 0=classic (leak moves with Vshift), 1=alt (leak is fixed to the floor).
+  wire leakfixed; // Driven by spi_registers. 0=classic (leak moves with Vshift), 1=alt (leak is fixed to the floor).
+  //NOTE: If USE_LEAK_FIXED is NOT defined, then spi_registers sets this to const 0.
 
   // --- Row-level renderer: ---
   wire        wall_en;              // Asserted for the duration of the textured wall being visible on screen.
@@ -123,7 +128,7 @@ module rbzero(
     .texvorg  (texVVorg[8:3]),
     .vinf     (vinf),
     .leak     (floor_leak),
-    .leakfix  (fixed_leak),
+    .leakfix  (leakfixed),
     .hpos     (hpos),
     // Outputs:
     .hit      (wall_en),
@@ -255,29 +260,23 @@ module rbzero(
   //SMELL: Move this into some other module, e.g. row_render?
   always @(posedge clk) if (no_standby) texV <= (hmax ? `Qmnc'd0 : texV + traced_texa);
 
-  // --- Point-Of-View data, i.e. view vectors: ---
-  wire `F playerX /* verilator public */;
-  wire `F playerY /* verilator public */;
-  wire `F facingX /* verilator public */;
-  wire `F facingY /* verilator public */;
-  wire `F vplaneX /* verilator public */;
-  wire `F vplaneY /* verilator public */;
   wire visible_frame_end = (hpos==799 && vpos==479); // The moment when SPI-loaded vector data could be used.
   assign o_hblank = hpos >= 640;
   assign o_vblank = vpos >= 480;
-  pov pov(
-    .clk      (clk),
-    .reset    (reset),
-    .i_sclk   (i_sclk),
-    .i_mosi   (i_mosi),
-    .i_ss_n   (i_ss_n),
-    .i_inc_px (i_inc_px),
-    .i_inc_py (i_inc_py),
-    .load_if_ready(visible_frame_end),
-    .playerX(playerX), .playerY(playerY),
-    .facingX(facingX), .facingY(facingY),
-    .vplaneX(vplaneX), .vplaneY(vplaneY)
-  );
+
+  // pov pov(
+  //   .clk      (clk),
+  //   .reset    (reset),
+  //   .i_sclk   (i_sclk),
+  //   .i_mosi   (i_mosi),
+  //   .i_ss_n   (i_ss_n),
+  //   .i_inc_px (i_inc_px),
+  //   .i_inc_py (i_inc_py),
+  //   .load_if_ready(visible_frame_end),
+  //   .playerX(playerX), .playerY(playerY),
+  //   .facingX(facingX), .facingY(facingY),
+  //   .vplaneX(vplaneX), .vplaneY(vplaneY)
+  // );
 
   spi_registers spi_registers(
     .clk      (clk),
@@ -294,6 +293,7 @@ module rbzero(
     .othery   (othery),
     .vshift   (texv_shift),
     .vinf     (vinf),
+    .o_leakfixed(leakfixed),
     .mapdx    (mapdx),
     .mapdy    (mapdy),
     .mapdxw   (mapdxw),
@@ -304,6 +304,12 @@ module rbzero(
     .texadd2  (texadd[2]),
     .texadd3  (texadd[3]),
 `endif // NO_EXTERNAL_TEXTURES
+
+    .i_inc_px (i_inc_px),
+    .i_inc_py (i_inc_py),
+    .playerX(playerX), .playerY(playerY),
+    .facingX(facingX), .facingY(facingY),
+    .vplaneX(vplaneX), .vplaneY(vplaneY),
 
     .load_new (visible_frame_end)
   );
@@ -321,6 +327,13 @@ module rbzero(
 `ifndef NO_EXTERNAL_TEXTURES
   wire [23:0] texadd [0:3]  /* verilator public */;
 `endif // NO_EXTERNAL_TEXTURES
+  // --- Point-Of-View data, i.e. view vectors: ---
+  wire `F playerX /* verilator public */;
+  wire `F playerY /* verilator public */;
+  wire `F facingX /* verilator public */;
+  wire `F facingY /* verilator public */;
+  wire `F vplaneX /* verilator public */;
+  wire `F vplaneY /* verilator public */;
 
   // --- Map ROM: ---
   wire [MAP_WBITS-1:0] tracer_map_col;
