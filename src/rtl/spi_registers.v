@@ -30,15 +30,19 @@ module spi_registers(
   output reg  [23:0]  texadd3,        // Texture address addend 3
 `endif // NO_EXTERNAL_TEXTURES
 
+`ifdef USE_POV_VIA_SPI_REGS
   input               i_inc_px, i_inc_py, // Demo overrides for playerX/Y inc. If either is asserted, SPI POV loads are masked out and 'ready' is cleared.
   output `F           playerX, playerY,
   output `F           facingX, facingY,
   output `F           vplaneX, vplaneY,
+`endif // USE_POV_VIA_SPI_REGS
 
   input               load_new        // Will go high at the moment that buffered data can go live.
 );
 
+`ifdef USE_POV_VIA_SPI_REGS
   wire manual_pov_inc_needed  = i_inc_px | i_inc_py;        // Manual playerX/Y increment in effect (i.e. demo mode)?
+`endif // USE_POV_VIA_SPI_REGS
 
 // ===== COMMAND/REGISTER PARAMETERS AND SIZING =====
 
@@ -59,7 +63,9 @@ module spi_registers(
   localparam CMD_TEXADD2= 9;  localparam LEN_TEXADD2= 24;
   localparam CMD_TEXADD3=10;  localparam LEN_TEXADD3= 24;
 `endif
+`ifdef USE_POV_VIA_SPI_REGS
   localparam CMD_POV    =11;  localparam LEN_POV    = (15*2)+(11*2)+(11*2); // player(X,Y), facing(X,Y), vplane(X,Y): 74 bits
+`endif // USE_POV_VIA_SPI_REGS
   //NOTE: Reserve CMD 12 and above for 'extended' commands, i.e. upper 2 bits high means:
   // 11ccccXX:  cccc = command, XX is 2 more bits for payload (helps POV fit in 9 bytes).
   // i.e. cccc==1011 (POV) can be the better packing.
@@ -71,42 +77,48 @@ module spi_registers(
   // ALSO: Support different LEAK modes (fixed vs. floating).
   // Also, a sequence of 1111YYYY could mean YYYY defines additional extended commands.
 
-// `ifdef NO_EXTERNAL_TEXTURES
-//   localparam SPI_BUFFER_SIZE = 16; //NOTE: Should be set to whatever the largest LEN_* value is above.
-// `else // NO_EXTERNAL_TEXTURES
-//   localparam SPI_BUFFER_SIZE = 24; //NOTE: Should be set to whatever the largest LEN_* value is above.
-// `endif
+`ifdef USE_POV_VIA_SPI_REGS
   localparam SPI_BUFFER_SIZE = LEN_POV; //NOTE: Should be set to whatever the largest LEN_* value is above.
+`else // USE_POV_VIA_SPI_REGS
+  `ifdef NO_EXTERNAL_TEXTURES
+    localparam SPI_BUFFER_SIZE = 16; //NOTE: Should be set to whatever the largest LEN_* value is above.
+  `else // NO_EXTERNAL_TEXTURES
+    localparam SPI_BUFFER_SIZE = 24; //NOTE: Should be set to whatever the largest LEN_* value is above.
+  `endif
+`endif // USE_POV_VIA_SPI_REGS
   localparam SPI_BUFFER_LIMIT = SPI_BUFFER_SIZE-1;
 
   localparam SPI_CMD_BITS = 4;
 
 // ===== GOOD STARTING PARAMETERS FOR RESET =====
 
-`ifdef QUARTUS
-  localparam SCALER = 1<<9; // The vectors below use 9 fractional bits.
-  localparam real FSCALER = SCALER;
-  // An interesting starting position for demo purposes:
-  localparam `UQ6_9 playerInitX  = 11.500000 * FSCALER;
-  localparam `UQ6_9 playerInitY  = 10.500000 * FSCALER;
-  localparam `SQ2_9 facingInitX  =  0.720137 * FSCALER;
-  localparam `SQ2_9 facingInitY  = -0.693832 * FSCALER;
-  localparam `SQ2_9 vplaneInitX  =  0.346916 * FSCALER;
-  localparam `SQ2_9 vplaneInitY  =  0.360069 * FSCALER;
-`else
-  // An interesting starting position for demo purposes:
-  //NOTE: The right-shift below is because realF() assumes `Qn (say, 10 or 12) fractional bits, but we're only using 9:
-  localparam SHIFT_Qn9 = `Qn-9;
-  localparam `UQ6_9 playerInitX  = 15'($rtoi(`realF(11.500000))>>SHIFT_Qn9);
-  localparam `UQ6_9 playerInitY  = 15'($rtoi(`realF(10.500000))>>SHIFT_Qn9);
-  localparam `SQ2_9 facingInitX  = 11'($rtoi(`realF( 0.720137))>>SHIFT_Qn9);
-  localparam `SQ2_9 facingInitY  = 11'($rtoi(`realF(-0.693832))>>SHIFT_Qn9);
-  localparam `SQ2_9 vplaneInitX  = 11'($rtoi(`realF( 0.346916))>>SHIFT_Qn9);
-  localparam `SQ2_9 vplaneInitY  = 11'($rtoi(`realF( 0.360069))>>SHIFT_Qn9);
-`endif
+`ifdef USE_POV_VIA_SPI_REGS
+  `ifdef QUARTUS
+    localparam SCALER = 1<<9; // The vectors below use 9 fractional bits.
+    localparam real FSCALER = SCALER;
+    // An interesting starting position for demo purposes:
+    localparam `UQ6_9 playerInitX  = 11.500000 * FSCALER;
+    localparam `UQ6_9 playerInitY  = 10.500000 * FSCALER;
+    localparam `SQ2_9 facingInitX  =  0.720137 * FSCALER;
+    localparam `SQ2_9 facingInitY  = -0.693832 * FSCALER;
+    localparam `SQ2_9 vplaneInitX  =  0.346916 * FSCALER;
+    localparam `SQ2_9 vplaneInitY  =  0.360069 * FSCALER;
+  `else
+    // An interesting starting position for demo purposes:
+    //NOTE: The right-shift below is because realF() assumes `Qn (say, 10 or 12) fractional bits, but we're only using 9:
+    localparam SHIFT_Qn9 = `Qn-9;
+    localparam `UQ6_9 playerInitX  = 15'($rtoi(`realF(11.500000))>>SHIFT_Qn9);
+    localparam `UQ6_9 playerInitY  = 15'($rtoi(`realF(10.500000))>>SHIFT_Qn9);
+    localparam `SQ2_9 facingInitX  = 11'($rtoi(`realF( 0.720137))>>SHIFT_Qn9);
+    localparam `SQ2_9 facingInitY  = 11'($rtoi(`realF(-0.693832))>>SHIFT_Qn9);
+    localparam `SQ2_9 vplaneInitX  = 11'($rtoi(`realF( 0.346916))>>SHIFT_Qn9);
+    localparam `SQ2_9 vplaneInitY  = 11'($rtoi(`realF( 0.360069))>>SHIFT_Qn9);
+  `endif
+`endif // USE_POV_VIA_SPI_REGS
   localparam skyColorInit       = 6'b01_01_01;
   localparam floorColorInit     = 6'b10_10_10;
 
+`ifdef USE_POV_VIA_SPI_REGS
 // ===== TRUNCATED-TO-FULL-RANGE VECTOR EXTENSION =====
 
   // Registered versions of the truncated vectors, before they get padded up to `F (SQ10.10) format on output ports.
@@ -135,6 +147,7 @@ module spi_registers(
   assign facingY = { {PadSQ2_9Hi{facingRY[1]}}, facingRY[0:-9], {PadSQ2_9Lo{1'b0}} };
   assign vplaneX = { {PadSQ2_9Hi{vplaneRX[1]}}, vplaneRX[0:-9], {PadSQ2_9Lo{1'b0}} };
   assign vplaneY = { {PadSQ2_9Hi{vplaneRY[1]}}, vplaneRY[0:-9], {PadSQ2_9Lo{1'b0}} };
+`endif // USE_POV_VIA_SPI_REGS
 
 `ifdef USE_LEAK_FIXED
   reg leakfixed;
@@ -164,11 +177,13 @@ module spi_registers(
   reg [23:0]  buf_texadd2;
   reg [23:0]  buf_texadd3;
 `endif // NO_EXTERNAL_TEXTURES
+`ifdef USE_POV_VIA_SPI_REGS
   // POV registers:
   // SMELL: Make bit ranges parametric here, and for other POV data above!
   reg [14:0]  buf_playerRX, buf_playerRY;
   reg [10:0]  buf_facingRX, buf_facingRY;
   reg [10:0]  buf_vplaneRX, buf_vplaneRY;
+`endif // USE_POV_VIA_SPI_REGS
   //SMELL: If we don't want to waste space with all these extra registers,
   // could we just transfer one 'waiting' value into a SINGLE selected register?
   // Only problem with doing so is that we can then only update 1 per frame
@@ -213,7 +228,9 @@ module spi_registers(
         (spi_cmd == CMD_TEXADD2 ) ?   LEN_TEXADD2:
         (spi_cmd == CMD_TEXADD3 ) ?   LEN_TEXADD3:
 `endif // NO_EXTERNAL_TEXTURES
+`ifdef USE_POV_VIA_SPI_REGS
         (spi_cmd == CMD_POV     ) ?   LEN_POV:
+`endif // USE_POV_VIA_SPI_REGS
 `ifdef USE_LEAK_FIXED
       /*(spi_cmd == CMD_VOPTS   ) ?*/ LEN_VOPTS
 `else // USE_LEAK_FIXED
@@ -297,9 +314,11 @@ module spi_registers(
       texadd2   <= 24'd0;
       texadd3   <= 24'd0;
 `endif // NO_EXTERNAL_TEXTURES
+`ifdef USE_POV_VIA_SPI_REGS
       playerRX  <= playerInitX;      playerRY  <= playerInitY;
       facingRX  <= facingInitX;      facingRY  <= facingInitY;
       vplaneRX  <= vplaneInitX;      vplaneRY  <= vplaneInitY;
+`endif
 
     end else if (load_new) begin
 
@@ -324,6 +343,7 @@ module spi_registers(
       texadd2   <= buf_texadd2;
       texadd3   <= buf_texadd3;
 `endif // NO_EXTERNAL_TEXTURES
+`ifdef USE_POV_VIA_SPI_REGS
       // POV registers:
       playerRX  <= buf_playerRX;  playerRY  <= buf_playerRY;
       facingRX  <= buf_facingRX;  facingRY  <= buf_facingRY;
@@ -333,6 +353,7 @@ module spi_registers(
         if (i_inc_px) buf_playerRX <= buf_playerRX - 15'b1;
         if (i_inc_py) buf_playerRY <= buf_playerRY - 15'b1;
       end
+`endif // USE_POV_VIA_SPI_REGS
 
     end
 
@@ -359,9 +380,11 @@ module spi_registers(
       buf_texadd2   <= 24'd0;
       buf_texadd3   <= 24'd0;
 `endif // NO_EXTERNAL_TEXTURES
+`ifdef USE_POV_VIA_SPI_REGS
       buf_playerRX  <= playerInitX;   buf_playerRY  <= playerInitY;
       buf_facingRX  <= facingInitX;   buf_facingRY  <= facingInitY;
       buf_vplaneRX  <= vplaneInitX;   buf_vplaneRY  <= vplaneInitY;
+`endif // USE_POV_VIA_SPI_REGS
 
     end else if (spi_done) begin
 
@@ -388,12 +411,15 @@ module spi_registers(
       if (spi_cmd == CMD_TEXADD3) buf_texadd3   <= spi_buffer[23:0];
 `endif // NO_EXTERNAL_TEXTURES
 
+`ifdef USE_POV_VIA_SPI_REGS
       if (!manual_pov_inc_needed)
         // No override increment, so CMD_POV load is allowed.
         if (spi_cmd == CMD_POV  ){buf_playerRX, buf_playerRY,
                                   buf_facingRX, buf_facingRY,
                                   buf_vplaneRX, buf_vplaneRY}
                                                 <= spi_buffer[LEN_POV-1:0];
+`endif // USE_POV_VIA_SPI_REGS
+
     end
 
   end

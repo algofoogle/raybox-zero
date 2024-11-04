@@ -12,6 +12,7 @@
 //`define USE_DEBUG_OVERLAY
 //`define TRACE_STATE_DEBUG  // Trace state is represented visually per each line on-screen.
 //`define USE_LEAK_FIXED  // If enabled, modify CMD_VINF to support an extra bit controlling whether LEAK is floating (default) or fixed.
+//`define USE_POV_VIA_SPI_REGS
 //`define STANDBY_RESET // If defined use extra logic to avoid clocking regs during reset (for power saving/stability).
 //`define RESET_TEXTURE_MEMORY // Should there be an explicit reset for local texture memory?
 //`define RESET_TEXTURE_MEMORY_PATTERNED // If defined with RESET_TEXTURE_MEMORY, texture memory reset is a pattern instead of black.
@@ -21,10 +22,14 @@
 module rbzero(
   input               clk,
   input               reset,
+`ifndef USE_POV_VIA_SPI_REGS
   // SPI slave for updating vectors:
   input               i_ss_n,
   input               i_sclk,
   input               i_mosi,
+`else // USE_POV_VIA_SPI_REGS
+  // POV regs are instead accessed via spi_registers (the inputs below)...
+`endif // USE_POV_VIA_SPI_REGS
   // SPI slave for everything else:
   input               i_reg_ss_n, // aka /CS, aka csb.
   input               i_reg_sclk,
@@ -38,9 +43,15 @@ module rbzero(
   input   [3:0]       i_tex_in,
 `endif // NO_EXTERNAL_TEXTURES
   // Debug/demo signals:
+`ifdef USE_DEBUG_OVERLAY
   input               i_debug_v,  // Show debug overlay for inspecting view vectors?
+`endif // USE_DEBUG_OVERLAY
+`ifdef USE_MAP_OVERLAY
   input               i_debug_m,  // Show debug overlay for map
+`endif // USE_MAP_OVERLAY
+`ifdef TRACE_STATE_DEBUG
   input               i_debug_t,  // Show debug overlay for the tracer FSM
+`endif // TRACE_STATE_DEBUG
   input               i_inc_px,   // DEMO: Increment playerX
   input               i_inc_py,   // DEMO: Increment playerY
 `ifndef NO_EXTERNAL_TEXTURES
@@ -112,9 +123,6 @@ module rbzero(
   wire `F     texVVorg = texV + traced_texVinit;
   wire `F     texVV = texVVorg + texVshift; //NOTE: Instead of having this adder, could just use traced_texVinit as the texV hmax reset (though it does make it 'gritty').
   wire [5:0]  texv = texVV[8:3];
-    // (texVV >= 0 || vinf)
-    //   ? texVV[8:3]
-    //   : 6'd0;                       // Clamp to 0 to fix texture underflow.
 
   // At vdist of 1.0, a 64p texture is stretched to 512p, hence texv is 64/512 (>>3) of int(texV).
   //NOTE: Would it be possible to do primitive texture 'filtering' using 50/50 checker dither for texture sub-pixels?
@@ -264,19 +272,21 @@ module rbzero(
   assign o_hblank = hpos >= 640;
   assign o_vblank = vpos >= 480;
 
-  // pov pov(
-  //   .clk      (clk),
-  //   .reset    (reset),
-  //   .i_sclk   (i_sclk),
-  //   .i_mosi   (i_mosi),
-  //   .i_ss_n   (i_ss_n),
-  //   .i_inc_px (i_inc_px),
-  //   .i_inc_py (i_inc_py),
-  //   .load_if_ready(visible_frame_end),
-  //   .playerX(playerX), .playerY(playerY),
-  //   .facingX(facingX), .facingY(facingY),
-  //   .vplaneX(vplaneX), .vplaneY(vplaneY)
-  // );
+`ifndef USE_POV_VIA_SPI_REGS
+  pov pov(
+    .clk      (clk),
+    .reset    (reset),
+    .i_sclk   (i_sclk),
+    .i_mosi   (i_mosi),
+    .i_ss_n   (i_ss_n),
+    .i_inc_px (i_inc_px),
+    .i_inc_py (i_inc_py),
+    .load_if_ready(visible_frame_end),
+    .playerX(playerX), .playerY(playerY),
+    .facingX(facingX), .facingY(facingY),
+    .vplaneX(vplaneX), .vplaneY(vplaneY)
+  );
+`endif // USE_POV_VIA_SPI_REGS
 
   spi_registers spi_registers(
     .clk      (clk),
@@ -304,13 +314,13 @@ module rbzero(
     .texadd2  (texadd[2]),
     .texadd3  (texadd[3]),
 `endif // NO_EXTERNAL_TEXTURES
-
+`ifdef USE_POV_VIA_SPI_REGS
     .i_inc_px (i_inc_px),
     .i_inc_py (i_inc_py),
     .playerX(playerX), .playerY(playerY),
     .facingX(facingX), .facingY(facingY),
     .vplaneX(vplaneX), .vplaneY(vplaneY),
-
+`endif // USE_POV_VIA_SPI_REGS
     .load_new (visible_frame_end)
   );
   wire `RGB   color_sky     /* verilator public */;
