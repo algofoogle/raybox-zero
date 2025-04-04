@@ -1,4 +1,6 @@
 *.bak
 .vscode
 JUNK
+.venv
+.*~
 __pycache__

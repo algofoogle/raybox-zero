@@ -4,9 +4,14 @@ from itertools import chain
 
 # Walls I like are: 0,1,14,15,84,85,106,107
 # Overall good parameters:
-#   py .\texy.py ..\assets\allwolfwalls.png -s 0,1,14,15,84,85,106,107 -m 1.4 -b 20 -f 2bgrx -p 1048576 walls.bin
+#   python3 texy.py ../assets/allwolfwalls.png -s 0,1,14,15,84,85,106,107 -m 1.4 -b 20 -f 2xbgr -p 1048576 walls.bin
 # Another good set:
-#   py texy.py ..\assets\allwolfwalls.png walls.bin -m 1.4 -b 20 -f 2bgrx -p 1048576 -s 78,79,66,67,46,47,50,51,0,1,2,3,52,53,14,15,16,17,8,9,12,13,32,33,38,39,22,23,44,45,86,87,88,89,98,99,100,101
+#   python3 texy.py ../assets/allwolfwalls.png walls.bin -m 1.4 -b 20 -f 2xbgr -p 1048576 -s 78,79,66,67,46,47,50,51,0,1,2,3,52,53,14,15,16,17,8,9,12,13,32,33,38,39,22,23,44,45,86,87,88,89,98,99,100,101
+
+# A note on formats:
+# - 2xbgr       = 8 bits per pixel (only 6 used): 2 "planes" of XBGR, i.e. bit packing (MSB to LSB) is: -BGR-bgr
+# - bgrx2222    = 8 bits per pixel (only 6 used): packing of 2 bits per channel, i.e. BbGgRr--
+# - mono        = 8 bits per pixel (only 1 used); average threshold (no channel weighting) resolves to a single "luminosity" bit: -------L
 
 parser = argparse.ArgumentParser(
     description='Converts PNG images for use as raybox-zero textures'
@@ -104,13 +109,13 @@ for i in select_walls:
                 # Now pack it:
                 outfile_data.append(
                     ((0)        <<7) | # X
-                    (((b2&1)>>0)<<6) | # B[1]
-                    (((g2&1)>>0)<<5) | # G[1]
-                    (((r2&1)>>0)<<4) | # R[1]
+                    (((b2&1)>>0)<<6) | # B[0]
+                    (((g2&1)>>0)<<5) | # G[0]
+                    (((r2&1)>>0)<<4) | # R[0]
                     ((0)        <<3) | #
-                    (((b2&2)>>1)<<2) | # B[0]
-                    (((g2&2)>>1)<<1) | # G[0]
-                    (((r2&2)>>1)<<0)   # R[0]
+                    (((b2&2)>>1)<<2) | # B[1]
+                    (((g2&2)>>1)<<1) | # G[1]
+                    (((r2&2)>>1)<<0)   # R[1]
                 )
             elif args.format == 'bgrx2222':
                 # Convert RGB888 input data to our desired target format...

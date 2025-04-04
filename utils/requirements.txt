@@ -1,0 +1,2 @@
+pillow      # For image handling in seetex.py
+pypng       # For PNGs in texy.py
