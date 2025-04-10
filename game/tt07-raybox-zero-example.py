@@ -1,45 +1,74 @@
-#NOTE: This is designed for a pre-v2.0.0 version of the Tiny Tapeout demo board firmware
-# (i.e. TT04 standard). Compare with tt07-raybox-zero-example.py for a version that is
-# compatible with 2.0.4+
-
 import time
 import math
 from machine import Pin, SoftSPI
 
-# Make sure the raybox-zero project is selected and initialised:
+# Stop any existing clock, and ensure we're in a normal RP2040 ASIC control mode:
 tt.clock_project_stop()
 tt.mode = RPMode.ASIC_RP_CONTROL
-tt.reset_project(True)
-tt.input_byte = 0
-tt.shuttle.tt_um_algofoogle_raybox_zero.enable()
-tt.clock_project_PWM(25_175_000)
-tt.reset_project(False)
-# Turn on debug overlay:
-tt.in3(True)
 
-# Raybox-Zero SPI interface:
+# Ensure RP2040 doesn't drive any of the uio pins initially:
+tt.uio_oe_pico.value = 0b00000000
+
+# Assert reset:
+tt.reset_project(True)
+
+# Select raybox-zero design:
+tt.shuttle.tt_um_algofoogle_raybox_zero.enable()
+
+# Set ui_in initial control state. Per ui_in:
+# ui_in[7]: gen_tex:    1 for generated textures, 0 for SPI textures
+# ui_in[6]: reg:        1 for registered outputs, 0 for direct combinatorial outputs
+# ui_in[5]: inc_py:     1 to increment player Y position each frame
+# ui_in[4]: inc_px:     1 to increment player X position each frame
+# ui_in[3]: debug:      1 to show debug overlay
+# ui_in[2]: pov_ss_n:   1 to disable point-of-view SPI control, 0 to enable (i.e. SPI /CS).
+# ui_in[1]: pov_mosi:   POV SPI data to send into raybox-zero
+# ui_in[0]: pov_sclk:   POV SPI clock
+tt.ui_in = 0b10001100  # Use generated textures (initially), enable debug overlay, disable POV SPI.
+
+# Project selection can de-assert reset (?) so assert it again:
+tt.reset_project(True)
+
+# Apply 10 clocks, to make sure reset takes effect:
+for _ in range(10): tt.clock_project_once()
+
+# Release reset:
+tt.reset_project(False)
+
+# Clock at 25MHz but with a weird duty cycle to help texture SPI ROM:
+tt.clock_project_PWM(25_000_000, max_rp2040_freq=250_000_000, duty_u16=0xb000)
+
+tt.ui_in = 0b00001100  # Disable generated textures (i.e. enable SPI textures).
+
+# Raybox-Zero SPI interface wrapper for both SPI interfaces; POV and REG:
 class RBZSPI:
     SPI_BAUD = 500_000 # 500kHz is max supported by MicroPython on RP2040
     def __init__(self, tt, interface):
         self.tt = tt
+        self.debug = False
         self.interface = interface
         if interface == 'pov':
-            self.csb = tt.in2
+            self.align_right = False # When payload is padded to bytes, it is left-aligned.
+            self.lbits = 0 # Left-aligned preamble bit count is N/A.
+            self.csb = tt.pins.pin_ui_in2
             self.spi = SoftSPI(
-                RBZSPI.SPI_BAUD,
-                sck     = tt.in0.raw_pin,
-                mosi    = tt.in1.raw_pin,
-                miso    = tt.uio5.raw_pin # DUMMY: Not used; this SPI doesn't output data.
+                baudrate= RBZSPI.SPI_BAUD,
+                sck     = tt.pins.pin_ui_in0,
+                mosi    = tt.pins.pin_ui_in1,
+                miso    = tt.pins.pin_uio5 # DUMMY: This SPI peripheral doesn't output data.
             )
         elif interface == 'reg':
-            # Configure this interface's UIOs as outputs:
-            for p in [tt.uio2, tt.uio3, tt.uio4]: p.mode = Pin.OUT
-            self.csb = tt.uio4
+            self.align_right = True # When payload is padded to bytes, it is right-aligned.
+            self.lbits = 4 # Left-aligned preamble bit count is 4 (for command length).
+            # Configure this interface's uio[4:2] as RP2040 outputs, leaving the rest as inputs
+            # (i.e. unused by RP2040 as the ASIC uses them directly with the textures SPI ROM):
+            tt.uio_oe_pico.value = 0b00011100 #SMELL: Do this with slices or a read-modify-write?
+            self.csb = tt.pins.pin_uio4
             self.spi = SoftSPI(
-                RBZSPI.SPI_BAUD,
-                sck     = tt.uio2.raw_pin,
-                mosi    = tt.uio3.raw_pin,
-                miso    = tt.uio5.raw_pin # DUMMY: Not used; this SPI doesn't output data.
+                baudrate= RBZSPI.SPI_BAUD,
+                sck     = tt.pins.pin_uio2,
+                mosi    = tt.pins.pin_uio3,
+                miso    = tt.pins.pin_uio5 # DUMMY: This SPI peripheral doesn't output data.
             )
         else:
             raise ValueError(f"Invalid interface {repr(interface)}; must be 'pov' or 'reg'")
@@ -50,10 +79,13 @@ class RBZSPI:
     def disable(self):  self.csb(True)
 
     def txn_start(self):
+        self.debug_print("txn_start")
         self.disable() # Inactive at start; ensures SPI is reset.
         self.enable()
 
-    def txn_stop(self): self.disable()
+    def txn_stop(self):
+        self.debug_print("txn_stop")
+        self.disable()
 
     def to_bin(self, data, count=None):
         if type(data) is int:
@@ -64,12 +96,23 @@ class RBZSPI:
         if count is not None:
             data = ('0'*count + data)[-count:] # Zero-pad up to the required count.
         return data
+    
+    def debug_print(self, msg, data=None):
+        if self.debug:
+            out = [msg]
+            if type(data) is bytes:
+                out.append(' '.join(f'{byte:08b}' for byte in data))
+            elif type(data) is not None:
+                out.append(repr(data))
+            print(f"{self.__class__.__name__}: {' '.join(out)}")
 
     def send_payload(self, data, count=None, debug=False):
-        if debug: start_time = time.ticks_us()
+        if self.debug or debug: start_time = time.ticks_us()
         self.txn_start()
         if type(data) is bytearray or type(data) is bytes:
+            #NOTE: No bit alignment changes in this mode; assume bytes are to be written raw, as-is.
             self.spi.write(data)
+            self.debug_print("Write:", data)
         else:
             # Build up a binary string:
             if type(data) is not list:
@@ -87,18 +130,36 @@ class RBZSPI:
                     else:
                         # Not a tuple, so hopefully it's a finite string of bits:
                         bin += self.to_bin(chunk)
+            # Now check how we are meant to pad this to whole bytes...
             # Most raybox-zero SPI payloads are not a multiple of 8 bits,
             # but this SoftSPI needs to send whole bytes.
-            # Thankfully raybox-zero SPI interfaces discard extra bits,
-            # so we now RIGHT-pad the binary string to a multiple of 8:
-            bin += '0' * (-len(bin) % 8)
+            # The TT04 version's SPI interfaces simply discard extra bits,
+            # so it's typical to use basic right-padding of the binary string
+            # to a multiple of 8, but the TT07 version (and probably some others)
+            # treat the first 4 bits as the command, and then the remainder gets
+            # shifted continuously through a buffer (at least for the "registers"
+            # interface), meaning we need to left-pad (hence right-align) the
+            # data that comes after the command. Anyway, the SPI wrapper class
+            # has self.align_right and self.lbits options to specify this...
+            padding_bits = '0' * (-len(bin) % 8)
+            if self.align_right:
+                # Right-align, optionally picking off "lbits" and left-aligning them
+                # first (i.e. padding is to the left of the data, and optionally
+                # *between* the left and right parts).
+                if self.lbits != 0:
+                    bin = bin[:self.lbits] + padding_bits + bin[self.lbits:]
+            else:
+                # Left-align, so ignore lbits and right-pad to a whole number of bytes:
+                bin += padding_bits
             # Convert this binary string to a bytearray and send it:
-            self.spi.write( int(bin,2).to_bytes(len(bin)//8, 'bin') )
+            send = int(bin,2).to_bytes(len(bin)//8, 'bin')
+            self.spi.write(send)
+            self.debug_print("Write:", send)
         self.txn_stop()
-        if debug:
+        if self.debug or debug:
             stop_time = time.ticks_us()
             diff = time.ticks_diff(stop_time, start_time)
-            print(f"SPI transmit time: {diff} us")
+            self.debug_print(f"SPI transmit time: {diff} us")
 
 class POV(RBZSPI):
     def __init__(self):
@@ -138,7 +199,7 @@ class POV(RBZSPI):
             self.float_to_fixed(vx, 'SQ2.9'), self.float_to_fixed(vy, 'SQ2.9')
         ]
         self.set_raw_pov_chunks(*pov, debug)
-        if debug: print(pov)
+        if self.debug or debug: print(pov)
 
     def angular_pov(self, px, py, rad=None, deg=None, facing=1.0, vplane=0.5, debug=False):
         if rad is None and deg is None:
@@ -151,7 +212,7 @@ class POV(RBZSPI):
             sina*facing, cosa*facing,
             -cosa*vplane, sina*vplane
         ]
-        if debug: print(pov)
+        if self.debug or debug: print(pov)
         self.pov(*pov, debug=debug)
 
 
@@ -177,7 +238,7 @@ class REG(RBZSPI):
     # The following require CI2311 or above:
     def other   (self, x, y):   self.send_payload([ (self.CMD_OTHER,4), (x,6), (y,6) ]) # Set 'other wall cell' position: X and Y, both 6b each, for a total of 12b.
     def vshift  (self, texels): self.send_payload([ (self.CMD_VSHIFT,   4), (texels,self.LEN_VSHIFT  ) ])    # Set texture V axis shift (texv addend).
-    def vinf    (self, vinf):   self.send_payload([ (self.CMD_VSHIFT,   4), (vinf,  self.LEN_VINF    ) ])    # Set infinite V mode (infinite height/size).
+    def vinf    (self, vinf):   self.send_payload([ (self.CMD_VINF,     4), (vinf,  self.LEN_VINF    ) ])    # Set infinite V mode (infinite height/size).
     def mapd    (self, x, y, xwall, ywall):
         self.send_payload([
             (self.CMD_MAPD,4),
@@ -242,9 +303,21 @@ while True:
             print('Doing fine-grained rotation test... ',end='')
             for w in range(2):
                 for a in range(8800,9200):
+                    # check = a in range(8990,9011)
+                    # pov.debug = check
                     pov.angular_pov(*(demo_povs[3][0:2]), float(a)/100.0 * math.pi/180.0)
+                    # if check:
+                    #     print(a)
+                    #     time.sleep(2)
+                    #     reg.floor(0b_10_01_00 if a&1 == 0 else 0)
                 for a in range(-9200,-8800):
+                    # check = -a in range(8990,9011)
+                    # pov.debug = check
                     pov.angular_pov(*(demo_povs[3][0:2]), -float(a)/100.0 * math.pi/180.0)
+                    # if check:
+                    #     print(a)
+                    #     time.sleep(2)
+                    #     reg.floor(0b_10_01_00 if a&1 == 0 else 0)
             print('Done')
 
         else:
