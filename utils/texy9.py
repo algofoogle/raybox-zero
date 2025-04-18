@@ -10,6 +10,7 @@ parser.add_argument('--unsharp-amount', type=float, default=1.5, help='Unsharp m
 parser.add_argument('--unsharp-radius', type=int, default=1, help='Unsharp mask blur radius')
 parser.add_argument('--flatten-uniform', action='store_true', help='Disable dithering for uniform tiles')
 parser.add_argument('--flatten-epsilon', type=int, default=4, help='RGB channel epsilon for tile uniformity')
+parser.add_argument('-r', '--rotate', type=int, default=90, choices=[0,90,180,270], help='Clockwise rotation angle')
 parser.add_argument('-f', '--format', type=str, default='2xbgr', choices=['mono', 'bgrx2222', '2xbgr'], help='Output pixel format')
 parser.add_argument('-q', '--quantize', type=str, default='threshold', help='Quantization method to use (threshold, ordered2x2, ordered4x4, fs, atkinson, random)')
 parser.add_argument('infile')
@@ -147,12 +148,24 @@ for idx, tile_id in enumerate(selected):
 
     x0, y0 = col * 64, row * 64
 
-    # Extract tile & rotate 90° clockwise
+    # Extract tile and rotate:
     tile_orig = [[[0, 0, 0] for _ in range(64)] for _ in range(64)]
     for y in range(64):
         for x in range(64):
             px = data[y0 + y][(x0 + x)*3:(x0 + x)*3+3]
-            tile_orig[x][63 - y] = px
+            # Rotations are in clockwise degrees.
+            if args.rotate == 0:
+                tx, ty = x, y
+            elif args.rotate == 90:
+                tx, ty = 63-y, x
+                # tile_orig[x][63 - y] = px # Default.
+            elif args.rotate == 180:
+                tx, ty = 63-x, 63-y
+            elif args.rotate == 270:
+                tx, ty = y, 63-x
+            else:
+                raise Exception(f"Invalid rotation [{args.rotate}]; must be one of: 0, 90, 180, 270")
+            tile_orig[ty][tx] = px
 
     if args.unsharp_mask:
         tile = apply_unsharp_mask(tile_orig, amount=args.unsharp_amount, radius=args.unsharp_radius)

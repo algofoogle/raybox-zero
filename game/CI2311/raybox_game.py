@@ -6,8 +6,8 @@ import pygame
 import time
 import os
 import math
-import re
-from raybox_controller import RayboxZeroController, RayboxZeroCI2311Controller
+import argparse
+from raybox_controller import RayboxZeroControllerTTSDK1, RayboxZeroControllerTTSDK2, RayboxZeroControllerCI2311
 
 # Main input functions:
 # - WASD keys move
@@ -20,8 +20,6 @@ from raybox_controller import RayboxZeroController, RayboxZeroCI2311Controller
 #     7: sky_color--
 #     3: floor_color++
 #     1: floor_color--
-#     +: zoom in map preview
-#     -: zoom out map preview
 
 # Mousewheel:
 #     Mousewheel scales the 'facing' vector, which basically
@@ -35,9 +33,9 @@ from raybox_controller import RayboxZeroController, RayboxZeroCI2311Controller
 #
 #     If you hold one of the following keyboard number row keys,
 #     the mousewheel action instead adjusts a different parameter:
-#         - 0: sky colour
-#         - 1: floor color
-#         - 2: 'leak' register (displacing floor height)
+#         - 1: sky colour
+#         - 2: floor color
+#         - 3: 'leak' register (displacing floor height)
 
 # Other:
 #     ESC: Quit
@@ -46,19 +44,65 @@ from raybox_controller import RayboxZeroController, RayboxZeroCI2311Controller
 #     R: Reset game state
 #     `: Toggle vectors debug overlay
 
-DEBUG               = False # Print debug info for each update?
-DISABLE_COLLISIONS  = False # Disable collision detection?
-RBZ_MAP_COLS        = 32    # In the TT04 version of raybox-zero, MAP_W/HBITS were both set to 4.
-RBZ_MAP_ROWS        = 32
-RBZ_MAP_SCALE       = 16.0  # Controls how big our map preview is.
-PLAYER_SIZE         = 0.55  # min=0.28 (less will expose overflows). 0.6875 is same as Wolf3D? 0.55 fees 'right'
-ROTATE_MOUSE        = False # If True, use mouse Y (up/down) instead of X.
-FLIPPED             = True  # If True, assume monitor is rotated clockwise rather than CCW.
+parser = argparse.ArgumentParser(add_help=False, description='Runs a raybox-zero "game", controlling target rendering hardware.')
+parser.add_argument('device',           type=str,               choices=['ttsdk1', 'ttsdk2', 'ci2311'], help='Target rendering device/ASIC')
+parser.add_argument('-d', '--debug',    action='store_true',                                            help='Print debug info for each update')
+parser.add_argument('-r', '--rotate',   type=int, default=270,  choices=[0,90,180,270],                 help='Clockwise screen rotation in degrees')
+parser.add_argument('-w', '--width',    type=int, default=1000,                                         help='Main window width')
+parser.add_argument('-h', '--height',   type=int, default=700,                                          help='Main window height')
+parser.add_argument('-m', '--map-size', type=str, default='32x32',                                      help='Map size (COLSxROWS)')
+parser.add_argument('-p', '--player-size', type=float, default=0.55,                                    help='Set player size (for collisions)')
+parser.add_argument('-n', '--no-clip',  action='store_true',                                            help='Disable clipping (collisions)')
+parser.add_argument('-g', '--gen-tex',  action='store_true',                                            help='Textures are generated instead of SPI-loaded')
+parser.add_argument('-f', '--flash-delta', type=int, default=0,                                         help='SPI texture base address delta for flash effects (0 to disable)')
+parser.add_argument('--help', action='help', help='Show this help message and exit')
+args = parser.parse_args()
+
+if args.device == 'ttsdk1':
+    TARGET_DEVICE = RayboxZeroControllerTTSDK1
+elif args.device == 'ttsdk2':
+    TARGET_DEVICE = RayboxZeroControllerTTSDK2
+elif args.device == 'ci2311':
+    TARGET_DEVICE = RayboxZeroControllerCI2311
+
+print(f"Target raybox-zero device controller: {TARGET_DEVICE.__name__}")
+
+# Natural-feeling behaviour of controls depends on VGA screen orientation:
+if args.rotate == 0:
+    ROTATE_MOUSE = True
+    FLIPPED = False
+elif args.rotate == 90:
+    ROTATE_MOUSE = False
+    FLIPPED = True
+elif args.rotate == 180:
+    ROTATE_MOUSE = True
+    FLIPPED = True
+elif args.rotate == 270:
+    ROTATE_MOUSE = False
+    FLIPPED = False
+# ROTATE_MOUSE        = False # If True, use mouse Y (up/down) instead of X.
+# FLIPPED             = True  # If True, assume monitor is rotated clockwise rather than CCW.
+
+GEN_TEX             = args.gen_tex
+
+RBZ_MAP_COLS, RBZ_MAP_ROWS = map(int, args.map_size.split('x'))
+#NOTE: In the TT04 version of raybox-zero, MAP_W/HBITS were both set to 4, so cols/rows should be 16x16 for TT04.
+# Versions since then are (so far) all 32x32.
 
 # This is the size of the game map window that we display on the PC:
-SCREEN_W            = 900
-SCREEN_H            = 700
+SCREEN_W            = args.width
+SCREEN_H            = args.height
 WINDOW_TITLE        = 'raybox_game'
+
+# Try to determine ideal map preview scale:
+RBZ_MAP_SCALE       = min((SCREEN_W-50)//RBZ_MAP_COLS, (SCREEN_H-50)//RBZ_MAP_ROWS)
+
+DEBUG               = args.debug # Print debug info for each update?
+NO_CLIP             = args.no_clip # Disable collision detection?
+PLAYER_SIZE         = args.player_size  # 0.6875 is same as Wolf3D? 0.55 fees right. <0.28 overflows. 0.25 shows interesting 'infinite' glitches.
+ZOOM_PULSE_SCALER   = 1.5
+
+FLASH_DELTA         = args.flash_delta
 
 # Nanoseconds to milliseconds:
 NSMS        = 1_000_000
@@ -73,7 +117,8 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # Create our interface that talks to MicroPython on the TT04 demo board,
 # for loading and controlling the raybox-zero project:
-raybox = RayboxZeroCI2311Controller() # RayboxZeroController()
+# raybox = RayboxZeroCI2311Controller() # RayboxZeroController()
+raybox = TARGET_DEVICE(debug=DEBUG, gen_tex=GEN_TEX)
 
 # Set up a Pygame window.
 pygame.init()
@@ -83,7 +128,7 @@ screen = pygame.display.set_mode((SCREEN_W,SCREEN_H))
 # Load font:
 font = pygame.font.Font("font-cousine/Cousine-Regular.ttf", 12)
 info_text = font.render(
-    "M: Capture/release mouse",
+    "M: Capture/release mouse  F11: Pause  R: Reset  C: Toggle clipping",
     True,
     (255,255,0),
 )
@@ -137,27 +182,47 @@ sum_deltas      = 0     # Used to produce an average of time deltas.
 # This holds the state of the game environment:
 class RBZMap:
     FLASH_STEPS = [
-        #  Bb Gg Rr
-        0b_11_11_11,
-        0b_10_11_11,
-        0b_01_11_11,
-        0b_10_11_10,
-        0b_10_11_01,
-        0b_10_10_01,
-        0b_10_01_01,
-        0b_10_01_00, # Final sky.
-        0b_10_00_00,
-        0b_01_00_00  # Final floor.
+        #   Bb Gg Rr  Flash-delta-mul
+        (0b_11_11_11, 3),
+        (0b_10_11_11, 3),
+        (0b_01_11_11, 2),
+        (0b_10_11_10, 2),
+        (0b_10_11_01, 1),
+        (0b_10_10_01, 1),
+        (0b_10_01_01, 0),
+        (0b_10_01_00, 0), # Final sky.
+        (0b_10_00_00, 0),
+        (0b_01_00_00, 0), # Final floor.
     ]
     def __init__(self, raybox): #: RayboxZeroController = None):
         self.raybox = raybox
         self.leak = 0
+        self.vinf = False
+        self.vshift = 0
+        self.texadd0 = 0
+        self.texadd1 = 0
+        self.texadd2 = 0
+        self.texadd3 = 0
+        # Hack to ensure other_x/y pair exist in advance:
+        self.__dict__['other_x'] = 0
+        self.__dict__['other_y'] = 0
+        self.other_x = 0
+        self.other_y = 0
+        self.__dict__['mapdx'] = 0
+        self.__dict__['mapdy'] = 0
+        self.__dict__['mapdxw'] = 0
+        self.__dict__['mapdyw'] = 0
+        self.mapdx = 0
+        self.mapdy = 0
+        self.mapdxw = 0
+        self.mapdyw = 0
+        self.gen_tex = GEN_TEX
         if FLIPPED:
-            self.sky_color      = RBZMap.FLASH_STEPS[9] # 0b10_10_10
-            self.floor_color    = RBZMap.FLASH_STEPS[7] # 0b01_01_01
+            self.sky_color      = RBZMap.FLASH_STEPS[9][0] # 0b10_10_10
+            self.floor_color    = RBZMap.FLASH_STEPS[7][0] # 0b01_01_01
         else:
-            self.sky_color      = RBZMap.FLASH_STEPS[7] # 0b01_01_01
-            self.floor_color    = RBZMap.FLASH_STEPS[9] # 0b10_10_10
+            self.sky_color      = RBZMap.FLASH_STEPS[7][0] # 0b01_01_01
+            self.floor_color    = RBZMap.FLASH_STEPS[9][0] # 0b10_10_10
         self.map_cols = RBZ_MAP_COLS
         self.map_rows = RBZ_MAP_ROWS
         self.map_width = float(self.map_cols)
@@ -209,6 +274,7 @@ class RBZMap:
                 self.cell(x,y,b1|b0)
         self.generate_map_surface()
 
+    # Make the environment appear to "flash":
     def env_flash(self, start=False):
         if FLIPPED:
             sky = self.raybox.set_floor
@@ -222,9 +288,14 @@ class RBZMap:
         elif self.flash_step > 0:
             self.flash_step -= 1
         if self.flash_step > 2:
-            sky(RBZMap.FLASH_STEPS[count-self.flash_step])
+            sky(RBZMap.FLASH_STEPS[count-self.flash_step][0])
         if self.flash_step > 0:
-            floor(RBZMap.FLASH_STEPS[count-self.flash_step])
+            flash_step = RBZMap.FLASH_STEPS[count-self.flash_step]
+            floor(flash_step[0])
+            self.raybox.call_peripheral_method('reg', 'texadd', 0, self.texadd0+flash_step[1]*FLASH_DELTA)
+            self.raybox.call_peripheral_method('reg', 'texadd', 1, self.texadd0+flash_step[1]*FLASH_DELTA)
+            self.raybox.call_peripheral_method('reg', 'texadd', 2, self.texadd0+flash_step[1]*FLASH_DELTA)
+            self.raybox.call_peripheral_method('reg', 'texadd', 3, self.texadd0+flash_step[1]*FLASH_DELTA)
         return self.flash_step
 
     # Look up the colour we should render in the map preview, based on wall type:
@@ -237,13 +308,45 @@ class RBZMap:
         }
         return lut[color]
 
-    # This gives us the properties 'sky_color', 'floor_color', and 'leak'
+    # This gives us the properties:
+    # - sky_color
+    # - floor_color
+    # - leak
+    # - vshift
+    # - vinf
+    # - gen_tex
+    # - texadd0..3
     # which automatically update their respective register values in our raybox peripheral:
     def __setattr__(self, name, value):
-        if name in ['sky_color', 'floor_color', 'leak']:
-            value %= 64 # Range is 0..63
+        if name in ['sky_color', 'floor_color', 'leak', 'vshift', 'other_x', 'other_y']:
+            value %= 64 # Range is 0..63.
             self.__dict__[name] = value
-            self.raybox.call_peripheral_method('reg', name.split('_')[0], value)
+            if name in ['other_x', 'other_y']:
+                # print(f'other x/y:{self.other_x},{self.other_y}')
+                self.raybox.call_peripheral_method('reg', 'other', self.other_x, self.other_y)
+            else:
+                self.raybox.call_peripheral_method('reg', name.split('_')[0], value)
+        elif name in ['texadd0', 'texadd1', 'texadd2', 'texadd3']:
+            value &= 0xFFFFFF # 24-bit address range.
+            self.__dict__[name] = value
+            self.raybox.call_peripheral_method('reg', 'texadd', int(name.split('texadd')[1]), value)
+        elif name in ['mapdx', 'mapdy', 'mapdxw', 'mapdyw']:
+            self.__dict__[name] = value
+            # if name in ['mapdx', 'mapdy']:
+            #     # Dividing wall coordinate:
+            # else:
+            #     # Dividing wall ID:
+            self.raybox.call_peripheral_method('reg', 'mapd', self.mapdx, self.mapdy, self.mapdxw, self.mapdyw)
+        elif name == 'vinf':
+            v = self.__dict__[name] = not not value
+            self.raybox.call_peripheral_method('reg', name.split('_')[0], v)
+        elif name == 'gen_tex':
+            v = self.__dict__[name] = not not value
+            self.raybox.set_gen_tex(v)
+            # print(f'value:{value} -- ui_in:{self.raybox.get_ui_in()}')
+        elif name in ['other_x', 'other_y']:
+            self.__dict__[name] = value
+
         else:
             super().__setattr__(name, value)
 
@@ -294,6 +397,12 @@ class RBZMap:
     def cell(self, x: int, y: int, set: int = None):
         #NOTE: Map data is stored as Y/X instead of X/Y:
         if set is None:
+            if self.mapdx != 0 and x==self.mapdx:
+                return 0
+            if self.mapdy != 0 and y==self.mapdy:
+                return 0
+            if x==self.other_x and y==self.other_y:
+                return 0 # This is the wall ID of the 'OTHER' block.
             c = self.map_data[x*self.map_rows + y]
             return None if c == 0 else c
         else:
@@ -358,7 +467,7 @@ class Player(Actor):
     def zoom_pulse(self, start=False):
         if start:
             self.zoom_is_pulsing = True
-            self.facing_scaler /= 1.2
+            self.facing_scaler /= ZOOM_PULSE_SCALER
         elif self.zoom_is_pulsing and self.facing_scaler < 0.999:
             self.facing_scaler *= 1.0+(1.0-self.facing_scaler)/2.0
             if self.facing_scaler >= 0.999:
@@ -514,14 +623,14 @@ class Player(Actor):
     def try_move(self, x: float, y: float, map: RBZMap):
         r = self.size / 2.0
         r2 = r*r
-        m = map.cell
+        m = lambda x, y: map.cell(x, y) is not None # map.cell() returns 0 for the 'other' wall block, but None for an empty cell.
         # From:
         fx = self.x
         fy = self.y
         # To:
         tx = fx + x
         ty = fy + y
-        if DISABLE_COLLISIONS:
+        if NO_CLIP:
             return (tx, ty)
         # Sanity check:
         #TODO: Put in clamping/wrapping to map dimensions.
@@ -605,6 +714,11 @@ frame_count = 0
 
 fps_text = None
 
+other_x_tracking = 0
+other_y_tracking = 0
+
+mapdx_tracking = 0
+mapdy_tracking = 0
 
 while running:
 
@@ -724,35 +838,66 @@ while running:
                 game_map.env_flash(True)
                 player.zoom_pulse(True)
         elif event.type == pygame.MOUSEWHEEL:
+            texadd_mult = 1
             mult = 1.0
             add_speed = 1
             zoom_speed = 0.01
             # Modifier keys scale mousewheel movements:
-            if ctrl_key:    mult *= 2
-            if shift_key:   mult *= 4
-            if alt_key:     mult *= 8
+            if ctrl_key:    mult *= 2; texadd_mult *= 262144    # 1 "variant"
+            if shift_key:   mult *= 4; texadd_mult *= 8192      # 2 tiles (1 wall type)
+            if alt_key:     mult *= 8; texadd_mult *= 64        # 1 line
             adjust_fov = True
-            if keys[pygame.K_0]:
-                adjust_fov = False
-                if FLIPPED:
-                    game_map.floor_color += event.y * add_speed * mult
-                else:
-                    game_map.sky_color += event.y * add_speed * mult
+
             if keys[pygame.K_1]:
+                # Change sky colour:
+                adjust_fov = False
+                if FLIPPED:
+                    game_map.floor_color += event.y * add_speed * mult
+                else:
+                    game_map.sky_color += event.y * add_speed * mult
+            if keys[pygame.K_2]:
+                # Change floor colour:
                 adjust_fov = False
                 if FLIPPED:
                     game_map.sky_color += event.y * add_speed * mult
                 else:
                     game_map.floor_color += event.y * add_speed * mult
-            if keys[pygame.K_2]:
+            if keys[pygame.K_3]:
+                # Change leak:
                 adjust_fov = False
                 game_map.leak += event.y * add_speed * mult
+            if keys[pygame.K_4]:
+                # Change texture VSHIFT:
+                adjust_fov = False
+                game_map.vshift += event.y * add_speed * mult
+            
+            # Handle each CMD_TEXADD#:
+            if keys[pygame.K_6] or keys[pygame.K_0]:
+                adjust_fov = False
+                game_map.texadd3 += event.y * texadd_mult
+            if keys[pygame.K_7] or keys[pygame.K_0]:
+                adjust_fov = False
+                game_map.texadd0 += event.y * texadd_mult
+            if keys[pygame.K_8] or keys[pygame.K_0]:
+                adjust_fov = False
+                game_map.texadd1 += event.y * texadd_mult
+            if keys[pygame.K_9] or keys[pygame.K_0]:
+                adjust_fov = False
+                game_map.texadd2 += event.y * texadd_mult
+
             if adjust_fov:
                 player.facing_scaler *= 1.0 + event.y * zoom_speed * mult
+
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                    print("Exiting: ESC key pressed")
-                    running = False
+                print("Exiting: ESC key pressed")
+                if event.mod & pygame.KMOD_CTRL:
+                    # CTRL+ESC, so activate inc_px/py when we exit.
+                    raybox.enable_player_auto_increment(inc_px=True, inc_py=True)
+                running = False
+            elif event.key == pygame.K_c:
+                NO_CLIP = not NO_CLIP
+                print(f"Clipping: {"Disabled" if NO_CLIP else "Enabled"}")
             elif event.key == pygame.K_F11:
                 pause = not pause
                 if pause:
@@ -765,6 +910,12 @@ while running:
                 print("Reset game state")
                 player.reset()
                 game_map.reset()
+            elif event.key == pygame.K_i:
+                game_map.vinf = not game_map.vinf
+                print(f"VINF: {game_map.vinf}")
+            elif event.key == pygame.K_t:
+                game_map.gen_tex = not game_map.gen_tex
+                print(f"Texture source: {"Internally generated" if game_map.gen_tex else "External SPI"}")
             elif event.key == pygame.K_BACKQUOTE:
                 r = raybox.toggle_debug()
                 print(f"Turning Vectors DEBUG signal {'ON' if r else 'OFF'}")
@@ -783,7 +934,21 @@ while running:
     this_time = pygame.time.get_ticks()
     delta_time = this_time - last_time
     last_time = this_time
-    mouse_move = mouse_delta[0] if not ROTATE_MOUSE else mouse_delta[1]
+    if keys[pygame.K_o]:
+        other_x_tracking = min(max(other_x_tracking-mouse_delta[0],0),(RBZ_MAP_COLS-1)*64)
+        other_y_tracking = min(max(other_y_tracking+mouse_delta[1],0),(RBZ_MAP_ROWS-1)*64)
+        game_map.other_x = other_x_tracking // 64
+        game_map.other_y = other_y_tracking // 64
+        game_map.generate_map_surface()
+    elif keys[pygame.K_p]:
+        mapdx_tracking = min(max(mapdx_tracking-mouse_delta[0],0),(RBZ_MAP_COLS-1)*64)
+        mapdy_tracking = min(max(mapdy_tracking+mouse_delta[1],0),(RBZ_MAP_COLS-1)*64)
+        game_map.mapdx = mapdx_tracking // 64
+        game_map.mapdy = mapdy_tracking // 64
+        game_map.generate_map_surface()
+    else:
+        mouse_move = mouse_delta[0] if not ROTATE_MOUSE else mouse_delta[1]
+
     if not pause:
         player.recalc_vectors(dir_keys, delta_time, mouse_move, shift_key, alt_key, game_map)
 

@@ -25,37 +25,42 @@ import os
 from pathlib import Path
 
 # These files contain the MicroPython code that gets pushed to a respective version of the
-PATH_TO_RAYBOX_PERIPHERAL_CODE          = './raybox_peripheral.py'
+PATH_TO_RAYBOX_PERIPHERAL_TTSDK1_CODE   = './raybox_peripheral_ttsdk1.py'
+PATH_TO_RAYBOX_PERIPHERAL_TTSDK2_CODE   = './raybox_peripheral_ttsdk2.py'
 PATH_TO_RAYBOX_PERIPHERAL_CI2311_CODE   = './raybox_peripheral_ci2311.py'
 
 CLOCK_SPEED = 25_000_000  # Clock for design. 25.175MHz is 'typical' VGA clock, at 59.94fps
 MACHINE_FREQ = 225_000_000 # RP2040 clock. This should be an integer multiple (2+) of CLOCK_SPEED.
 
-DEBUG = False
-
 # Represents a serial connection to a MicroPython device:
 class MicroPythonInterface:
-    def __init__(self):
-        # List COM ports:
-        print("Available COM ports:")
+    def __init__(self, **kwargs):
+        # print("***************** MicroPythonInterface init")
+        debug = kwargs.get('debug', False)
+        if debug:
+            # List COM ports:
+            print("Available COM ports:")
         ports = sorted(serial.tools.list_ports.comports())
         if len(ports) == 0:
-            print("NONE! Aborting.")
+            print("No available COM ports! Aborting.")
             sys.exit(1)
-        for port, desc, hwid in ports:
-            print(f"{port}: {desc} - {hwid}")
+        if debug:
+            for port, desc, hwid in ports:
+                port_id = f"{desc} - {hwid}"
+                if port_id != "n/a - n/a":
+                    print(f"{port}: {port_id}")
         # Check whether a port is a Raspberry Pi device
         self.port = None
         for port in ports:
             if port.vid == 0x2E8A:
                 self.port = port.device
-                print(f"Found RP port: {port.hwid}")
+                print(f"Found RP port: {port.hwid} -- {port.device}")
                 break
         if self.port is None:
             # Get last port, to use as default:
             port = ports[-1]
             self.port = port.device
-            print(f"Using the last port by default: {port.hwid}")
+            print(f"Using the last port by default: {port.hwid} -- {port.device}")
         print(f"*** NOTE: If you need to use a specific port, edit {self.__class__.__name__} in {__file__}")
         #NOTE: baudrate doesn't really make any difference for USB CDC serial devices,
         # though there is one value (1200) that is a signal to the RP2040 to reset itself.
@@ -134,10 +139,11 @@ class MicroPythonInterface:
         return self.raw_exec(data, 'ascii').strip()
 
 
-# Represents a TT04 board running MicroPython:
-class TT04(MicroPythonInterface):
-    def __init__(self):
-        super().__init__()
+# Represents a TT demo board running MicroPython SDK 1.x:
+class TTSDK1(MicroPythonInterface):
+    def __init__(self, **kwargs):
+        # print("***************** TTSDK1 init")
+        super().__init__(**kwargs)
         # Send CTRL+C twice to stop any running program:
         self.write(b'\x03\x03')
         print('Entering raw mode...')
@@ -145,6 +151,7 @@ class TT04(MicroPythonInterface):
         print('Testing raw mode: ', end='')
         print(self.raw_exec('print("It works!")', 'ascii').strip())
         print(f"tt object: {self.raw_exec('print(tt)', 'ascii').strip()}")
+        print(self.raw_exec('from ttboard.mode import RPMode', 'ascii').strip())
 
     def set_ui_in(self, state):
         self.raw_exec(f'tt.input_byte={state}')
@@ -153,7 +160,7 @@ class TT04(MicroPythonInterface):
         return self.exec(f'tt.in{bit}({state})')
 
     def toggle_ui_bit(self, bit):
-        return int(self.raw_exec(f'tt.in{bit}.toggle();print(tt.in3())'))
+        return int(self.raw_exec(f'tt.in{bit}.toggle();print(tt.in{bit}())'))
 
     def select_project(self, project):
         r = self.exec(f'tt.shuttle.{project}.enable()')
@@ -175,9 +182,47 @@ class TT04(MicroPythonInterface):
         time.sleep(0.1)
         self.exec('tt.reset_project(False)')
 
+# Overrides some TTSDK1 stuff for SDK 2.x compatibility:
+class TTSDK2(TTSDK1):
+    def __init__(self, **kwargs):
+        # print("***************** TTSDK2 init")
+        #SMELL: Any code put in here will be skipped by RayboxZeroControllerTTSDK2
+        # in its current implementation.
+        super().__init__(**kwargs)
 
-# Represents raybox-zero on a TT04 board:
-class RayboxZeroController(TT04):
+    def set_ui_in(self, state):
+        self.raw_exec(f'tt.ui_in={state}')
+    
+    def set_ui_bit(self, bit, state):
+        return self.exec(f'tt.ui_in[{bit}]={state}')
+    
+    def get_ui_in(self):
+        return self.raw_exec(f'print(tt.ui_in)')
+
+    def toggle_ui_bit(self, bit):
+        return int(self.raw_exec(f'tt.pins.ui_in{bit}.toggle();print(tt.ui_in[{bit}])'))
+    
+    def set_clock_hz(self, hz, max_rp2040_freq=None, duty_u16=None):
+        if hz == 0:
+            r = self.exec('tt.clock_project_stop()')
+        else:
+            args = f"{int(hz)}"
+            if max_rp2040_freq is not None: args += f",max_rp2040_freq={int(max_rp2040_freq)}"
+            if duty_u16 is not None: args += f",duty_u16={int(duty_u16)}"
+            r = self.exec(f'tt.clock_project_PWM({args})')
+        return r
+
+    def uio_oe_pico(self, mode):
+        return self.exec(f'tt.uio_oe_pico.value={mode}')
+
+    def reset_project(self):
+        self.exec('tt.reset_project(True)')
+        self.exec('for _ in range(10): tt.clock_project_once()')
+        self.exec('tt.reset_project(False)')
+
+
+# Represents raybox-zero on a TT demo board running RP2040 firmware SDK 1.x:
+class RayboxZeroControllerTTSDK1(TTSDK1):
     UI_SCLK     = 0
     UI_MOSI     = 1
     UI_CSB      = 2
@@ -185,9 +230,11 @@ class RayboxZeroController(TT04):
     UI_INC_PX   = 4
     UI_INC_PY   = 5
     UI_REG      = 6
+    UI_GEN_TEX  = 7 # Not supported by TT04 version.
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, **kwargs):
+        # print("***************** RayboxZeroControllerTTSDK1 init")
+        super().__init__(**kwargs)
         self.enter_raw_mode()
         print(self.reset_tt_pin_modes())
         self.set_ui_in(0b0000_1000)
@@ -197,7 +244,7 @@ class RayboxZeroController(TT04):
         self.reset_project()
         peripheral_code_path = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
-            PATH_TO_RAYBOX_PERIPHERAL_CODE
+            PATH_TO_RAYBOX_PERIPHERAL_TTSDK1_CODE
         )
         remote_api_code = Path(peripheral_code_path).read_text()
         print(self.exec(remote_api_code))
@@ -209,12 +256,15 @@ class RayboxZeroController(TT04):
 
     def toggle_debug(self):
         return self.toggle_ui_bit(self.UI_DEBUG)
+    
+    def set_gen_tex(self, state):
+        self.set_ui_bit(self.UI_GEN_TEX, state)
 
     def set_raw_pov(self, pov):
         return self.exec(f'pov.set_raw_pov({repr(pov)})')
     
-    def call_peripheral_method(self, interface, method, data):
-        return self.exec(f'{interface}.{method}({int(data)})')
+    def call_peripheral_method(self, interface, method, *data):
+        return self.exec(f'{interface}.{method}({','.join(map(str,map(int,data)))})')
 
     def set_sky(self, color):
         return self.call_peripheral_method('reg', 'sky', color)
@@ -224,13 +274,47 @@ class RayboxZeroController(TT04):
 
     def set_leak(self, leak):
         return self.call_peripheral_method('reg', 'leak', leak)
+    
+    def enable_player_auto_increment(self, inc_px=True, inc_py=True):
+        self.set_ui_bit(self.UI_INC_PX, inc_px)
+        self.set_ui_bit(self.UI_INC_PY, inc_py)
+
+
+class RayboxZeroControllerTTSDK2(RayboxZeroControllerTTSDK1, TTSDK2):
+    def __init__(self, **kwargs):
+        # print("***************** RayboxZeroControllerTTSDK2 init")
+        super(TTSDK2, self).__init__(**kwargs)
+        self.enter_raw_mode()
+        # Stop any existing clock, and ensure we're in a normal RP2040 ASIC control mode:
+        print(self.set_clock_hz(0))
+        print(self.reset_tt_pin_modes())
+        # Ensure RP2040 doesn't drive any of the uio pins initially:
+        print(self.uio_oe_pico(0b00000000))
+        # Select raybox-zero design:
+        self.select_project('tt_um_algofoogle_raybox_zero')
+        # Use SPI textures, enable debug overlay, disable POV SPI:
+        self.set_ui_in(0b0000_1100)
+        gen_tex = kwargs.get('gen_tex', False)
+        self.set_gen_tex(gen_tex)
+        # Graceful reset:
+        self.reset_project()
+        # Clock at 25MHz but with a weird duty cycle to help texture SPI ROM:
+        print(self.set_clock_hz(CLOCK_SPEED, max_rp2040_freq=250_000_000, duty_u16=0xb000))
+        peripheral_code_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            PATH_TO_RAYBOX_PERIPHERAL_TTSDK2_CODE
+        )
+        remote_api_code = Path(peripheral_code_path).read_text()
+        print(self.exec(remote_api_code))
+        print(self.exec('print(repr(tt))'))
+        print('RP2040 core clock:', self.exec('print(machine.freq())'))
 
 
 # Represents Anton's RP2040 board (or probably any RP2040 board)
 # sending commands via UART to firmware on a CI2311 raybox-zero chip.
-class RayboxZeroCI2311Controller(MicroPythonInterface):
-    def __init__(self):
-        super().__init__()
+class RayboxZeroControllerCI2311(MicroPythonInterface):
+    def __init__(self, debug=False):
+        super().__init__(debug=debug)
         self.enter_raw_mode()
         peripheral_code_path = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
@@ -248,8 +332,8 @@ class RayboxZeroCI2311Controller(MicroPythonInterface):
         ba = bytes([int(bin[i:i+8], 2) for i in range(0, len(bin), 8)])
         return self.exec(f'pov.set_raw_pov({repr(ba)})')
     
-    def call_peripheral_method(self, interface, method, data):
-        return self.exec(f'{interface}.{method}({int(data)})')
+    def call_peripheral_method(self, interface, method, *data):
+        return self.exec(f'{interface}.{method}({','.join(map(str,map(int,data)))})')
 
     def set_sky(self, color):
         return self.call_peripheral_method('reg', 'sky', color)

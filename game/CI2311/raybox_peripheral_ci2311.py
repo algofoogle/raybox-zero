@@ -65,48 +65,6 @@ pov = RayboxZeroUart()
 reg = pov
 
 
-
-
-# pov_data = bytearray([
-# 0b100000_00,
-# 0b1101_0000,
-# 0b0011_0001,
-# 0b0010_1010,
-# 0b0010_0010,
-# 0b0111_1101,
-# 0b1001_1100,
-# 0b0000_0110,
-# 0b0100_0000,
-# 0b1001_1111,
-# ])
-
-
-
-
-# uart = UART(1, baudrate=9600, tx=Pin(4), rx=Pin(5))
-# pov = bytearray([
-# 0b100000_00,
-# 0b1101_0000,
-# 0b0011_0001,
-# 0b0010_1010,
-# 0b0010_0010,
-# 0b0111_1101,
-# 0b1001_1100,
-# 0b0000_0110,
-# 0b0100_0000,
-# 0b1001_1111,
-# ])
-# count = 0
-# while True:
-#     data = uart.read()
-#     if data:
-#         print(data.decode(), end='')
-#         if b'H' in data: # 'H' from 'Hello'
-#             count += 1
-#             uart.write(bytearray([0, count & 0b111111]))
-#             if count % 10 == 9:
-#                 uart.write(pov)
-
 """
 0000cccc --vvvvvv                       Reg: 4-bit command, 6-bit value
 00000000 --bbggrr                       CMD_SKY     Set sky colour

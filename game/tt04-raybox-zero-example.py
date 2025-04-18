@@ -177,7 +177,7 @@ class REG(RBZSPI):
     # The following require CI2311 or above:
     def other   (self, x, y):   self.send_payload([ (self.CMD_OTHER,4), (x,6), (y,6) ]) # Set 'other wall cell' position: X and Y, both 6b each, for a total of 12b.
     def vshift  (self, texels): self.send_payload([ (self.CMD_VSHIFT,   4), (texels,self.LEN_VSHIFT  ) ])    # Set texture V axis shift (texv addend).
-    def vinf    (self, vinf):   self.send_payload([ (self.CMD_VSHIFT,   4), (vinf,  self.LEN_VINF    ) ])    # Set infinite V mode (infinite height/size).
+    def vinf    (self, vinf):   self.send_payload([ (self.CMD_VINF,     4), (vinf,  self.LEN_VINF    ) ])    # Set infinite V mode (infinite height/size).
     def mapd    (self, x, y, xwall, ywall):
         self.send_payload([
             (self.CMD_MAPD,4),
