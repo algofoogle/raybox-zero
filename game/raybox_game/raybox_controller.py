@@ -25,6 +25,7 @@ import os
 from pathlib import Path
 
 # These files contain the MicroPython code that gets pushed to a respective version of the
+# TT demo board's RP2040.
 PATH_TO_RAYBOX_PERIPHERAL_TTSDK1_CODE   = './raybox_peripheral_ttsdk1.py'
 PATH_TO_RAYBOX_PERIPHERAL_TTSDK2_CODE   = './raybox_peripheral_ttsdk2.py'
 PATH_TO_RAYBOX_PERIPHERAL_CI2311_CODE   = './raybox_peripheral_ci2311.py'
