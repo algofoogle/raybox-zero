@@ -166,6 +166,7 @@ bool          gAnimateRegisters = false; // If true, do funky stuff with sky/flo
 bool          gGenTex = false; // If true, select generated textures instead of texture memory.
 bool          gInfiniteHeight = false;
 bool          gLeakFixed = false;
+int           gMapMode = 0; // Can only be 0 or 1. 0=Classic; 1=Funky.
 int           gLeak = 0;
 int           gMouseX, gMouseY;
 int           gColorSky = 0;
@@ -415,17 +416,22 @@ void process_sdl_events() {
           printf("Funky register animation is %s\n", gAnimateRegisters ? "ON" : "off");
           break;
         case SDLK_BACKSLASH:
-          if (KMOD_SHIFT & e.key.keysym.mod) {
-            #ifdef USE_LEAK_FIXED
+          #ifdef USE_LEAK_FIXED
+            if (KMOD_SHIFT & e.key.keysym.mod) {
               // Shift-backslash: Toggle fixed leak.
               gLeakFixed = !gLeakFixed;
               printf("LEAK mode is %s\n", gLeakFixed ? "FIXED" : "FLOATING");
-            #endif // USE_LEAK_FIXED
-          } else {
-            gInfiniteHeight = !gInfiniteHeight;
-            printf("Infinite height is %s\n", gInfiniteHeight ? "ON" : "off");
-          }
-          break;
+            } else if (KMOD_CTRL & e.key.keysym.mod) {
+              // Ctrl-backslash: Toggle map mode.
+              gMapMode = gMapMode ^ 1;
+              printf("Map mode is %i (%s)\n", gMapMode, gMapMode ? "funky" : "classic");
+            } else 
+          #endif // USE_LEAK_FIXED
+            {
+              gInfiniteHeight = !gInfiniteHeight;
+              printf("Infinite height is %s\n", gInfiniteHeight ? "ON" : "off");
+            }
+            break;
         case SDLK_v:
           TB->log_vsync = !TB->log_vsync;
           printf("Logging VSYNC %s\n", TB->log_vsync ? "enabled" : "disabled");
@@ -482,10 +488,6 @@ void process_sdl_events() {
           printf("Frame step: Advancing 1 frame\n");
           TB->frame_step(1);
           break;
-        case SDLK_KP_8: gMapDX += 1; printf("gMapDX=%d\n", gMapDX); break;
-        case SDLK_KP_2: gMapDX -= 1; printf("gMapDX=%d\n", gMapDX); break;
-        case SDLK_KP_6: gMapDY += 1; printf("gMapDY=%d\n", gMapDY); break;
-        case SDLK_KP_4: gMapDY -= 1; printf("gMapDY=%d\n", gMapDY); break;
         case SDLK_o:
           gSwapMouseXY = !gSwapMouseXY;
           printf("Mouse axes are%s swapped\n", gSwapMouseXY ? "" : " NOT");
@@ -509,6 +511,21 @@ void process_sdl_events() {
             }
             if (hit) {
               printf("Vector scaling: sf = %5.2f  sv = %5.2f\n", gView.sf, gView.sv);
+            }
+            //CTRL+keypad numbers:
+            switch (e.key.keysym.sym) {
+              case SDLK_KP_8: gMapDXW++; if (gMapDXW>7) gMapDXW=0; printf("gMapDXW=%d (wallID)\n", gMapDXW); break;
+              case SDLK_KP_2: gMapDXW--; if (gMapDXW<0) gMapDXW=7; printf("gMapDXW=%d (wallID)\n", gMapDXW); break;
+              case SDLK_KP_6: gMapDYW++; if (gMapDYW>7) gMapDYW=0; printf("gMapDYW=%d (wallID)\n", gMapDYW); break;
+              case SDLK_KP_4: gMapDYW--; if (gMapDYW<0) gMapDYW=7; printf("gMapDYW=%d (wallID)\n", gMapDYW); break;
+            }
+          } else {
+            // Keypad numbers without modifier:
+            switch (e.key.keysym.sym) {
+              case SDLK_KP_8: gMapDX += 1; printf("gMapDX=%d\n", gMapDX); break;
+              case SDLK_KP_2: gMapDX -= 1; printf("gMapDX=%d\n", gMapDX); break;
+              case SDLK_KP_6: gMapDY += 1; printf("gMapDY=%d\n", gMapDY); break;
+              case SDLK_KP_4: gMapDY -= 1; printf("gMapDY=%d\n", gMapDY); break;
             }
           }
           
@@ -972,6 +989,7 @@ int update_spi_registers_state() {
           case CMD_VOPTS:
             push_bits_onto_stack(bits, gInfiniteHeight, 1);
             push_bits_onto_stack(bits, gLeakFixed, 1);
+            push_bits_onto_stack(bits, gMapMode, 1);
             break;
 #else // USE_LEAK_FIXED
           case CMD_VINF:
@@ -981,8 +999,8 @@ int update_spi_registers_state() {
           case CMD_MAPD:
             push_bits_onto_stack(bits, gMapDX, 6);
             push_bits_onto_stack(bits, gMapDY, 6);
-            push_bits_onto_stack(bits, gMapDXW, 2);
-            push_bits_onto_stack(bits, gMapDYW, 2);
+            push_bits_onto_stack(bits, gMapDXW, 3);
+            push_bits_onto_stack(bits, gMapDYW, 3);
             break;
           case CMD_TEXADD0:
           case CMD_TEXADD1:

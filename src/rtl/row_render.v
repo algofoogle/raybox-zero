@@ -101,19 +101,10 @@ module row_render #(
                     6'b01_00_10 // Panel middle.
                   )
                 ): // Purple, with borders
-    // wall == 4 ? (side ? 6'b00_01_10 : 6'b00_00_01): // Brown.
-    // wall == 4 ? (side ? (texu+texv) : (texu+texv)&{6{checks[0]}}  ): // Brown.
-    wall == 4 ? wall4: //(side ? 6'b10_00_11 : 6'b01_00_10): // Fuchsia.
+    wall == 4 ? wall4: // Fuchsia.
     wall == 5 ? (side ? (panel_binary ? 6'b00_10_11 : 6'b00_01_10) : (panel_binary ? 6'b00_01_10 : 6'b00_00_01)) : // Orange.
     wall == 6 ? wall6: // Rainbow stripes (Brown on map).
     wall == 7 ? wall7: // Argyle (yellow-green on map).
-    // wall == 7 ? (side ? 6'b00_10_01 : 6'b00_01_00): // Yellow-green.
     /*wall==0?*/(side ? 6'b00_00_11 : 6'b00_00_10); // Red.
-    // wall == 5 ? (side ? 6'b00_10_11 : 6'b00_01_10): // Orange.
-    // wall == 5 ? (side ? (checkered ? 6'b00_10_11 : 6'b00_01_10) : (checkered ? 6'b00_01_10 : 6'b00_00_01)) : // Orange.
-    // wall == 6 ? (side ? 6'b10_00_11 : 6'b01_00_10): // Fuchsia.
-
-
-
 
 endmodule

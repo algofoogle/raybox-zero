@@ -95,8 +95,8 @@ module rbzero(
 `ifndef NO_DIV_WALLS
   wire [5:0]  mapdx         /* verilator public */;
   wire [5:0]  mapdy         /* verilator public */;
-  wire [1:0]  mapdxw        /* verilator public */;
-  wire [1:0]  mapdyw        /* verilator public */;
+  wire [MAP_WALLBITS-1:0]  mapdxw        /* verilator public */;
+  wire [MAP_WALLBITS-1:0]  mapdyw        /* verilator public */;
 `endif // NO_DIV_WALLS
 `ifndef NO_EXTERNAL_TEXTURES
   wire [23:0] texadd [0:3]  /* verilator public */;
@@ -111,7 +111,7 @@ module rbzero(
 
   assign o_vinf = vinf;
 
-  wire map_mode = 0; //0=classic; 1=funky.
+  wire map_mode; //0=classic; 1=funky -- defaults to 0, can be set in spi_registers.
 
 `ifdef STANDBY_RESET
   wire no_standby = !reset;  // Regs standby mode driven by reset.
@@ -345,6 +345,7 @@ module rbzero(
     .othery   (othery),
     .vshift   (texv_shift),
     .vinf     (vinf),
+    .map_mode (map_mode),
     .o_leakfixed(leakfixed),
 
 `ifndef NO_DIV_WALLS
@@ -473,7 +474,7 @@ module rbzero(
     .otherx (otherx),   .othery (othery),
 `ifndef NO_DIV_WALLS
     .mapdx  (mapdx),    .mapdy  (mapdy),
-    .mapdxw ({1'b0,mapdxw}),   .mapdyw ({1'b0,mapdyw}),
+    .mapdxw (mapdxw),   .mapdyw (mapdyw),
 `endif // NO_DIV_WALLS
     // Map ROM access:
     .o_map_col(tracer_map_col),

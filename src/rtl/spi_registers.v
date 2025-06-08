@@ -10,7 +10,9 @@
 // Well this is a funky SPI module! I'm sure there's a better way to do this...
 // Should it really be storing registers itself?
 
-module spi_registers(
+module spi_registers #(
+  parameter MAP_WALLBITS = 3
+) (
   input               clk,
   input               reset,
   input               i_sclk, i_ss_n, i_mosi, // SPI input.
@@ -21,10 +23,11 @@ module spi_registers(
   output reg  [5:0]   vshift,         // Texture V axis shift (texv addend).
   output reg          vinf,           // Infinite V/height setting.
   output              o_leakfixed,    // Is LEAK fixed to the ground (1), or floating (0)?
+  output reg          map_mode,       // 0=Classic map; 1=Funky map (wall IDs more random, and with holes)
 
 `ifndef NO_DIV_WALLS
   output reg  [5:0]   mapdx, mapdy,   // Map 'dividing walls' on X and Y. 0=none
-  output reg  [1:0]   mapdxw, mapdyw, // Map dividing wall, wall IDs (texture) for X and Y respectively
+  output reg  [MAP_WALLBITS-1:0]   mapdxw, mapdyw, // Map dividing wall, wall IDs (texture) for X and Y respectively
 `endif // NO_DIV_WALLS
 
 `ifndef NO_EXTERNAL_TEXTURES
@@ -57,13 +60,13 @@ module spi_registers(
   localparam CMD_VSHIFT = 4;  localparam LEN_VSHIFT =  6; // Set texture V axis shift (texv addend). //SMELL: Make this more bits for finer grain.
 
 `ifdef USE_LEAK_FIXED
-  localparam CMD_VOPTS  = 5;  localparam LEN_VOPTS  =  2; // Bits [1:0] = {VINF,LEAK_FIXED}
+  localparam CMD_VOPTS  = 5;  localparam LEN_VOPTS  =  3; // Bits [2:0] = {VINF,LEAK_FIXED,MAPMODE}
 `else // USE_LEAK_FIXED
   localparam CMD_VINF   = 5;  localparam LEN_VINF   =  1; // Set infinite V mode (infinite height/size).
 `endif // USE_LEAK_FIXED
 
 `ifndef NO_DIV_WALLS
-  localparam CMD_MAPD   = 6;  localparam LEN_MAPD   = 16; // Set mapdx,mapdy, mapdxw,mapdyw.
+  localparam CMD_MAPD   = 6;  localparam LEN_MAPD   = 18; // Set mapdx,mapdy, mapdxw,mapdyw.
 `endif // NO_DIV_WALLS
 
 `ifndef NO_EXTERNAL_TEXTURES
@@ -193,6 +196,7 @@ module spi_registers(
   reg [5:0]   buf_othery;
   reg [5:0]   buf_vshift;
   reg         buf_vinf;
+  reg         buf_mapmode;
 
 `ifdef USE_LEAK_FIXED
   reg         buf_leakfixed;
@@ -201,8 +205,8 @@ module spi_registers(
 `ifndef NO_DIV_WALLS
   reg [5:0]   buf_mapdx;
   reg [5:0]   buf_mapdy;
-  reg [1:0]   buf_mapdxw;
-  reg [1:0]   buf_mapdyw;
+  reg [MAP_WALLBITS-1:0]   buf_mapdxw;
+  reg [MAP_WALLBITS-1:0]   buf_mapdyw;
 `endif // NO_DIV_WALLS
 
 `ifndef NO_EXTERNAL_TEXTURES
@@ -341,14 +345,15 @@ module spi_registers(
       othery    <= 6'd0;
       vshift    <= 6'd0;
       vinf      <= 1'b0;
+      map_mode  <= 1'b0;
 `ifdef USE_LEAK_FIXED
       leakfixed <= 1'b0;
 `endif // USE_LEAK_FIXED
 `ifndef NO_DIV_WALLS
       mapdx     <= 6'd0;
       mapdy     <= 6'd0;
-      mapdxw    <= 2'd0;
-      mapdyw    <= 2'd0;
+      mapdxw    <= 3'd0;
+      mapdyw    <= 3'd0;
 `endif // NO_DIV_WALLS
 `ifndef NO_EXTERNAL_TEXTURES
       texadd0   <= 24'd0;
@@ -372,6 +377,7 @@ module spi_registers(
       othery    <= buf_othery;
       vshift    <= buf_vshift;
       vinf      <= buf_vinf;
+      map_mode  <= buf_mapmode;
 `ifdef USE_LEAK_FIXED
       leakfixed <= buf_leakfixed;
 `endif // USE_LEAK_FIXED
@@ -411,14 +417,15 @@ module spi_registers(
       buf_othery    <= 6'd0;
       buf_vshift    <= 6'd0;
       buf_vinf      <= 1'b0;
+      buf_mapmode   <= 1'b0;
 `ifdef USE_LEAK_FIXED
       buf_leakfixed <= 1'b0;
 `endif // USE_LEAK_FIXED
 `ifndef NO_DIV_WALLS
       buf_mapdx     <= 6'd0;
       buf_mapdy     <= 6'd0;
-      buf_mapdxw    <= 2'd0;
-      buf_mapdyw    <= 2'd0;
+      buf_mapdxw    <= 3'd0;
+      buf_mapdyw    <= 3'd0;
 `endif // NO_DIV_WALLS
 `ifndef NO_EXTERNAL_TEXTURES
       buf_texadd0   <= 24'd0;
@@ -442,7 +449,8 @@ module spi_registers(
       if (spi_cmd == CMD_VSHIFT ) buf_vshift    <= spi_buffer[5:0];
 `ifdef USE_LEAK_FIXED
       if (spi_cmd == CMD_VOPTS  ){buf_vinf,
-                                  buf_leakfixed}<= spi_buffer[1:0];
+                                  buf_leakfixed,
+                                  buf_mapmode}  <= spi_buffer[2:0];
 `else // USE_LEAK_FIXED      
       if (spi_cmd == CMD_VINF   ) buf_vinf      <= spi_buffer[0];
 `endif // USE_LEAK_FIXED
@@ -450,7 +458,7 @@ module spi_registers(
       if (spi_cmd == CMD_MAPD   ){buf_mapdx,
                                   buf_mapdy,
                                   buf_mapdxw,
-                                  buf_mapdyw}   <= spi_buffer[15:0];
+                                  buf_mapdyw}   <= spi_buffer[17:0];
 `endif // NO_DIV_WALLS
 `ifndef NO_EXTERNAL_TEXTURES
       if (spi_cmd == CMD_TEXADD0) buf_texadd0   <= spi_buffer[23:0];
