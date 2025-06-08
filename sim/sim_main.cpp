@@ -479,7 +479,8 @@ void process_sdl_events() {
           printf("Mouse Y controls TexV: %s\n", gMouseYTexV ? "ON" : "off");
           break;
         case SDLK_f:
-          printf("Stepping by 1 frame is not yet implemented!\n");
+          printf("Frame step: Advancing 1 frame\n");
+          TB->frame_step(1);
           break;
         case SDLK_KP_8: gMapDX += 1; printf("gMapDX=%d\n", gMapDX); break;
         case SDLK_KP_2: gMapDX -= 1; printf("gMapDX=%d\n", gMapDX); break;
@@ -1239,6 +1240,56 @@ int main(int argc, char **argv) {
   printf("Cold start...\n");
 
   printf("------ NOTE: SPI transmissions are %s. Press E key to toggle.\n", gEnableSPI ? "ENABLED" : "disabled");
+
+  printf("Simulator keys:\n\
+    ESC: Quit                                                  \n\
+    F12: Toggle mouse capture                                  \n\
+    F11: Toggle generated/SPI textures                         \n\
+    F1..F10: Load preset state (not currently implemented)     \n\
+    SPACE: Pause                                               \n\
+    p: Toggle portrait rotation                                \n\
+    r: Reset signal                                            \n\
+    e: Toggle SPI transmissions                                \n\
+    o: Toggle mouse axis swap                                  \n\
+    y: Toggle 'Mouse Y => TexV' control mode                   \n\
+    g: Toggle guides                                           \n\
+    h: Toggle screen paint highlighting                        \n\
+    `: Toggle LOCK_DEBUG                                       \n\
+    INSERT: Toggle LOCK_MAP                                    \n\
+    TAB: Momentary map overlay signal                          \n\
+    [: inc_px signal                                           \n\
+    ]: inc_py signal                                           \n\
+    t: Toggle LOCK_TRACE                                       \n\
+    1: Refresh screen every pixel                              \n\
+    2: Refresh every line                                      \n\
+    3: Refresh every 10 lines                                  \n\
+    4: Refresh every 80 lines                                  \n\
+    5: Refresh every frame                                     \n\
+    6: Refresh every 3 frames                                  \n\
+    8: Refresh every 8 pixels                                  \n\
+    9: Refresh every 100 pixels                                \n\
+    Keypad +: Increase refresh quantum by 1000                 \n\
+    Keypad -: Decrease refresh quantum by 1000                 \n\
+    Keypad 8: Map X divider ++                                 \n\
+    Keypad 2: Map X divider --                                 \n\
+    Keypad 6: Map Y divider ++                                 \n\
+    Keypad 4: Map Y divider --                                 \n\
+    /: Toggle funky register animation                         \n\
+    \\: With SHIFT, toggle LEAK 'FIXED'; Without, toggle VINF  \n\
+    v: VSYNC logging                                           \n\
+    f: Frame-step                                              \n\
+    x: Toggle 'examine' mode (not implemented in this version?)\n\
+    s: Step-examine (not implemented)                          \n\
+    i: Inspect (not implemented)                               \n\
+    PGUP: Add 10%% to motion rate                              \n\
+    PGDN: Sub 10%% from motion rate                            \n\
+    END: Turn off all input locks                              \n\
+  TBD:                                                         \n\
+    Arrows                                                     \n\
+    WASD                                                       \n\
+    CTRL+Arrows (vector scaling)                               \n\
+    Modifier keys effect on motion                             \n\
+");
 
   int h = 0;
   int v = 0;

@@ -24,6 +24,7 @@ public:
   bool examine_condition_met;
   bool paused;
   int frame_counter;
+  int frame_step_counter;
 
   MAIN_TB(void) {
     log_vsync = false;
@@ -33,6 +34,7 @@ public:
     frame_counter = 0;
     old_hsync = false;
     old_vsync = false;
+    frame_step_counter = -1;
   }
 
   ~MAIN_TB() { }
@@ -60,6 +62,14 @@ public:
         print_time();
         printf("VSYNC released; starting frame %d.\n", frame_counter);
       }
+      if (frame_step_counter != -1) {
+        if (--frame_step_counter == 0) {
+          // Stop.
+          pause(true);
+          printf("Finished stepping frame(s); frame_counter=%d\n", frame_counter);
+          frame_step_counter = -1;
+        }
+      }
       if (examine()) {
         pause(true);
         printf("(Examine condition met)\n");
@@ -69,6 +79,11 @@ public:
     }
   }
 
+  virtual void frame_step(int count) {
+    frame_step_counter = count;
+    pause(false);
+  }
+  
   virtual bool examine(void) {
     if (!examine_mode) return false;
     return examine_condition_met;
