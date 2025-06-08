@@ -28,6 +28,7 @@
 
 
 module wall_tracer #(
+  parameter MAP_WALLBITS  = 3, // No. of bits per map cell wall ID.
   parameter MAP_WBITS     = 4,
   parameter MAP_HBITS     = 4,
   parameter HALF_SIZE     = 320   // Half the visible screen width.
@@ -41,13 +42,13 @@ module wall_tracer #(
 
 `ifndef NO_DIV_WALLS
   input [5:0]             mapdx, mapdy, // Map dividers X and Y: 0 means 'none'
-  input [1:0]             mapdxw, mapdyw, // Wall ID for map dividers
+  input [MAP_WALLBITS-1:0] mapdxw, mapdyw, // Wall ID for map dividers
 `endif // NO_DIV_WALLS
 
   // Interface to map ROM:
   output [MAP_WBITS-1:0]  o_map_col,
   output [MAP_HBITS-1:0]  o_map_row,
-  input [1:0]             i_map_val,
+  input [MAP_WALLBITS-1:0] i_map_val,
 
 `ifdef TRACE_STATE_DEBUG
   output [3:0]            o_state,
@@ -57,11 +58,11 @@ module wall_tracer #(
 `ifndef NO_EXTERNAL_TEXTURES
   // HOT (LIVE) values as they are being calculated. This allows the texture memory to generate its address early
   // (assuming the trace has actually finished before we get to about hpos==600):
-  output reg [1:0]        o_wall_hot,
+  output reg [MAP_WALLBITS-1:0]        o_wall_hot,
   output reg              o_side_hot,
   output reg [5:0]        o_texu_hot,
 `endif // NO_EXTERNAL_TEXTURES
-  output reg [1:0]        o_wall,     // Wall ID that we hit (per map).
+  output reg [MAP_WALLBITS-1:0]        o_wall,     // Wall ID that we hit (per map).
   output reg              o_side,     // Light or dark side?
   output reg [10:0]       o_size,     // Wall half-size.
   output reg [5:0]        o_texu,     // Texture 'u' coordinate (i.e. how far along the wall the hit was).
@@ -182,7 +183,7 @@ module wall_tracer #(
   wire `F mul_in_a, mul_in_b;
   wire `F2 mul_out;
 
-  reg [1:0] wall;
+  reg [MAP_WALLBITS-1:0] wall;
   reg side;
 
   // Get fractional part [0,1) of where the ray hits the wall,

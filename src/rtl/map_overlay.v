@@ -9,6 +9,7 @@
 
 module map_overlay #(
   // parameter H_VIEW = 640,
+  parameter MAP_WALLBITS = 3,
   parameter MAP_WBITS = 4,
   parameter MAP_HBITS = 4,
   parameter MAP_SCALE = 3 // Power of 2 scaling for overlay.
@@ -19,7 +20,7 @@ module map_overlay #(
   // Interface to map ROM:
   output [MAP_WBITS-1:0]  o_map_col,
   output [MAP_HBITS-1:0]  o_map_row,
-  input [1:0]             i_map_val, // Value of the map cell (i.e. from map memory)
+  input [MAP_WALLBITS-1:0] i_map_val, // Value of the map cell (i.e. from map memory)
   // Other map cell X,Y:
   input [5:0]             i_otherx, i_othery,
   // Map X/Y dividers:
@@ -52,13 +53,17 @@ module map_overlay #(
   assign o_map_col = hpos[MAP_SCALE+MAP_WBITS-1:MAP_SCALE];
   assign o_map_row = vpos[MAP_SCALE+MAP_HBITS-1:MAP_SCALE];
 
-  wire [1:0] map_cell_wall_id = i_map_val;
+  wire [MAP_WALLBITS-1:0] map_cell_wall_id = i_map_val;
 
   wire [5:0] map_cell_base_color =
     map_cell_wall_id==0     ? 6'b00_00_00:  // Unoccupied map cells are black.
     map_cell_wall_id==1     ? 6'b11_10_00:  // Wall ID 1: Map cell is Light blue
     map_cell_wall_id==2     ? 6'b11_00_00:  // Wall ID 2: Map cell is Blue
-    /*map_cell_wall_id==3?*/  6'b11_00_10;  // Wall ID 3: Map cell is Purple
+    map_cell_wall_id==3     ? 6'b11_00_10:  // Wall ID 3: Map cell is Purple
+    map_cell_wall_id==4     ? 6'b00_01_10:  // 4: Brown
+    map_cell_wall_id==5     ? 6'b00_10_11:  // 5: Orange
+    map_cell_wall_id==6     ? 6'b10_00_11:  // 6: Purple-red
+    /*map_cell_wall_id==7*/   6'b00_10_01;  // 7: Yellow-green
 
   assign map_rgb =
     in_player_pixel ? 6'b00_11_11:  // Player pixel in map is yellow.

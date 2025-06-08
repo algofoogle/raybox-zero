@@ -39,7 +39,7 @@ using namespace std;
 #define USE_DEBUG_OVERLAY
 #define TRACE_STATE_DEBUG  // Trace state is represented visually per each line on-screen.
 #define USE_LEAK_FIXED  // If enabled, modify CMD_VINF to support an extra bit controlling whether LEAK is floating (default) or fixed.
-// #define USE_POV_VIA_SPI_REGS  // If defined, POV access is via spi_registers.v, else it is via pov.v
+#define USE_POV_VIA_SPI_REGS  // If defined, POV access is via spi_registers.v, else it is via pov.v
 //#define STANDBY_RESET // If defined use extra logic to avoid clocking regs during reset (for power saving/stability).
 //#define RESET_TEXTURE_MEMORY // Should there be an explicit reset for local texture memory?
 //#define RESET_TEXTURE_MEMORY_PATTERNED // If defined with RESET_TEXTURE_MEMORY, texture memory reset is a pattern instead of black.
@@ -53,8 +53,8 @@ using namespace std;
 
 //SMELL: These must be set to the same numbers in fixed_point_params.v
 // (or rbz_options.v if it defines ALT_FIXED_POINT_PARAMS):
-#define Qm  11
-#define Qn  11
+#define Qm  12
+#define Qn  12
 //NOTE: Currently these don't have much (or any?) effect over SPI,
 // because the vectors have their own hard-coded ranges.
 
@@ -1242,53 +1242,62 @@ int main(int argc, char **argv) {
   printf("------ NOTE: SPI transmissions are %s. Press E key to toggle.\n", gEnableSPI ? "ENABLED" : "disabled");
 
   printf("Simulator keys:\n\
-    ESC: Quit                                                  \n\
-    F12: Toggle mouse capture                                  \n\
-    F11: Toggle generated/SPI textures                         \n\
-    F1..F10: Load preset state (not currently implemented)     \n\
-    SPACE: Pause                                               \n\
-    p: Toggle portrait rotation                                \n\
-    r: Reset signal                                            \n\
-    e: Toggle SPI transmissions                                \n\
-    o: Toggle mouse axis swap                                  \n\
-    y: Toggle 'Mouse Y => TexV' control mode                   \n\
-    g: Toggle guides                                           \n\
-    h: Toggle screen paint highlighting                        \n\
-    `: Toggle LOCK_DEBUG                                       \n\
-    INSERT: Toggle LOCK_MAP                                    \n\
-    TAB: Momentary map overlay signal                          \n\
-    [: inc_px signal                                           \n\
-    ]: inc_py signal                                           \n\
-    t: Toggle LOCK_TRACE                                       \n\
-    1: Refresh screen every pixel                              \n\
-    2: Refresh every line                                      \n\
-    3: Refresh every 10 lines                                  \n\
-    4: Refresh every 80 lines                                  \n\
-    5: Refresh every frame                                     \n\
-    6: Refresh every 3 frames                                  \n\
-    8: Refresh every 8 pixels                                  \n\
-    9: Refresh every 100 pixels                                \n\
-    Keypad +: Increase refresh quantum by 1000                 \n\
-    Keypad -: Decrease refresh quantum by 1000                 \n\
-    Keypad 8: Map X divider ++                                 \n\
-    Keypad 2: Map X divider --                                 \n\
-    Keypad 6: Map Y divider ++                                 \n\
-    Keypad 4: Map Y divider --                                 \n\
-    /: Toggle funky register animation                         \n\
-    \\: With SHIFT, toggle LEAK 'FIXED'; Without, toggle VINF  \n\
-    v: VSYNC logging                                           \n\
-    f: Frame-step                                              \n\
-    x: Toggle 'examine' mode (not implemented in this version?)\n\
-    s: Step-examine (not implemented)                          \n\
-    i: Inspect (not implemented)                               \n\
-    PGUP: Add 10%% to motion rate                              \n\
-    PGDN: Sub 10%% from motion rate                            \n\
-    END: Turn off all input locks                              \n\
-  TBD:                                                         \n\
-    Arrows                                                     \n\
-    WASD                                                       \n\
-    CTRL+Arrows (vector scaling)                               \n\
-    Modifier keys effect on motion                             \n\
+    W/A/S/D:    Typical player motion keys                      \n\
+    ESC:        Quit                                            \n\
+    F12:        Toggle mouse capture                            \n\
+    F11:        Toggle generated/SPI textures                   \n\
+    F1..F10:    Load preset state (not currently implemented)   \n\
+    SPACE:      Pause                                           \n\
+    p:          Toggle portrait rotation                        \n\
+    r:          Reset signal                                    \n\
+    e:          Toggle SPI transmissions                        \n\
+    o:          Toggle mouse axis swap                          \n\
+    y:          Toggle 'Mouse Y => TexV' control mode           \n\
+    g:          Toggle guides                                   \n\
+    h:          Toggle screen paint highlighting                \n\
+    `:          Toggle LOCK_DEBUG                               \n\
+    INSERT:     Toggle LOCK_MAP                                 \n\
+    TAB:        Momentary map overlay signal                    \n\
+    [:          inc_px signal                                   \n\
+    ]:          inc_py signal                                   \n\
+    t:          Toggle LOCK_TRACE                               \n\
+    1:          Refresh screen every pixel                      \n\
+    2:          Refresh every line                              \n\
+    3:          Refresh every 10 lines                          \n\
+    4:          Refresh every 80 lines                          \n\
+    5:          Refresh every frame                             \n\
+    6:          Refresh every 3 frames                          \n\
+    8:          Refresh every 8 pixels                          \n\
+    9:          Refresh every 100 pixels                        \n\
+    Keypad +:   Increase refresh quantum by 1000                \n\
+    Keypad -:   Decrease refresh quantum by 1000                \n\
+    Keypad 8:   Map X divider ++                                \n\
+    Keypad 2:   Map X divider --                                \n\
+    Keypad 6:   Map Y divider ++                                \n\
+    Keypad 4:   Map Y divider --                                \n\
+    /:          Toggle funky register animation                 \n\
+    \\:          With SHIFT, toggle LEAK 'FIXED'; Without, toggle VINF  \n\
+    v:          VSYNC logging                                   \n\
+    f:          Frame-step                                      \n\
+    x:          Toggle 'examine' mode (not implemented in this version?)\n\
+    s:          Step-examine (not implemented)                  \n\
+    i:          Inspect (not implemented)                       \n\
+    PGUP:       Add 10%% to motion rate                         \n\
+    PGDN:       Sub 10%% from motion rate                       \n\
+    END:        Turn off all input locks                        \n\
+  Arrow keys:                                                   \n\
+    Up:         LEAK ++                                         \n\
+    Dn:         LEAK --                                         \n\
+    Shift+Up:   VShift ++                                       \n\
+    Shift+Dn:   VShift --                                       \n\
+    Left:       Turn left                                       \n\
+    Right:      Turn right                                      \n\
+    CTRL+Up:    Facing vector scaler += 0.1                     \n\
+    CTRL+Dn:    Facing vector scaler -= 0.1                     \n\
+    CTRL+Right: VPlane vector scaler += 0.1                     \n\
+    CTRL+Left:  VPlane vector scaler -= 0.1                     \n\
+  TBD:                                                          \n\
+    Modifier keys effect on motion                              \n\
 ");
 
   int h = 0;

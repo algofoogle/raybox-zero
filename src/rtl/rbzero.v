@@ -78,6 +78,7 @@ module rbzero(
 
   localparam [9:0]  H_VIEW    = 640;
   localparam        HALF_SIZE = H_VIEW/2;
+  localparam        MAP_WALLBITS = 3; // 7 (or 8) wall IDs, for textures.
   localparam        MAP_WBITS = 5; // 32x...
   localparam        MAP_HBITS = 5; // ...32 map
 `ifdef USE_MAP_OVERLAY
@@ -110,6 +111,8 @@ module rbzero(
 
   assign o_vinf = vinf;
 
+  wire map_mode = 0; //0=classic; 1=funky.
+
 `ifdef STANDBY_RESET
   wire no_standby = !reset;  // Regs standby mode driven by reset.
 `else
@@ -140,14 +143,14 @@ module rbzero(
   //NOTE: If USE_LEAK_FIXED is NOT defined, then spi_registers sets this to const 0.
 
   // --- Row-level ray caster/tracer: ---
-  wire [1:0]  traced_wall;
+  wire [MAP_WALLBITS-1:0]  traced_wall;
   wire        traced_side;
   wire [10:0] traced_size;  // Calculated from traced_vdist, in this module.
   wire [5:0]  traced_texu;  // Texture 'u' coordinate value.
   wire `F     traced_texa;
   wire `F     traced_texVinit;
 `ifndef NO_EXTERNAL_TEXTURES
-  wire [1:0]  wall_hot;
+  wire [MAP_WALLBITS-1:0]  wall_hot;
   wire        side_hot;
   wire [5:0]  texu_hot;
 `endif // NO_EXTERNAL_TEXTURES
@@ -166,7 +169,9 @@ module rbzero(
 
   // At vdist of 1.0, a 64p texture is stretched to 512p, hence texv is 64/512 (>>3) of int(texV).
   //NOTE: Would it be possible to do primitive texture 'filtering' using 50/50 checker dither for texture sub-pixels?
-  row_render row_render(
+  row_render #(
+    .MAP_WALLBITS(MAP_WALLBITS)
+  ) row_render(
     // Inputs:
     .wall     (traced_wall),
     .side     (traced_side),
@@ -189,11 +194,11 @@ module rbzero(
   // This assumes that by the time the SPI sequence starts, the wall slice address
   // is already known, i.e. wall_tracer has determined traced_wall/side/texu,
   // and they're all stable for the remainder of the line...
-  wire [1:0] shifted_wall_id = wall_hot-1'd1;
+  wire [MAP_WALLBITS-1:0] shifted_wall_id = wall_hot-1'd1;
   // Address we'd start reading from if it wasn't for adding the texture addends:
-  wire [23:0] wall_slice_base_address = {9'd0, shifted_wall_id, side_hot, texu_hot, 6'd0};
+  wire [23:0] wall_slice_base_address = {{(11-MAP_WALLBITS){1'b0}}, shifted_wall_id, side_hot, texu_hot, 6'd0};
   // Actual start address we'll send to the SPI memory to start reading from (i.e. base address offset by texture addend):
-  wire [23:0] wall_slice_start_address = wall_slice_base_address + texadd[shifted_wall_id];
+  wire [23:0] wall_slice_start_address = wall_slice_base_address + texadd[shifted_wall_id[1:0]];
   // Wall slice BASE address pattern (i.e. without addend):
   // ------------------000000 (Covers 0..63 texels in the slice)
   // ------------UUUUUU------ texu (wall slice 0..63)
@@ -370,11 +375,13 @@ module rbzero(
   // --- Map ROM: ---
   wire [MAP_WBITS-1:0] tracer_map_col;
   wire [MAP_HBITS-1:0] tracer_map_row;
-  wire [1:0] tracer_map_val;
+  wire [MAP_WALLBITS-1:0] tracer_map_val;
   map_rom #(
+    .MAP_WALLBITS(MAP_WALLBITS),
     .MAP_WBITS(MAP_WBITS),
     .MAP_HBITS(MAP_HBITS)
   ) map_rom (
+    .map_mode(map_mode),
     .i_col(tracer_map_col),
     .i_row(tracer_map_row),
     .o_val(tracer_map_val)
@@ -388,11 +395,13 @@ module rbzero(
   //@@@ This must be eliminated because it's blatant waste.
   wire [MAP_WBITS-1:0] overlay_map_col;
   wire [MAP_HBITS-1:0] overlay_map_row;
-  wire [1:0] overlay_map_val;
+  wire [MAP_WALLBITS-1:0] overlay_map_val;
   map_rom #(
+    .MAP_WALLBITS(MAP_WALLBITS),
     .MAP_WBITS(MAP_WBITS),
     .MAP_HBITS(MAP_HBITS)
   ) map_rom_overlay(
+    .map_mode(map_mode),
     .i_col(overlay_map_col),
     .i_row(overlay_map_row),
     .o_val(overlay_map_val)
@@ -401,6 +410,7 @@ module rbzero(
   wire map_en;
   wire [5:0] map_rgb;
   map_overlay #(
+    .MAP_WALLBITS(MAP_WALLBITS),
     .MAP_SCALE(MAP_SCALE),
     .MAP_WBITS(MAP_WBITS),
     .MAP_HBITS(MAP_HBITS)
@@ -440,6 +450,7 @@ module rbzero(
 `endif//TRACE_STATE_DEBUG
 
   wall_tracer #(
+    .MAP_WALLBITS(MAP_WALLBITS),
     .MAP_WBITS(MAP_WBITS),
     .MAP_HBITS(MAP_HBITS),
     .HALF_SIZE(HALF_SIZE)
@@ -462,7 +473,7 @@ module rbzero(
     .otherx (otherx),   .othery (othery),
 `ifndef NO_DIV_WALLS
     .mapdx  (mapdx),    .mapdy  (mapdy),
-    .mapdxw (mapdxw),   .mapdyw (mapdyw),
+    .mapdxw ({1'b0,mapdxw}),   .mapdyw ({1'b0,mapdyw}),
 `endif // NO_DIV_WALLS
     // Map ROM access:
     .o_map_col(tracer_map_col),

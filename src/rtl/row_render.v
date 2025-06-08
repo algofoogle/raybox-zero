@@ -1,10 +1,26 @@
 `default_nettype none
 // `timescale 1ns / 1ps
 
+module rgb222_darken(
+  input ena,
+  input [5:0] rgb_in,
+  output [5:0] rgb_out
+);
+  wire [5:0] i = rgb_in;
+  assign rgb_out =
+    ena ? {
+            i[5:4]==0 ? 2'b0 : i[5:4]-2'b1,
+            i[3:2]==0 ? 2'b0 : i[3:2]-2'b1,
+            i[1:0]==0 ? 2'b0 : i[1:0]-2'b1
+          } :
+          rgb_in; // Darkening disabled.
+endmodule
+
 module row_render #(
+  parameter MAP_WALLBITS = 3,
   parameter H_VIEW = 640
 ) (
-  input wire  [1:0] wall, // Wall texture ID.
+  input wire  [MAP_WALLBITS-1:0] wall, // Wall texture ID.
   input wire        side, // Light or dark side? side==1 is light.
   input wire [10:0] size, // Supports 0..2047; remember this is mirrored, too.
   input wire  [9:0] hpos, // Current horizontal trace position.
@@ -19,6 +35,25 @@ module row_render #(
 );
   localparam HALF_SIZE = H_VIEW/2;
   //SMELL: Instead of combo logic, could use a register and check for enter/leave:
+
+  wire [5:0] checks = texu^texv;
+
+  wire panel_binary = ((texu ^ (texv >> 2)) & 15) < 7;
+
+  wire [5:0] x = texu;
+  wire [5:0] y = texv;
+
+  wire [5:0] pastel = checks[2] ? 6'b10_00_11 : 6'b11_00_10;
+  wire [5:0] wall4;
+  rgb222_darken wall4_tint(.ena(~side), .rgb_in(pastel), .rgb_out(wall4));
+
+  wire [5:0] rainbow = (texu+texv);
+  wire [5:0] wall6;
+  rgb222_darken wall6_tint(.ena(~side), .rgb_in(rainbow), .rgb_out(wall6));
+
+  wire [5:0] manhat = (((x - y) ^ (x + y)));
+  wire [5:0] wall7;
+  rgb222_darken wall7_tint(.ena(~side), .rgb_in(manhat), .rgb_out(wall7));
 
   wire [5:0] texvcomp = leakfix ? texvorg : texv;
   wire seam = (hpos < HALF_SIZE && texvorg == -6'd1) || (hpos >= HALF_SIZE && texvorg == 6'd0);
@@ -66,6 +101,19 @@ module row_render #(
                     6'b01_00_10 // Panel middle.
                   )
                 ): // Purple, with borders
+    // wall == 4 ? (side ? 6'b00_01_10 : 6'b00_00_01): // Brown.
+    // wall == 4 ? (side ? (texu+texv) : (texu+texv)&{6{checks[0]}}  ): // Brown.
+    wall == 4 ? wall4: //(side ? 6'b10_00_11 : 6'b01_00_10): // Fuchsia.
+    wall == 5 ? (side ? (panel_binary ? 6'b00_10_11 : 6'b00_01_10) : (panel_binary ? 6'b00_01_10 : 6'b00_00_01)) : // Orange.
+    wall == 6 ? wall6: // Rainbow stripes (Brown on map).
+    wall == 7 ? wall7: // Argyle (yellow-green on map).
+    // wall == 7 ? (side ? 6'b00_10_01 : 6'b00_01_00): // Yellow-green.
     /*wall==0?*/(side ? 6'b00_00_11 : 6'b00_00_10); // Red.
+    // wall == 5 ? (side ? 6'b00_10_11 : 6'b00_01_10): // Orange.
+    // wall == 5 ? (side ? (checkered ? 6'b00_10_11 : 6'b00_01_10) : (checkered ? 6'b00_01_10 : 6'b00_00_01)) : // Orange.
+    // wall == 6 ? (side ? 6'b10_00_11 : 6'b01_00_10): // Fuchsia.
+
+
+
 
 endmodule

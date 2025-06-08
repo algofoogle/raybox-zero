@@ -86,6 +86,26 @@ module spi_registers(
   // ALSO: Support different LEAK modes (fixed vs. floating).
   // Also, a sequence of 1111YYYY could mean YYYY defines additional extended commands.
 
+  // I think my original intent here was:
+  // 0000ssss/ss                      or  0000----/--ssssss:                    Sky
+  // 0001ffff/ff                      or  0001----/--ffffff:                    Floor
+  // 0010llll/ll                      or  0010----/--llllll:                    Leak
+  // 0011xxxx/xxyyyyyy                                                          'Other' wall cell X/Y -- "wall ID" is always 0
+  // 0100vvvv/vv                      or  0100----/--vvvvvv:                    Vshift
+  // 0101if                           or  0101--if                              VINF & LEAK_FIXED
+  // 0110xxxx/xxyyyyyy/uuvv           or  0110----/xxxxxxyy/yyyyuuvv:           MapDiv X, MapDiv Y, MDX wall ID, MDY wall ID
+  // 0111aaaa/aaaaaaaa/aaaaaaaa/aaaa  or  0111----/aaaaaaaa/aaaaaaaa/aaaaaaaa:  TEXADD0
+  // 1000aaaa/aaaaaaaa/aaaaaaaa/aaaa  or  1000----/aaaaaaaa/aaaaaaaa/aaaaaaaa:  TEXADD1
+  // 1001aaaa/aaaaaaaa/aaaaaaaa/aaaa  or  1001----/aaaaaaaa/aaaaaaaa/aaaaaaaa:  TEXADD2
+  // 1010aaaa/aaaaaaaa/aaaaaaaa/aaaa  or  1010----/aaaaaaaa/aaaaaaaa/aaaaaaaa:  TEXADD3
+  // 1011pppp+(70 more bits)          or  1011--pp+(72 more bits):              POV
+
+  // Extra registers we want:
+  // -  CMD_VOPTS can have 2 more control bits in it, if we want: [2]: TEXADDs are absolute, not added. [3]: ?
+  // -  4 more TEXADD registers, or possibly 12 more (!) if we want to set each side independently
+  //    (though this might be avoidable if we rearrange memory so the 'side' bit controls a whole bank rather than just a texture).
+  // -  MapRect: 24 bits for coords, 1 for erase-or-not, 1 for outline-or-not, 3 for wall ID.
+
 `ifdef USE_POV_VIA_SPI_REGS
   localparam SPI_BUFFER_SIZE = LEN_POV; //NOTE: Should be set to whatever the largest LEN_* value is above.
 `else // USE_POV_VIA_SPI_REGS
