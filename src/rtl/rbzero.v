@@ -99,7 +99,8 @@ module rbzero(
   wire [MAP_WALLBITS-1:0]  mapdyw        /* verilator public */;
 `endif // NO_DIV_WALLS
 `ifndef NO_EXTERNAL_TEXTURES
-  wire [23:0] texadd [0:3]  /* verilator public */;
+  //SMELL: Should use MAP_WALLBITS, but then so should a lot of other stuff:
+  wire [23:0] texadd [0:7]  /* verilator public */;
 `endif // NO_EXTERNAL_TEXTURES
   // --- Point-Of-View data, i.e. view vectors: ---
   wire `F playerX /* verilator public */;
@@ -111,7 +112,7 @@ module rbzero(
 
   assign o_vinf = vinf;
 
-  wire map_mode; //0=classic; 1=funky -- defaults to 0, can be set in spi_registers.
+  wire [2:0] map_mode; // 0=Classic map; 1=Tweaked map; 2=Funky map; 3=Interesting map. Set in spi_registers.
 
 `ifdef STANDBY_RESET
   wire no_standby = !reset;  // Regs standby mode driven by reset.
@@ -198,7 +199,7 @@ module rbzero(
   // Address we'd start reading from if it wasn't for adding the texture addends:
   wire [23:0] wall_slice_base_address = {{(11-MAP_WALLBITS){1'b0}}, shifted_wall_id, side_hot, texu_hot, 6'd0};
   // Actual start address we'll send to the SPI memory to start reading from (i.e. base address offset by texture addend):
-  wire [23:0] wall_slice_start_address = wall_slice_base_address + texadd[shifted_wall_id[1:0]];
+  wire [23:0] wall_slice_start_address = wall_slice_base_address + texadd[shifted_wall_id];
   // Wall slice BASE address pattern (i.e. without addend):
   // ------------------000000 (Covers 0..63 texels in the slice)
   // ------------UUUUUU------ texu (wall slice 0..63)
@@ -360,6 +361,10 @@ module rbzero(
     .texadd1  (texadd[1]),
     .texadd2  (texadd[2]),
     .texadd3  (texadd[3]),
+    .texadd4  (texadd[4]),
+    .texadd5  (texadd[5]),
+    .texadd6  (texadd[6]),
+    .texadd7  (texadd[7]),
 `endif // NO_EXTERNAL_TEXTURES
 
 `ifdef USE_POV_VIA_SPI_REGS

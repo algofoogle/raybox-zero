@@ -23,11 +23,11 @@ module spi_registers #(
   output reg  [5:0]   vshift,         // Texture V axis shift (texv addend).
   output reg          vinf,           // Infinite V/height setting.
   output              o_leakfixed,    // Is LEAK fixed to the ground (1), or floating (0)?
-  output reg          map_mode,       // 0=Classic map; 1=Funky map (wall IDs more random, and with holes)
+  output reg  [2:0]   map_mode,       // 0=Classic map; 1=Tweaked map; 2=Funky map; 3=Interesting map
 
 `ifndef NO_DIV_WALLS
-  output reg  [5:0]   mapdx, mapdy,   // Map 'dividing walls' on X and Y. 0=none
-  output reg  [MAP_WALLBITS-1:0]   mapdxw, mapdyw, // Map dividing wall, wall IDs (texture) for X and Y respectively
+  output reg [5:0]              mapdx, mapdy,   // Map 'dividing walls' on X and Y. 0=none
+  output reg [MAP_WALLBITS-1:0] mapdxw, mapdyw, // Map dividing wall, wall IDs (texture) for X and Y respectively
 `endif // NO_DIV_WALLS
 
 `ifndef NO_EXTERNAL_TEXTURES
@@ -35,6 +35,10 @@ module spi_registers #(
   output reg  [23:0]  texadd1,        // Texture address addend 1
   output reg  [23:0]  texadd2,        // Texture address addend 2
   output reg  [23:0]  texadd3,        // Texture address addend 3
+  output reg  [23:0]  texadd4,        // Texture address addend 4
+  output reg  [23:0]  texadd5,        // Texture address addend 5
+  output reg  [23:0]  texadd6,        // Texture address addend 6
+  output reg  [23:0]  texadd7,        // Texture address addend 7
 `endif // NO_EXTERNAL_TEXTURES
 
 `ifdef USE_POV_VIA_SPI_REGS
@@ -47,65 +51,52 @@ module spi_registers #(
   input               load_new        // Will go high at the moment that buffered data can go live.
 );
 
+  localparam SPI_CMD_BITS = 8; // SPI command is 1 byte wide.
+  localparam DEFAULT_MAP_MODE = 3'd1; // Start off with 'Tweaked' map.
+
 `ifdef USE_POV_VIA_SPI_REGS
   wire manual_pov_inc_needed  = i_inc_px | i_inc_py;        // Manual playerX/Y increment in effect (i.e. demo mode)?
 `endif // USE_POV_VIA_SPI_REGS
 
 // ===== COMMAND/REGISTER PARAMETERS AND SIZING =====
 
-  localparam CMD_SKY    = 0;  localparam LEN_SKY    =  6; // Set sky colour (6b data)
-  localparam CMD_FLOOR  = 1;  localparam LEN_FLOOR  =  6; // Set floor colour (6b data)
-  localparam CMD_LEAK   = 2;  localparam LEN_LEAK   =  6; // Set floor 'leak' (in texels; 6b data)
-  localparam CMD_OTHER  = 3;  localparam LEN_OTHER  = 12; // Set 'other wall cell' position: X and Y, both 6b each, for a total of 12b.
-  localparam CMD_VSHIFT = 4;  localparam LEN_VSHIFT =  6; // Set texture V axis shift (texv addend). //SMELL: Make this more bits for finer grain.
+  localparam CMD_SKY    = 8'b00000000;  localparam LEN_SKY    =  6; // 0: Set sky colour (6b data)
+  localparam CMD_FLOOR  = 8'b00000001;  localparam LEN_FLOOR  =  6; // 1: Set floor colour (6b data)
+  localparam CMD_LEAK   = 8'b00000010;  localparam LEN_LEAK   =  6; // 2: Set floor 'leak' (in texels; 6b data)
+  localparam CMD_OTHER  = 8'b00000011;  localparam LEN_OTHER  = 12; // 3: Set 'other wall cell' position: X and Y, both 6b each, for a total of 12b.
+  localparam CMD_VSHIFT = 8'b00000100;  localparam LEN_VSHIFT =  6; // 4: Set texture V axis shift (texv addend). //SMELL: Make this more bits for finer grain.
 
 `ifdef USE_LEAK_FIXED
-  localparam CMD_VOPTS  = 5;  localparam LEN_VOPTS  =  3; // Bits [2:0] = {VINF,LEAK_FIXED,MAPMODE}
+  localparam CMD_VOPTS  = 8'b00000101;  localparam LEN_VOPTS  =  5; // 5: Bits [4:0] = {VINF,LEAK_FIXED,MAPMODE[2:0]}
 `else // USE_LEAK_FIXED
-  localparam CMD_VINF   = 5;  localparam LEN_VINF   =  1; // Set infinite V mode (infinite height/size).
+  localparam CMD_VINF   = 8'b00000101;  localparam LEN_VINF   =  1; // 5: Set infinite V mode (infinite height/size).
 `endif // USE_LEAK_FIXED
 
 `ifndef NO_DIV_WALLS
-  localparam CMD_MAPD   = 6;  localparam LEN_MAPD   = 18; // Set mapdx,mapdy, mapdxw,mapdyw.
+  localparam CMD_MAPD   = 8'b00000110;  localparam LEN_MAPD   = 18; // 6: Set mapdx,mapdy (6b/ea), mapdxw,mapdyw (3b/ea)
 `endif // NO_DIV_WALLS
+  /////////////////////// 8'b00000111 (7) -- reserved.
 
 `ifndef NO_EXTERNAL_TEXTURES
-  localparam CMD_TEXADD0= 7;  localparam LEN_TEXADD0= 24;
-  localparam CMD_TEXADD1= 8;  localparam LEN_TEXADD1= 24;
-  localparam CMD_TEXADD2= 9;  localparam LEN_TEXADD2= 24;
-  localparam CMD_TEXADD3=10;  localparam LEN_TEXADD3= 24;
+  localparam CMD_TEXADD0= 8'b00100000;  localparam LEN_TEXADD0= 24; // 32
+  localparam CMD_TEXADD1= 8'b00100001;  localparam LEN_TEXADD1= 24; // 33
+  localparam CMD_TEXADD2= 8'b00100010;  localparam LEN_TEXADD2= 24; // 34
+  localparam CMD_TEXADD3= 8'b00100011;  localparam LEN_TEXADD3= 24; // 35
+  localparam CMD_TEXADD4= 8'b00100100;  localparam LEN_TEXADD4= 24; // 36
+  localparam CMD_TEXADD5= 8'b00100101;  localparam LEN_TEXADD5= 24; // 37
+  localparam CMD_TEXADD6= 8'b00100110;  localparam LEN_TEXADD6= 24; // 38
+  localparam CMD_TEXADD7= 8'b00100111;  localparam LEN_TEXADD7= 24; // 39
 `endif
-`ifdef USE_POV_VIA_SPI_REGS
-  localparam CMD_POV    =11;  localparam LEN_POV    = (15*2)+(11*2)+(11*2); // player(X,Y), facing(X,Y), vplane(X,Y): 74 bits
-`endif // USE_POV_VIA_SPI_REGS
-  //NOTE: Reserve CMD 12 and above for 'extended' commands, i.e. upper 2 bits high means:
-  // 11ccccXX:  cccc = command, XX is 2 more bits for payload (helps POV fit in 9 bytes).
-  // i.e. cccc==1011 (POV) can be the better packing.
-  // This also enables additional commands:
-  // - 1100
-  // - 1101
-  // - 1110
-  // - 1111: Maybe can mean All commands 0..6 (53 bits)?
-  // ALSO: Support different LEAK modes (fixed vs. floating).
-  // Also, a sequence of 1111YYYY could mean YYYY defines additional extended commands.
+  /////////////////////// 8'b001xxxxx (32..63) -- reserved for TEXADD and related registers.
 
-  // I think my original intent here was:
-  // 0000ssss/ss                      or  0000----/--ssssss:                    Sky
-  // 0001ffff/ff                      or  0001----/--ffffff:                    Floor
-  // 0010llll/ll                      or  0010----/--llllll:                    Leak
-  // 0011xxxx/xxyyyyyy                                                          'Other' wall cell X/Y -- "wall ID" is always 0
-  // 0100vvvv/vv                      or  0100----/--vvvvvv:                    Vshift
-  // 0101if                           or  0101--if                              VINF & LEAK_FIXED
-  // 0110xxxx/xxyyyyyy/uuvv           or  0110----/xxxxxxyy/yyyyuuvv:           MapDiv X, MapDiv Y, MDX wall ID, MDY wall ID
-  // 0111aaaa/aaaaaaaa/aaaaaaaa/aaaa  or  0111----/aaaaaaaa/aaaaaaaa/aaaaaaaa:  TEXADD0
-  // 1000aaaa/aaaaaaaa/aaaaaaaa/aaaa  or  1000----/aaaaaaaa/aaaaaaaa/aaaaaaaa:  TEXADD1
-  // 1001aaaa/aaaaaaaa/aaaaaaaa/aaaa  or  1001----/aaaaaaaa/aaaaaaaa/aaaaaaaa:  TEXADD2
-  // 1010aaaa/aaaaaaaa/aaaaaaaa/aaaa  or  1010----/aaaaaaaa/aaaaaaaa/aaaaaaaa:  TEXADD3
-  // 1011pppp+(70 more bits)          or  1011--pp+(72 more bits):              POV
+`ifdef USE_POV_VIA_SPI_REGS
+  // player(X,Y), facing(X,Y), vplane(X,Y): 74 bits
+  localparam CMD_POV    = 8'b01111111;  localparam LEN_POV = (15*2)+(11*2)+(11*2); // 127
+`endif // USE_POV_VIA_SPI_REGS
 
   // Extra registers we want:
   // -  CMD_VOPTS can have 2 more control bits in it, if we want: [2]: TEXADDs are absolute, not added. [3]: ?
-  // -  4 more TEXADD registers, or possibly 12 more (!) if we want to set each side independently
+  // -  Double TEXADD regs if we want to set each side independently
   //    (though this might be avoidable if we rearrange memory so the 'side' bit controls a whole bank rather than just a texture).
   // -  MapRect: 24 bits for coords, 1 for erase-or-not, 1 for outline-or-not, 3 for wall ID.
 
@@ -113,14 +104,12 @@ module spi_registers #(
   localparam SPI_BUFFER_SIZE = LEN_POV; //NOTE: Should be set to whatever the largest LEN_* value is above.
 `else // USE_POV_VIA_SPI_REGS
   `ifdef NO_EXTERNAL_TEXTURES
-    localparam SPI_BUFFER_SIZE = 16; //NOTE: Should be set to whatever the largest LEN_* value is above.
+    localparam SPI_BUFFER_SIZE = 18; //NOTE: Should be set to whatever the largest LEN_* value is above.
   `else // NO_EXTERNAL_TEXTURES
     localparam SPI_BUFFER_SIZE = 24; //NOTE: Should be set to whatever the largest LEN_* value is above.
   `endif
 `endif // USE_POV_VIA_SPI_REGS
   localparam SPI_BUFFER_LIMIT = SPI_BUFFER_SIZE-1;
-
-  localparam SPI_CMD_BITS = 4;
 
 // ===== GOOD STARTING PARAMETERS FOR RESET =====
 
@@ -196,7 +185,7 @@ module spi_registers #(
   reg [5:0]   buf_othery;
   reg [5:0]   buf_vshift;
   reg         buf_vinf;
-  reg         buf_mapmode;
+  reg [2:0]   buf_mapmode;
 
 `ifdef USE_LEAK_FIXED
   reg         buf_leakfixed;
@@ -214,6 +203,10 @@ module spi_registers #(
   reg [23:0]  buf_texadd1;
   reg [23:0]  buf_texadd2;
   reg [23:0]  buf_texadd3;
+  reg [23:0]  buf_texadd4;
+  reg [23:0]  buf_texadd5;
+  reg [23:0]  buf_texadd6;
+  reg [23:0]  buf_texadd7;
 `endif // NO_EXTERNAL_TEXTURES
 `ifdef USE_POV_VIA_SPI_REGS
   // POV registers:
@@ -276,6 +269,10 @@ module spi_registers #(
         (spi_cmd == CMD_TEXADD1 ) ?   LEN_TEXADD1:
         (spi_cmd == CMD_TEXADD2 ) ?   LEN_TEXADD2:
         (spi_cmd == CMD_TEXADD3 ) ?   LEN_TEXADD3:
+        (spi_cmd == CMD_TEXADD4 ) ?   LEN_TEXADD4:
+        (spi_cmd == CMD_TEXADD5 ) ?   LEN_TEXADD5:
+        (spi_cmd == CMD_TEXADD6 ) ?   LEN_TEXADD6:
+        (spi_cmd == CMD_TEXADD7 ) ?   LEN_TEXADD7:
 `endif // NO_EXTERNAL_TEXTURES
 
 `ifdef USE_POV_VIA_SPI_REGS
@@ -301,11 +298,13 @@ module spi_registers #(
       spi_counter <= 0;
     else if (!ss_active)
       spi_counter <= 0;
-    else if (sclk_rise && spi_counter < SPI_CMD_BITS)
+    else if (sclk_rise && spi_counter < SPI_CMD_BITS) // Protects against overflows??
       spi_counter <= spi_counter + 1'd1;
     else if (sclk_rise && !spi_frame_end)
       spi_counter <= spi_counter + 1'd1;
     // Stall SPI counter at expected end of frame.
+    //NOTE: Whether intentional or not, though spi_counter stalls,
+    // data continues to shift in during "Load spi_buffer data".
 
     // Load spi_cmd data:
     if (reset)
@@ -345,7 +344,7 @@ module spi_registers #(
       othery    <= 6'd0;
       vshift    <= 6'd0;
       vinf      <= 1'b0;
-      map_mode  <= 1'b0;
+      map_mode  <= DEFAULT_MAP_MODE;
 `ifdef USE_LEAK_FIXED
       leakfixed <= 1'b0;
 `endif // USE_LEAK_FIXED
@@ -360,6 +359,10 @@ module spi_registers #(
       texadd1   <= 24'd0;
       texadd2   <= 24'd0;
       texadd3   <= 24'd0;
+      texadd4   <= 24'd0;
+      texadd5   <= 24'd0;
+      texadd6   <= 24'd0;
+      texadd7   <= 24'd0;
 `endif // NO_EXTERNAL_TEXTURES
 `ifdef USE_POV_VIA_SPI_REGS
       playerRX  <= playerInitX;      playerRY  <= playerInitY;
@@ -392,6 +395,10 @@ module spi_registers #(
       texadd1   <= buf_texadd1;
       texadd2   <= buf_texadd2;
       texadd3   <= buf_texadd3;
+      texadd4   <= buf_texadd4;
+      texadd5   <= buf_texadd5;
+      texadd6   <= buf_texadd6;
+      texadd7   <= buf_texadd7;
 `endif // NO_EXTERNAL_TEXTURES
 `ifdef USE_POV_VIA_SPI_REGS
       // POV registers:
@@ -417,7 +424,7 @@ module spi_registers #(
       buf_othery    <= 6'd0;
       buf_vshift    <= 6'd0;
       buf_vinf      <= 1'b0;
-      buf_mapmode   <= 1'b0;
+      buf_mapmode   <= DEFAULT_MAP_MODE;
 `ifdef USE_LEAK_FIXED
       buf_leakfixed <= 1'b0;
 `endif // USE_LEAK_FIXED
@@ -432,6 +439,10 @@ module spi_registers #(
       buf_texadd1   <= 24'd0;
       buf_texadd2   <= 24'd0;
       buf_texadd3   <= 24'd0;
+      buf_texadd4   <= 24'd0;
+      buf_texadd5   <= 24'd0;
+      buf_texadd6   <= 24'd0;
+      buf_texadd7   <= 24'd0;
 `endif // NO_EXTERNAL_TEXTURES
 `ifdef USE_POV_VIA_SPI_REGS
       buf_playerRX  <= playerInitX;   buf_playerRY  <= playerInitY;
@@ -450,7 +461,7 @@ module spi_registers #(
 `ifdef USE_LEAK_FIXED
       if (spi_cmd == CMD_VOPTS  ){buf_vinf,
                                   buf_leakfixed,
-                                  buf_mapmode}  <= spi_buffer[2:0];
+                                  buf_mapmode}  <= spi_buffer[4:0];
 `else // USE_LEAK_FIXED      
       if (spi_cmd == CMD_VINF   ) buf_vinf      <= spi_buffer[0];
 `endif // USE_LEAK_FIXED
@@ -465,6 +476,10 @@ module spi_registers #(
       if (spi_cmd == CMD_TEXADD1) buf_texadd1   <= spi_buffer[23:0];
       if (spi_cmd == CMD_TEXADD2) buf_texadd2   <= spi_buffer[23:0];
       if (spi_cmd == CMD_TEXADD3) buf_texadd3   <= spi_buffer[23:0];
+      if (spi_cmd == CMD_TEXADD4) buf_texadd4   <= spi_buffer[23:0];
+      if (spi_cmd == CMD_TEXADD5) buf_texadd5   <= spi_buffer[23:0];
+      if (spi_cmd == CMD_TEXADD6) buf_texadd6   <= spi_buffer[23:0];
+      if (spi_cmd == CMD_TEXADD7) buf_texadd7   <= spi_buffer[23:0];
 `endif // NO_EXTERNAL_TEXTURES
 
 `ifdef USE_POV_VIA_SPI_REGS

@@ -166,7 +166,7 @@ bool          gAnimateRegisters = false; // If true, do funky stuff with sky/flo
 bool          gGenTex = false; // If true, select generated textures instead of texture memory.
 bool          gInfiniteHeight = false;
 bool          gLeakFixed = false;
-int           gMapMode = 0; // Can only be 0 or 1. 0=Classic; 1=Funky.
+int           gMapMode = 0; // 3b: 0..7
 int           gLeak = 0;
 int           gMouseX, gMouseY;
 int           gColorSky = 0;
@@ -422,9 +422,9 @@ void process_sdl_events() {
               gLeakFixed = !gLeakFixed;
               printf("LEAK mode is %s\n", gLeakFixed ? "FIXED" : "FLOATING");
             } else if (KMOD_CTRL & e.key.keysym.mod) {
-              // Ctrl-backslash: Toggle map mode.
-              gMapMode = gMapMode ^ 1;
-              printf("Map mode is %i (%s)\n", gMapMode, gMapMode ? "funky" : "classic");
+              // Ctrl-backslash: Cycle through map mode.
+              gMapMode = (gMapMode + 1) & 0b111;
+              printf("Map mode is %i\n", gMapMode);
             } else 
           #endif // USE_LEAK_FIXED
             {
@@ -909,14 +909,17 @@ enum {
   CMD_VSHIFT  = 4,
   CMD_VINF    = 5, CMD_VOPTS = 5, // Same command, but depends on USE_LEAK_FIXED.
   CMD_MAPD    = 6,
-  CMD_TEXADD0 = 7,
-  CMD_TEXADD1 = 8,
-  CMD_TEXADD2 = 9,
-  CMD_TEXADD3 = 10,
+  CMD_TEXADD0 = 32,
+  CMD_TEXADD1 = 33,
+  CMD_TEXADD2 = 34,
+  CMD_TEXADD3 = 35,
+  CMD_TEXADD4 = 36,
+  CMD_TEXADD5 = 37,
+  CMD_TEXADD6 = 38,
+  CMD_TEXADD7 = 39,
 #ifdef USE_POV_VIA_SPI_REGS
-  CMD_POV     = 11,
+  CMD_POV     = 127,
 #endif // USE_POV_VIA_SPI_REGS
-  CMD__MAX,
 };
 
 
@@ -940,10 +943,32 @@ int update_spi_registers_state() {
   static vector<bool> bits;
   static bool frame_end = true;
 
-  const int first_register = CMD_SKY;
-  const int last_register = CMD__MAX-1;
+  const int SPI_CMD_LEN = 8;
 
-  static int register_counter = first_register;
+  static const int register_set[] = {
+    CMD_SKY,
+    CMD_FLOOR,
+    CMD_LEAK,
+    CMD_OTHER,
+    CMD_VSHIFT,
+    CMD_VINF,
+    CMD_MAPD,
+    CMD_TEXADD0,
+    CMD_TEXADD1,
+    CMD_TEXADD2,
+    CMD_TEXADD3,
+    CMD_TEXADD4,
+    CMD_TEXADD5,
+    CMD_TEXADD6,
+    CMD_TEXADD7,
+    CMD_POV,
+    -1
+  };
+
+  // const int first_register = CMD_SKY;
+  // const int last_register = CMD__MAX-1;
+
+  static int register_counter = 0;
 
   //NOTE: States:
   // 0 = SS and SCLK deasserted.
@@ -968,8 +993,9 @@ int update_spi_registers_state() {
       {
         bits.clear();
         // Which register are we going to write to now?
-        push_bits_onto_stack(bits, register_counter, 4);
-        switch (register_counter) {
+        int reg_num = register_set[register_counter];
+        push_bits_onto_stack(bits, reg_num, SPI_CMD_LEN);
+        switch (reg_num) {
           case CMD_SKY:
             push_bits_onto_stack(bits, gColorSky, 6);
             break;
@@ -989,7 +1015,7 @@ int update_spi_registers_state() {
           case CMD_VOPTS:
             push_bits_onto_stack(bits, gInfiniteHeight, 1);
             push_bits_onto_stack(bits, gLeakFixed, 1);
-            push_bits_onto_stack(bits, gMapMode, 1);
+            push_bits_onto_stack(bits, gMapMode, 3);
             break;
 #else // USE_LEAK_FIXED
           case CMD_VINF:
@@ -1006,7 +1032,11 @@ int update_spi_registers_state() {
           case CMD_TEXADD1:
           case CMD_TEXADD2:
           case CMD_TEXADD3:
-            // NOT IMPLEMENTED yet.
+          case CMD_TEXADD4:
+          case CMD_TEXADD5:
+          case CMD_TEXADD6:
+          case CMD_TEXADD7:
+            // NOT IMPLEMENTED yet. Not much point until SPI ROM simulation works.
             break;
 #ifdef USE_POV_VIA_SPI_REGS
           case CMD_POV:
@@ -1054,14 +1084,13 @@ int update_spi_registers_state() {
           frame_end = true;
 
           // Select the next register for our next loop:
-
-          if (register_counter++ >= last_register) {
+          register_counter++;
+          if (register_set[register_counter] == -1) {
             // Go back to start.
-            register_counter = first_register;
+            register_counter = 0;
             // Set spi_next_countdown to a big number to inject a pause:
             spi_next_countdown = 1000 + (rand() % 1000);
           }
-
         }
         break;
       }

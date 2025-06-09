@@ -6,7 +6,7 @@ module map_rom #(
   parameter MAP_WBITS   = 4,
   parameter MAP_HBITS   = 4
 ) (
-  input map_mode, // 0=classic, 1=funky
+  input [2:0] map_mode, // 0=Classic map; 1=Tweaked map; 2=Funky map; 3=Interesting map
   input [MAP_WBITS-1:0] i_col,
   input [MAP_HBITS-1:0] i_row,
   output [MAP_WALLBITS-1:0] o_val
@@ -43,7 +43,7 @@ module map_rom #(
 
   assign o_val =
     ({bit1,bit0} == 0)              ? 0 :
-    map_mode                        ? ss[2:0]: // Funky mode.
+    map_mode == 2                   ? ss[2:0]: // Funky mode.
     // Classic mode:
     (ss[1:0] == 0 && i_col[0] == 0) ? {1'b1, bit1, bit0}:
     (i_row[4:3] != ~i_col[4:3])      ? {1'b0, bit1, bit0}:
