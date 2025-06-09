@@ -428,7 +428,7 @@ class Actor:
         self.y = y
         self.color = (255,0,255) if color is None else color
         self.size = 1.0 if size is None else size # Size in map units. Size of 1.0 means actor occupies exactly one 64x64 map cell.
-        self.walk_rate = 30.0
+        self.walk_rate = 20.0 #30.0
         self.run_scaler = 5.0/3.0
         self.crawl_scaler = 1.0/6.0
     
@@ -527,7 +527,7 @@ class Player(Actor):
     # Recalculate vectors by applying user inputs, scaled by time since last update:
     def recalc_vectors(self, dir_keys, delta_time, mouse, shift_key, alt_key, clip_map: RBZMap = None):
         flipper = -1 if FLIPPED else 1
-        mouse_rotate_speed = -0.002 # Mouse angular motion coefficient.
+        mouse_rotate_speed = -0.001 #-0.002 # Mouse angular motion coefficient.
         move_quantum = 2.0**-9.0 # Smallest unit movement in fixed-point (Q#.9) format.
         rate = self.walk_rate
         if shift_key: rate *= self.run_scaler
@@ -895,6 +895,28 @@ while running:
                     # CTRL+ESC, so activate inc_px/py when we exit.
                     raybox.enable_player_auto_increment(inc_px=True, inc_py=True)
                 running = False
+            elif event.key == pygame.K_LEFTBRACKET:
+                game_map.texadd1 = 64*64*2*0
+                game_map.texadd2 = 64*64*2*0
+                game_map.texadd3 = 64*64*2*0
+                game_map.texadd0 = 64*64*2*0
+                if FLIPPED:
+                    game_map.sky_color      = RBZMap.FLASH_STEPS[9][0] # 0b10_10_10
+                    game_map.floor_color    = RBZMap.FLASH_STEPS[7][0] # 0b01_01_01
+                else:
+                    game_map.sky_color      = RBZMap.FLASH_STEPS[7][0] # 0b01_01_01
+                    game_map.floor_color    = RBZMap.FLASH_STEPS[9][0] # 0b10_10_10
+            elif event.key == pygame.K_RIGHTBRACKET:
+                game_map.texadd1 = 64*64*2*(29+32)
+                game_map.texadd2 = 64*64*2*(29+32)
+                game_map.texadd3 = 64*64*2*(29+32)
+                game_map.texadd0 = 64*64*2*(29+32)
+                if FLIPPED:
+                    game_map.sky_color      = 0b00_01_10
+                    game_map.floor_color    = 0b11_11_10
+                else:
+                    game_map.sky_color      = 0b11_11_10
+                    game_map.floor_color    = 0b00_01_10
             elif event.key == pygame.K_c:
                 NO_CLIP = not NO_CLIP
                 print(f"Clipping: {"Disabled" if NO_CLIP else "Enabled"}")

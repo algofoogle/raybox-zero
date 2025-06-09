@@ -909,6 +909,7 @@ enum {
   CMD_VSHIFT  = 4,
   CMD_VINF    = 5, CMD_VOPTS = 5, // Same command, but depends on USE_LEAK_FIXED.
   CMD_MAPD    = 6,
+  CMD_MAPR    = 7,
   CMD_TEXADD0 = 32,
   CMD_TEXADD1 = 33,
   CMD_TEXADD2 = 34,
@@ -953,6 +954,7 @@ int update_spi_registers_state() {
     CMD_VSHIFT,
     CMD_VINF,
     CMD_MAPD,
+    CMD_MAPR,
     CMD_TEXADD0,
     CMD_TEXADD1,
     CMD_TEXADD2,
@@ -1027,6 +1029,14 @@ int update_spi_registers_state() {
             push_bits_onto_stack(bits, gMapDY, 6);
             push_bits_onto_stack(bits, gMapDXW, 3);
             push_bits_onto_stack(bits, gMapDYW, 3);
+            break;
+          case CMD_MAPR:
+            push_bits_onto_stack(bits, 6,   6); // mapr_ax
+            push_bits_onto_stack(bits, 8,   6); // mapr_ay
+            push_bits_onto_stack(bits, 6+6, 6); // mapr_bx
+            push_bits_onto_stack(bits, 8+10,6); // mapr_by
+            push_bits_onto_stack(bits, 0,   1); // mapr_erase
+            push_bits_onto_stack(bits, 6,   3); // mapr_wall
             break;
           case CMD_TEXADD0:
           case CMD_TEXADD1:

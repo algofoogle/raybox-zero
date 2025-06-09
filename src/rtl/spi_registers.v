@@ -41,6 +41,15 @@ module spi_registers #(
   output reg  [23:0]  texadd7,        // Texture address addend 7
 `endif // NO_EXTERNAL_TEXTURES
 
+`ifdef USE_MAP_RECT
+  output reg  [5:0]   mapr_ax,
+  output reg  [5:0]   mapr_ay,
+  output reg  [5:0]   mapr_bx,
+  output reg  [5:0]   mapr_by,
+  output reg          mapr_erase,
+  output reg  [2:0]   mapr_wall,
+`endif // USE_MAP_RECT
+
 `ifdef USE_POV_VIA_SPI_REGS
   input               i_inc_px, i_inc_py, // Demo overrides for playerX/Y inc. If either is asserted, SPI POV loads are masked out and 'ready' is cleared.
   output `F           playerX, playerY,
@@ -75,7 +84,10 @@ module spi_registers #(
 `ifndef NO_DIV_WALLS
   localparam CMD_MAPD   = 8'b00000110;  localparam LEN_MAPD   = 18; // 6: Set mapdx,mapdy (6b/ea), mapdxw,mapdyw (3b/ea)
 `endif // NO_DIV_WALLS
-  /////////////////////// 8'b00000111 (7) -- reserved.
+
+`ifdef USE_MAP_RECT
+  localparam CMD_MAPR   = 8'b00000111;  localparam LEN_MAPR   = 28; // 7: {ax[5:0],ay[5:0], bx[5:0],by[5:0], erase[0], wallID[2:0]}
+`endif // USE_MAP_RECT
 
 `ifndef NO_EXTERNAL_TEXTURES
   localparam CMD_TEXADD0= 8'b00100000;  localparam LEN_TEXADD0= 24; // 32
@@ -102,6 +114,8 @@ module spi_registers #(
 
 `ifdef USE_POV_VIA_SPI_REGS
   localparam SPI_BUFFER_SIZE = LEN_POV; //NOTE: Should be set to whatever the largest LEN_* value is above.
+`elsif USE_MAP_RECT
+  localparam SPI_BUFFER_SIZE = 28; // (LEN_MAPR)
 `else // USE_POV_VIA_SPI_REGS
   `ifdef NO_EXTERNAL_TEXTURES
     localparam SPI_BUFFER_SIZE = 18; //NOTE: Should be set to whatever the largest LEN_* value is above.
@@ -215,6 +229,16 @@ module spi_registers #(
   reg [10:0]  buf_facingRX, buf_facingRY;
   reg [10:0]  buf_vplaneRX, buf_vplaneRY;
 `endif // USE_POV_VIA_SPI_REGS
+
+`ifdef USE_MAP_RECT
+  reg [5:0]   buf_mapr_ax;
+  reg [5:0]   buf_mapr_ay;
+  reg [5:0]   buf_mapr_bx;
+  reg [5:0]   buf_mapr_by;
+  reg         buf_mapr_erase;
+  reg [2:0]   buf_mapr_wall;
+`endif // USE_MAP_RECT
+
   //SMELL: If we don't want to waste space with all these extra registers,
   // could we just transfer one 'waiting' value into a SINGLE selected register?
   // Only problem with doing so is that we can then only update 1 per frame
@@ -278,6 +302,10 @@ module spi_registers #(
 `ifdef USE_POV_VIA_SPI_REGS
         (spi_cmd == CMD_POV     ) ?   LEN_POV:
 `endif // USE_POV_VIA_SPI_REGS
+
+`ifdef USE_MAP_RECT
+        (spi_cmd == CMD_MAPR    ) ?   LEN_MAPR:
+`endif // USE_MAP_RECT
 
 `ifdef USE_LEAK_FIXED
       /*(spi_cmd == CMD_VOPTS   ) ?*/ LEN_VOPTS
@@ -369,6 +397,14 @@ module spi_registers #(
       facingRX  <= facingInitX;      facingRY  <= facingInitY;
       vplaneRX  <= vplaneInitX;      vplaneRY  <= vplaneInitY;
 `endif
+`ifdef USE_MAP_RECT
+      mapr_ax   <= 6'd0;
+      mapr_ay   <= 6'd0;
+      mapr_bx   <= 6'd0;
+      mapr_by   <= 6'd0;
+      mapr_erase<= 1'b0;
+      mapr_wall <= 3'd0;
+`endif // USE_MAP_RECT
 
     end else if (load_new) begin
 
@@ -411,6 +447,14 @@ module spi_registers #(
         if (i_inc_py) buf_playerRY <= buf_playerRY - 15'b1;
       end
 `endif // USE_POV_VIA_SPI_REGS
+`ifdef USE_MAP_RECT
+      mapr_ax   <= buf_mapr_ax;
+      mapr_ay   <= buf_mapr_ay;
+      mapr_bx   <= buf_mapr_bx;
+      mapr_by   <= buf_mapr_by;
+      mapr_erase<= buf_mapr_erase;
+      mapr_wall <= buf_mapr_wall;
+`endif // USE_MAP_RECT
 
     end
 
@@ -449,6 +493,14 @@ module spi_registers #(
       buf_facingRX  <= facingInitX;   buf_facingRY  <= facingInitY;
       buf_vplaneRX  <= vplaneInitX;   buf_vplaneRY  <= vplaneInitY;
 `endif // USE_POV_VIA_SPI_REGS
+`ifdef USE_MAP_RECT
+      buf_mapr_ax   <= 6'd0;
+      buf_mapr_ay   <= 6'd0;
+      buf_mapr_bx   <= 6'd0;
+      buf_mapr_by   <= 6'd0;
+      buf_mapr_erase<= 1'b0;
+      buf_mapr_wall <= 3'd0;
+`endif // USE_MAP_RECT
 
     end else if (spi_done) begin
 
@@ -490,6 +542,13 @@ module spi_registers #(
                                   buf_vplaneRX, buf_vplaneRY}
                                                 <= spi_buffer[LEN_POV-1:0];
 `endif // USE_POV_VIA_SPI_REGS
+
+`ifdef USE_MAP_RECT
+      if (spi_cmd == CMD_MAPR   ){buf_mapr_ax,  buf_mapr_ay,
+                                  buf_mapr_bx,  buf_mapr_by,
+                                  buf_mapr_erase, buf_mapr_wall}
+                                                <= spi_buffer[LEN_MAPR-1:0];
+`endif // USE_MAP_RECT
 
     end
 

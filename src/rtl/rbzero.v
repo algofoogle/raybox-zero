@@ -331,6 +331,15 @@ module rbzero(
   );
 `endif // USE_POV_VIA_SPI_REGS
 
+`ifdef USE_MAP_RECT
+  wire [5:0]   mapr_ax;
+  wire [5:0]   mapr_ay;
+  wire [5:0]   mapr_bx;
+  wire [5:0]   mapr_by;
+  wire         mapr_erase;
+  wire [2:0]   mapr_wall;
+`endif // USE_MAP_RECT
+
   spi_registers spi_registers(
     .clk      (clk),
     .reset    (reset),
@@ -375,6 +384,15 @@ module rbzero(
     .vplaneX(vplaneX), .vplaneY(vplaneY),
 `endif // USE_POV_VIA_SPI_REGS
 
+`ifdef USE_MAP_RECT
+    .mapr_ax    (mapr_ax),
+    .mapr_ay    (mapr_ay),
+    .mapr_bx    (mapr_bx),
+    .mapr_by    (mapr_by),
+    .mapr_erase (mapr_erase),
+    .mapr_wall  (mapr_wall),
+`endif // USE_MAP_RECT
+
     .load_new (visible_frame_end)
   );
 
@@ -387,6 +405,16 @@ module rbzero(
     .MAP_WBITS(MAP_WBITS),
     .MAP_HBITS(MAP_HBITS)
   ) map_rom (
+
+`ifdef USE_MAP_RECT
+    .mapr_ax    (mapr_ax),
+    .mapr_ay    (mapr_ay),
+    .mapr_bx    (mapr_bx),
+    .mapr_by    (mapr_by),
+    .mapr_erase (mapr_erase),
+    .mapr_wall  (mapr_wall),
+`endif // USE_MAP_RECT
+
     .map_mode(map_mode),
     .i_col(tracer_map_col),
     .i_row(tracer_map_row),
@@ -407,6 +435,15 @@ module rbzero(
     .MAP_WBITS(MAP_WBITS),
     .MAP_HBITS(MAP_HBITS)
   ) map_rom_overlay(
+`ifdef USE_MAP_RECT
+    .mapr_ax    (mapr_ax),
+    .mapr_ay    (mapr_ay),
+    .mapr_bx    (mapr_bx),
+    .mapr_by    (mapr_by),
+    .mapr_erase (mapr_erase),
+    .mapr_wall  (mapr_wall),
+`endif // USE_MAP_RECT
+
     .map_mode(map_mode),
     .i_col(overlay_map_col),
     .i_row(overlay_map_row),
