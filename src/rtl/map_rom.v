@@ -33,9 +33,12 @@ module map_rom #(
     .wall (interesting_wall)
   );
 
-  wire bit0 = 
+  wire border_hit =
     i_col == 0 || i_col == MAX_COL || // Left and right borders.
-    i_row == 0 || i_row == MAX_ROW || // Top and bottom borders.
+    i_row == 0 || i_row == MAX_ROW;   // Top and bottom borders.
+
+  wire bit0 =
+    border_hit ||
       ((~i_row[2:0]==i_col[2:0]) & ~i_row[3] & ~i_col[3]) || // Diagonal in top-left corner of map.
       (((
         (i_row[1] ^ i_col[2]) ^ (i_row[0] & i_col[1])
@@ -67,14 +70,25 @@ module map_rom #(
   );
 `endif // USE_MAP_RECT
 
-  wire [2:0] wall_id_fallback = 
+  wire [2:0] xor_pattern = i_col[2:0] ^ i_row[2:0];
+  wire [2:0] xor_pattern_filled = (xor_pattern == 0) ? 3'b001 : xor_pattern;
+
+  wire [2:0] wall_id_fallback =
+    // 0: Classic mode:
     map_mode == 0                   ? {1'b0,bit1,bit0} :
+    // 3: "Interesting" mode:
     map_mode == 3                   ? interesting_wall :
-    ({bit1,bit0} == 0)              ? 0 :
-    map_mode == 2                   ? ss[2:0]: // Funky mode.
-    // Classic mode:
+    // 4: Empty (just borders of wall ID 1):
+    map_mode == 4                   ? (border_hit ? 3'b001 : 0) :
+    // 5: Empty (just borders of mixed wall IDs):
+    map_mode == 5                   ? (border_hit ? xor_pattern_filled : 0) :
+    // The following are based on Classic mode...
+    ({bit1,bit0} == 0)              ? 0 : // For the following modes, if classic mode WOULD be an empty space, then it STAYS empty.
+    // 2: Funky mode:
+    map_mode == 2                   ? ss[2:0]:
+    // 1: Tweaked classic mode:
     (ss[1:0] == 0 && i_col[0] == 0) ? {1'b1, bit1, bit0}:
-    (i_row[4:3] != ~i_col[4:3])      ? {1'b0, bit1, bit0}:
+    (i_row[4:3] != ~i_col[4:3])     ? {1'b0, bit1, bit0}:
                                       ss[2:0];
   assign o_val =
 `ifdef USE_MAP_RECT
