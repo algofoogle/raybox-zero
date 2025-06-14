@@ -21,7 +21,7 @@
 // > When changing `Qm or `Qn, you also need to update the LZCs (inc. `SZ)
 // > and the equivalent values in sim_main.cpp if using the sim.
 `define Qmn         (`Qm+`Qn)
-`define QMI         (`Qm-1)             // Just for convenience; M-1.
+`define QMI         (`Qm-1)             // Just for convenience; M-1. Gets uppermost bit (e.g. sign bit) of an F vector (i.e. where '.' is between indices 0 and -1)
 `define QMNI        (`Qmn-1)            // Just for convenience; full bit count -1 for upper vector index.
 
 //SMELL: Base all of these hardcoded numbers on Qm and Qn values:

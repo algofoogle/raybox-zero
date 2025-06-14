@@ -10,6 +10,8 @@
 // by virtue of the compiler used.
 
 `default_nettype none
-`timescale 1ns / 1ps
+// `timescale 1ns / 1ps
+
+`define DEBUG_POV_PORTS // Make the POV (player, facing, vplane vectors) accessible as top rbzero ports.
 
 //NOTE: Nothing else needing to be defined in this file right now, for this target.

@@ -69,6 +69,14 @@ module rbzero(
 
   // Debug outputs:
   output wire         o_vinf, // Send out a copy of the VINF register, which can help with debugging 'reg' SPI.
+`ifdef DEBUG_POV_PORTS
+  output wire `F      o_playerX,
+  output wire `F      o_playerY,
+  output wire `F      o_facingX,
+  output wire `F      o_facingY,
+  output wire `F      o_vplaneX,
+  output wire `F      o_vplaneY,
+`endif // DEBUG_POV_PORTS
 
   // hpos and vpos are currently supplied so a top module can do dithering,
   // but otherwise they're not really required, or even just bit-0 of each would do:
@@ -109,6 +117,15 @@ module rbzero(
   wire `F facingY /* verilator public */;
   wire `F vplaneX /* verilator public */;
   wire `F vplaneY /* verilator public */;
+
+`ifdef DEBUG_POV_PORTS
+  assign o_playerX = playerX;
+  assign o_playerY = playerY;
+  assign o_facingX = facingX;
+  assign o_facingY = facingY;
+  assign o_vplaneX = vplaneX;
+  assign o_vplaneY = vplaneY;
+`endif // DEBUG_POV_PORTS
 
   assign o_vinf = vinf;
 

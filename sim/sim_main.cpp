@@ -24,11 +24,11 @@
 #include "testbench.h"
 using namespace std;
 
-#include "Vrbzero.h"
+#include "Vtb_rbz.h"
 
-#define DESIGN      rbzero
-#define VDESIGN     Vrbzero
-#define MAIN_TB     Vrbzero_TB
+#define DESIGN      tb_rbz
+#define VDESIGN     Vtb_rbz
+#define MAIN_TB     Vtb_rbz_TB
 #define BASE_TB     TESTBENCH<VDESIGN>
 
 #define HILITE      0b0001'1111
@@ -65,7 +65,7 @@ using namespace std;
 // #define USE_POWER_PINS //NOTE: This is automatically set in the Makefile, now.
 #define INSPECT_INTERNAL //NOTE: This is automatically set in the Makefile, now.
 #ifdef INSPECT_INTERNAL
-  #include "Vrbzero_rbzero.h"       // Needed for accessing "verilator public" stuff in `rbzero`
+  #include "Vtb_rbz_tb_rbz.h"       // Needed for accessing "verilator public" stuff in `tb_rbz`
 #endif
 
 #define FONT_FILE "sim/font-cousine/Cousine-Regular.ttf"

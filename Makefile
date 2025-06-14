@@ -14,6 +14,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# These define things specifically for sims, that files in MAIN_VSOURCES depend on:
+SIM_CONFIG_VSOURCES = \
+	sim/target_defs.v
 
 # Main Verilog sources for our design:
 MAIN_VSOURCES = \
@@ -33,15 +36,16 @@ MAIN_VSOURCES = \
 	src/rtl/wall_tracer.v			\
 	src/rtl/spi_registers.v
 
-# Extra source specific to the simualtion target:
+# Extra source specific to the simulation target (typically the TB top):
 SIM_VSOURCES = \
-	sim/target_defs.v
+	sim/tb_rbz.v
+# sim/texture_rom/W25Q128JVxIM.v
 
 # # Verilog sources used for testing:
 # TEST_VSOURCES = test/dump_vcd.v
 
 # Top Verilog module representing our design:
-TOP = rbzero
+TOP = tb_rbz
 
 # COCOTB_TEST_MODULE = test.test_rbzero
 
@@ -133,13 +137,13 @@ sim_seed: $(SIM_EXE)
 	@$(SIM_EXE) +verilator+rand+reset+2 +verilator+seed+$(SEED)
 
 # Build main simulation exe:
-$(SIM_EXE): $(SIM_VSOURCES) $(MAIN_VSOURCES) sim/sim_main.cpp sim/main_tb.h sim/testbench.h
+$(SIM_EXE): $(SIM_CONFIG_VSOURCES) $(SIM_VSOURCES) $(MAIN_VSOURCES) sim/sim_main.cpp sim/main_tb.h sim/testbench.h
 	echo $(RSEED)
 	$(VERILATOR) \
 		--Mdir sim/obj_dir \
 		-Isrc/rtl \
 		-Isim \
-		--cc $(SIm_VSOURCES) $(MAIN_VSOURCES) \
+		--cc $(SIM_CONFIG_VSOURCES) $(MAIN_VSOURCES) $(SIM_VSOURCES) \
 		--top-module $(TOP) \
 		--exe --build ../sim/sim_main.cpp \
 		$(CFLAGS) \
