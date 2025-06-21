@@ -194,6 +194,10 @@ module wall_tracer #(
   wire texu_mirror = side ? ryi : ~rxi;
   //NOTE: The FSM CalcTexU step will use a fractional part of
   // wallPartial to determine the wall texture offset.
+`ifdef USE_DOORS
+  wire [7:0] wall_partial_door_pos_offset = wallPartialTexU8b - door_pos;
+`endif // USE_DOORS
+  wire [7:0] wall_partial_with_flip = wallPartialTexU8b ^ {8{texu_mirror}};
 
   //SMELL: Do these need to be signed? They should only ever be positive, anyway.
   // Get integer player position:
@@ -572,14 +576,14 @@ module wall_tracer #(
               // end
             end else begin
               // Unlike wall textures, doors do not get texu_mirror applied:
-              texu <= {(wallPartialTexU8b - door_pos)}[7:2]; // wallPartial depends on `FF(mul_out). //NOTE: [7:2]; 6 MSB used for texture 0..63
+              texu <= wall_partial_door_pos_offset[7:2]; // wallPartial depends on `FF(mul_out). //NOTE: [7:2]; 6 MSB used for texture 0..63
               //@@@NOTE: Possible hack to fix rendering of door at extremes (i.e. 1-texu under/overflow):
               // If texu8b==0 or texu8b==255, then set (special)wall=doorframe, and texu=31 -- this will repeat 1 tiny sliver either end of the door that is the same as where it meets the frame.
             end
           end else
 `endif // USE_DOORS
           begin
-            texu <= {(wallPartialTexU8b ^ {8{texu_mirror}})}[7:2]; // wallPartial depends on `FF(mul_out).
+            texu <= wall_partial_with_flip[7:2]; // wallPartial depends on `FF(mul_out).
           end
         end
 
