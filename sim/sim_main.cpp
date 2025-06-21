@@ -1037,6 +1037,13 @@ int update_spi_registers_state() {
             push_bits_onto_stack(bits, 8+10,6); // mapr_by
             push_bits_onto_stack(bits, 0,   1); // mapr_erase
             push_bits_onto_stack(bits, 6,   3); // mapr_wall
+            // This example puts a hole right through the map, allowing for infinite tracing (overflow):
+            // push_bits_onto_stack(bits, 6,   6); // mapr_ax
+            // push_bits_onto_stack(bits, 0,   6); // mapr_ay
+            // push_bits_onto_stack(bits, 12,  6); // mapr_bx
+            // push_bits_onto_stack(bits, 32,  6); // mapr_by
+            // push_bits_onto_stack(bits, 1,   1); // mapr_erase
+            // push_bits_onto_stack(bits, 0,   3); // mapr_wall
             break;
           case CMD_TEXADD0:
           case CMD_TEXADD1:
@@ -1193,6 +1200,14 @@ int main(int argc, char **argv) {
   printf("DEBUG: main() command-line arguments:\n");
   for (int i = 0; i < argc; ++i) {
     printf("%d: [%s]\n", i, argv[i]);
+    if (!strcmp(argv[i], "--ready-start")) {
+      printf("DEBUG: --ready-start specified; turning on common options.\n");
+      gEnableSPI = true;
+      gMouseCapture = true;
+      gGenTex = true;
+      gRotateView = true;
+      gMapMode = 4;
+    }
   }
 
   Verilated::commandArgs(argc, argv);
@@ -1334,6 +1349,7 @@ int main(int argc, char **argv) {
     Keypad 4:   Map Y divider --                                \n\
     /:          Toggle funky register animation                 \n\
     \\:          With SHIFT, toggle LEAK 'FIXED'; Without, toggle VINF  \n\
+    CTRL+\\:     Cycle through map modes                        \n\
     v:          VSYNC logging                                   \n\
     f:          Frame-step                                      \n\
     x:          Toggle 'examine' mode (not implemented in this version?)\n\

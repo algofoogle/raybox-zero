@@ -349,12 +349,12 @@ module rbzero(
 `endif // USE_POV_VIA_SPI_REGS
 
 `ifdef USE_MAP_RECT
-  wire [5:0]   mapr_ax;
-  wire [5:0]   mapr_ay;
-  wire [5:0]   mapr_bx;
-  wire [5:0]   mapr_by;
-  wire         mapr_erase;
-  wire [2:0]   mapr_wall;
+  wire [5:0]  mapr_ax;
+  wire [5:0]  mapr_ay;
+  wire [5:0]  mapr_bx;
+  wire [5:0]  mapr_by;
+  wire        mapr_erase;
+  wire [2:0]  mapr_wall;
 `endif // USE_MAP_RECT
 
   spi_registers spi_registers(

@@ -120,21 +120,21 @@ show_results:
 # Simulate our design visually using Verilator, outputting to an SDL2 window.
 #NOTE: All unassigned bits are set to 0:
 sim: $(SIM_EXE)
-	@$(SIM_EXE)
+	@$(SIM_EXE) $(SIM_OPTS)
 
 # Simulate with all unassigned bits set to 1:
 sim_ones: $(SIM_EXE)
-	@$(SIM_EXE) +verilator+rand+reset+1
+	@$(SIM_EXE) $(SIM_OPTS) +verilator+rand+reset+1
 
 # Simulate with unassigned bits fully randomised each time:
 sim_random: $(SIM_EXE)
 	echo "Random seed: " $(RSEED)
-	@$(SIM_EXE) +verilator+rand+reset+2 +verilator+seed+$(RSEED)
+	@$(SIM_EXE) $(SIM_OPTS) +verilator+rand+reset+2 +verilator+seed+$(RSEED)
 
 # Simulate with unassigned bits randomised based on a known seed each time:
 sim_seed: $(SIM_EXE)
 	echo "Random seed: " $(SEED)
-	@$(SIM_EXE) +verilator+rand+reset+2 +verilator+seed+$(SEED)
+	@$(SIM_EXE) $(SIM_OPTS) +verilator+rand+reset+2 +verilator+seed+$(SEED)
 
 # Build main simulation exe:
 $(SIM_EXE): $(SIM_CONFIG_VSOURCES) $(SIM_VSOURCES) $(MAIN_VSOURCES) sim/sim_main.cpp sim/main_tb.h sim/testbench.h

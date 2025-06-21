@@ -2,11 +2,6 @@
 // `timescale 1ns / 1ps
 
 
-//@@@ map_overlay can't work properly yet, because *for now* we need to assume the tracer wants
-// access to the map ROM at the same time as map_overlay. Hopefully we'll find that there's HEAPS
-// of free tracing time, in which case we'll just make sure the FSM runs when we're out of
-// the 'in_map_overlay' screen region.
-
 module map_overlay #(
   // parameter H_VIEW = 640,
   parameter MAP_WALLBITS = 3,
@@ -23,8 +18,10 @@ module map_overlay #(
   input [MAP_WALLBITS-1:0] i_map_val, // Value of the map cell (i.e. from map memory)
   // Other map cell X,Y:
   input [5:0]             i_otherx, i_othery,
+`ifndef NO_DIV_WALLS
   // Map X/Y dividers:
   input [5:0]             i_mapdx, i_mapdy,
+`endif // NO_DIV_WALLS
 
   output in_map_overlay,
   output [5:0] map_rgb
@@ -44,8 +41,10 @@ module map_overlay #(
                           vpos_mapy==playerY[MAP_HBITS-1:0];
   wire in_other_cell    = hpos_mapx==i_otherx[MAP_WBITS-1:0] &&
                           vpos_mapy==i_othery[MAP_HBITS-1:0];
+`ifndef NO_DIV_WALLS
   wire in_mapdx_cell    = hpos_mapx==i_mapdx[MAP_WBITS-1:0] && i_mapdx!=0;
   wire in_mapdy_cell    = vpos_mapy==i_mapdy[MAP_HBITS-1:0] && i_mapdy!=0;
+`endif // NO_DIV_WALLS
   wire in_player_pixel  = in_player_cell
                                   && (playerX[-1:-MAP_SCALE]==hpos[MAP_SCALE-1:0])
                                   && (playerY[-1:-MAP_SCALE]==vpos[MAP_SCALE-1:0]);
@@ -70,8 +69,10 @@ module map_overlay #(
     in_player_cell  ? 6'b00_01_00:  // Player cell is dark green.
     in_map_gridline ? 6'b01_00_00:  // Map gridlines are dark blue.
     in_other_cell   ? 6'b00_00_11:  // 'Other' cell is red.
+`ifndef NO_DIV_WALLS
     in_mapdx_cell   ? 6'b00_00_10:  // mapdx bar is dark red.
     in_mapdy_cell   ? 6'b00_00_01:  // mapdy bar is very dark red.
+`endif // NO_DIV_WALLS
                       map_cell_base_color;
 
 endmodule

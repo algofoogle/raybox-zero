@@ -91,35 +91,25 @@ module wall_tracer #(
 
   // States for getting stepDistX = 1.0/rayDirX:
   localparam SDXPrep      = 0;
-  // localparam SDXWait      = 1;
-  // localparam SDXLoad      = 2;
 
   // States for getting stepDistY = 1.0/rayDirY:
-  localparam SDYPrep      = 3;
-  // localparam SDYWait      = 4;
-  // localparam SDYLoad      = 5;
+  localparam SDYPrep      = 1;
 
   // States for main line trace process:
-  localparam TracePrepX   = 6;
-  localparam TracePrepY   = 7;
-  localparam TraceStep    = 8;
+  localparam TracePrepX   = 2;
+  localparam TracePrepY   = 3;
+  localparam TraceStep    = 4;
 
   // States for wall rendered size reciprocal:
-  localparam SizePrep     = 9;
-  // localparam SizeWait     = 10;
-  // localparam SizeLoad     = 11;
+  localparam SizePrep     = 5;
 
   // States that share the multiplier, for working out texture coordinates stuff:
-  localparam CalcTexU     = 12;
-  localparam CalcTexVInit = 13;
+  localparam CalcTexU     = 6;
+  localparam CalcTexVInit = 7;
 
   // Final trace state, where it waits for hmax before presenting the result:
-  localparam TraceDone    = 15;
-
-  // Symbols representing different data sources for the reciprocal:
-  // localparam [1:0] RCP_RDX    = 2'd0; // rayDirX.
-  // localparam [1:0] RCP_RDY    = 2'd1; // rayDirY.
-  // localparam [1:0] RCP_VDIST  = 2'd2; // vdist.
+  localparam TraceDone    = 8;
+  //NOTE: If changing the highest state number, also update vga_mux.v re trace_state_debug.
 
   reg [3:0] state; //SMELL: Size this according to actual no. of states.
 
@@ -194,7 +184,7 @@ module wall_tracer #(
   // are visualWallDist as the multiplier, with multiplicand being either rayDirX or Y depending on side.
   wire `F wallPartial = `FF(mul_out) + (side ? playerX : playerY);
   wire texu_mirror = side ? ryi : ~rxi;
-  //NOTE: The FSM TraceDone step will use a fractional part of
+  //NOTE: The FSM CalcTexU step will use a fractional part of
   // wallPartial to determine the wall texture offset.
 
   //SMELL: Do these need to be signed? They should only ever be positive, anyway.
@@ -226,17 +216,6 @@ module wall_tracer #(
   // //HACK: Range [6:-9] are enough bits to get the precision and limits we want for distance,
   // // i.e. UQ7.9 allows distance to have 1/512 precision and range of [0,127).
 
-  // Shared reciprocal input source selection; value we want to find the reciprocal of:
-  // reg [1:0] rcp_sel; // This muxes between rayDirX, rayDirY, vdist (or visualWallDist).
-  //SMELL: We probably don't need a reg for this, because we can go by state instead?
-  // wire `F rcp_in =
-  //   (rcp_sel==RCP_RDX) ?  rayDirX :
-  //   (rcp_sel==RCP_RDY) ?  rayDirY :
-  //                         visualWallDist;
-  //{ {PadVdistHi{1'b0}}, vdist, {PadVdistLo{1'b0}} }; //SMELL: Is this necessary or can/should we use visualWallDist directly?
-  // localparam PadVdistHi = `Qm-7;
-  // localparam PadVdistLo = `Qn-9;
-
   reg rcp_start;
   reg `F rcp_in;
 
@@ -245,13 +224,6 @@ module wall_tracer #(
   wire    rcp_done;
   //NOTE: rcp_sat is not needed currently, but we might use it as we improve the design,
   // in order to stop tracing on a given axis?
-  // reciprocal #(.M(`Qm),.N(`Qn)) shared_reciprocal (
-  //   .i_data (rcp_in),
-  //   .i_abs  (1'b1),
-  //   .o_data (rcp_out),
-  //   .o_sat  (rcp_sat)
-  // );
-  // wire [10:0] size = rcp_out[2:-8];
   reg `F size_full;
   wire [10:0] size = size_full[2:-8];
 
@@ -260,6 +232,7 @@ module wall_tracer #(
   `else//!RESET_TO_KNOWN
     wire do_reset = vsync;
   `endif//RESET_TO_KNOWN
+
 
   reciprocal_fsm #(.M(`Qm),.N(`Qn)) rcp_fsm (
     .i_clk    (clk),
@@ -314,14 +287,20 @@ module wall_tracer #(
   // Used to indicate whether X/Y-stepping is the next target:
   wire needStepX = trackDistX < trackDistY; //NOTE: UNSIGNED comparison per def'n of trackX/Ydist.
 
-  // int line_counter; // DEBUG.
+`ifdef DEBUG_RAY_LINE_COUNTER
+  int line_counter; // DEBUG.
+`endif // DEBUG_RAY_LINE_COUNTER
+
+  wire player_in_trace_cell = (mapX==playerMapX && mapY==playerMapY);
 
   // Hit is not valid if it's in the same map cell as the player, or if it's too close:
-  wire valid_distance = visualWallDist >= MIN_DIST_F && !(mapX==playerMapX && mapY==playerMapY);
+  wire valid_distance = visualWallDist >= MIN_DIST_F && !player_in_trace_cell;
 
   always @(posedge clk) begin
     if (do_reset) begin
-      // line_counter = 0; // DEBUG.
+`ifdef DEBUG_RAY_LINE_COUNTER
+      line_counter = 0; // DEBUG.
+`endif // DEBUG_RAY_LINE_COUNTER
       // While VSYNC is asserted, reset FSM to start a new frame.
       state <= SDXPrep;
 
@@ -334,7 +313,7 @@ module wall_tracer #(
       // (240 lines above middle). Hence that top line is derived from -vplane*240.
       // However, we don't *need* to waste logic on waiting for that first visible line,
       // so it happens that if we start tracing immediately from the start of VB
-      // (the Veritcal Back porch) which is 33 lines, this is equivalent to starting
+      // (the Vertical Back porch) which is 33 lines, this is equivalent to starting
       // at -vplane*273. However, the trace result always displays on the NEXT line, so
       // we want to jump the gun by 1 line, hence -vplane*272. This happens to need
       // the least logic overall (I think) in order to get a perfectly balanced display.
@@ -376,6 +355,9 @@ module wall_tracer #(
       `endif//RESET_TO_KNOWN
 
     end else begin
+
+      // BEWARE, if adding more states: mul_in_a/b are sensitive to 'state'.
+
       case (state)
 
         // Get stepDistX from rayDirX:
@@ -456,6 +438,7 @@ module wall_tracer #(
           end
         end
 
+        // We get to SizePrep once the nearest hit is found:
         SizePrep: begin
           rcp_in <= visualWallDist;
           rcp_start <= 1;
@@ -473,7 +456,7 @@ module wall_tracer #(
           w <= WAITS;
           state <= CalcTexVInit;
         end
-        
+
         // This state is used by shmul to determine inputs for calculating o_texVinit:
         CalcTexVInit: begin
           if (w!=0) begin
@@ -492,7 +475,9 @@ module wall_tracer #(
         TraceDone: begin
           // No more work to do, so hang around in this state waiting for hmax...
           if (hmax) begin
-            // line_counter = line_counter + 1; // DEBUG.
+`ifdef DEBUG_RAY_LINE_COUNTER
+            line_counter = line_counter + 1; // DEBUG.
+`endif // DEBUG_RAY_LINE_COUNTER
             // Upon hmax, present our new result and start the next line.
             o_wall <= wall;
             o_size <= size;

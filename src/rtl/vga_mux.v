@@ -26,7 +26,12 @@ module vga_mux(
     if (!visible)                     out = 6'b0;
     else if (debug_en)                out = debug_rgb;
 `ifdef TRACE_STATE_DEBUG
-    else if (show_trace_debug && trace_state_debug < 15)  out = {2'b00, trace_state_debug};
+    else if (show_trace_debug && trace_state_debug < 8)
+      out = ~{
+        trace_state_debug[2], trace_state_debug[3],
+        trace_state_debug[1], trace_state_debug[3],
+        trace_state_debug[0], trace_state_debug[3]
+      };
 `endif//TRACE_STATE_DEBUG
     else if (map_en)                  out = map_rgb;
     else if (wall_en)                 out = wall_rgb;

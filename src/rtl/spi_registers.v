@@ -156,7 +156,7 @@ module spi_registers #(
 `ifdef USE_POV_VIA_SPI_REGS
 // ===== TRUNCATED-TO-FULL-RANGE VECTOR EXTENSION =====
 
-  // Registered versions of the truncated vectors, before they get padded up to `F (SQ10.10) format on output ports.
+  // Registered versions of the truncated vectors, before they get padded up to `F (e.g. SQ10.10) format on output ports.
   reg `UQ6_9 playerRX, playerRY;
   reg `SQ2_9 facingRX, facingRY;
   reg `SQ2_9 vplaneRX, vplaneRY;
