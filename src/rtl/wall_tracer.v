@@ -45,6 +45,10 @@ module wall_tracer #(
   input [MAP_WALLBITS-1:0] mapdxw, mapdyw, // Wall ID for map dividers
 `endif // NO_DIV_WALLS
 
+`ifdef USE_DOORS
+  input [23:0]            i_doors [0:3],
+`endif // USE_DOORS
+
   // Interface to map ROM:
   output [MAP_WBITS-1:0]  o_map_col,
   output [MAP_HBITS-1:0]  o_map_row,
@@ -59,9 +63,11 @@ module wall_tracer #(
   // HOT (LIVE) values as they are being calculated. This allows the texture memory to generate its address early
   // (assuming the trace has actually finished before we get to about hpos==600):
   output reg [MAP_WALLBITS-1:0]        o_wall_hot,
+  output reg              o_specialwall_hot,
   output reg              o_side_hot,
   output reg [5:0]        o_texu_hot,
 `endif // NO_EXTERNAL_TEXTURES
+  output reg              o_specialwall,  // Extra wallID bit indicating textures not normally part of the map (e.g. door frames)
   output reg [MAP_WALLBITS-1:0]        o_wall,     // Wall ID that we hit (per map).
   output reg              o_side,     // Light or dark side?
   output reg [10:0]       o_size,     // Wall half-size.
@@ -173,6 +179,7 @@ module wall_tracer #(
   wire `F mul_in_a, mul_in_b;
   wire `F2 mul_out;
 
+  reg specialwall;
   reg [MAP_WALLBITS-1:0] wall;
   reg side;
 
@@ -183,6 +190,7 @@ module wall_tracer #(
   //NOTE: When wallPartial actually gets used, the inputs to the multiplier (hence driving mul_out)
   // are visualWallDist as the multiplier, with multiplicand being either rayDirX or Y depending on side.
   wire `F wallPartial = `FF(mul_out) + (side ? playerX : playerY);
+  wire [7:0] wallPartialTexU8b = wallPartial[-1:-8]; //NOTE: We get 8 bits of resolution, but *mostly* only use the upper 6.
   wire texu_mirror = side ? ryi : ~rxi;
   //NOTE: The FSM CalcTexU step will use a fractional part of
   // wallPartial to determine the wall texture offset.
@@ -287,6 +295,26 @@ module wall_tracer #(
   // Used to indicate whether X/Y-stepping is the next target:
   wire needStepX = trackDistX < trackDistY; //NOTE: UNSIGNED comparison per def'n of trackX/Ydist.
 
+`ifdef USE_DOORS
+  reg                     is_door;
+  wire                    door_hit;
+  wire [MAP_WALLBITS-1:0] door_wall;
+  wire [7:0]              door_pos;
+
+  door_check  #(
+    .MAP_WALLBITS (MAP_WALLBITS),
+    .MAP_WBITS    (MAP_WBITS),
+    .MAP_HBITS    (MAP_HBITS)
+  ) door_check (
+    .i_doors  (i_doors),
+    .i_mapx   (o_map_col),
+    .i_mapy   (o_map_row),
+    .o_hit    (door_hit),
+    .o_wall   (door_wall),
+    .o_pos    (door_pos)
+  );
+`endif // USE_DOORS
+
 `ifdef DEBUG_RAY_LINE_COUNTER
   int line_counter; // DEBUG.
 `endif // DEBUG_RAY_LINE_COUNTER
@@ -294,7 +322,14 @@ module wall_tracer #(
   wire player_in_trace_cell = (mapX==playerMapX && mapY==playerMapY);
 
   // Hit is not valid if it's in the same map cell as the player, or if it's too close:
+  //SMELL: For doors, we need to ensure the door is fully open before the player can be inside
+  // the map cell (at all). Distance calculation to the wall half-width (which is the door panel)
+  // is not currently supported.
   wire valid_distance = visualWallDist >= MIN_DIST_F && !player_in_trace_cell;
+
+`ifdef USE_DOORS
+  wire valid_door_distance = (visualWallDist + (side ? (stepDistY>>1) : (stepDistX>>1))) >= MIN_DIST_F && !player_in_trace_cell;
+`endif // USE_DOORS
 
   always @(posedge clk) begin
     if (do_reset) begin
@@ -319,6 +354,9 @@ module wall_tracer #(
       // the least logic overall (I think) in order to get a perfectly balanced display.
 
       rcp_start <= 0;
+      specialwall <= 0;
+      o_specialwall <= 0;
+      is_door <= 0;
 
       `ifdef RESET_TO_KNOWN
         // Set a known initial state for stuff:
@@ -347,6 +385,7 @@ module wall_tracer #(
         mapY <= 0;
         o_wall <= 0;
         `ifndef NO_EXTERNAL_TEXTURES
+          o_specialwall_hot <= 0;
           o_wall_hot <= 0;
           o_side_hot <= 0;
           o_texu_hot <= 0;
@@ -365,6 +404,7 @@ module wall_tracer #(
           rcp_in <= rayDirX;
           rcp_start <= 1;
           state <= SDYPrep;
+          specialwall <= 0;
         end
         SDYPrep: if (rcp_start) begin
           rcp_start <= 0;
@@ -389,6 +429,7 @@ module wall_tracer #(
         end
 
         TracePrepY: begin
+          is_door <= door_hit; // This helps set up for rendering a door frame when the player is standing in a door cell. We do it here because this is when mapX and mapY are known.
           if (w!=0) begin
             w <= w - 1;
           end else begin
@@ -397,29 +438,83 @@ module wall_tracer #(
             trackDistY <= `FF(mul_out);
             w <= WAITS; // Makes us linger on the next step (while mul_out settles).
             state <= TraceStep;
+            last_map_nibble_index <= map_nibble_index;
           end
         end
 
         TraceStep: begin
+`ifdef USE_DOORS
+          is_door <= 0; // This will be overridden below at the right time, if needed.
+          if (is_door) begin
+            // If we got here, then we passed thru an open door, so the next trace step should
+            // assume it hits a door frame, or nothing...
+            specialwall <= 1'b1;
+            wall <= `SPECIALWALL_DOORFRAME;
+          end else if (specialwall) begin
+            // Not (yet) in a special door state.
+            specialwall <= 0;
+          end
+
+          if (valid_door_distance && door_hit && !is_door) begin
+
+            wall <= door_wall;
+            if (side) begin
+              // Y.
+              //NOTE: I think this works because trackDistX/Y represent the
+              // distance of what the NEXT step will be on that axis.
+              // For example, trackDistX is the already-calculated distance to
+              // the next X (horizontal) wall edge hit. By subtracting half a Y
+              // step from trackDistY, we're basically pulling the wall distance
+              // half a Y increment closer to the camera.
+              if ((trackDistY - (stepDistY>>1)) < trackDistX) begin //@@@ SHOULD THESE BE: ">>>" ?
+                is_door <= 1'b1;
+                visualWallDist <= visualWallDist + (stepDistY>>1);
+              end else begin
+                specialwall <= 1'b1;
+                wall <= `SPECIALWALL_DOORFRAME;
+                visualWallDist <= trackDistX;
+                side <= ~side;
+              end
+            end else begin
+              // X.
+              if ((trackDistX - (stepDistX>>1)) < trackDistY) begin
+                is_door <= 1'b1;
+                visualWallDist <= visualWallDist + (stepDistX>>1);
+              end else begin
+                specialwall <= 1'b1;
+                wall <= `SPECIALWALL_DOORFRAME;
+                visualWallDist <= trackDistY;
+                side <= ~side;
+              end
+            end
+            state <= SizePrep;
+
+          end else
+`endif // USE_DOORS
 `ifndef NO_DIV_WALLS
           //SMELL: The 'specials' here (other and mapd) are hard-coded for a 32x32 map. Remove hardcoding!
-          if (valid_distance && o_map_col == mapdx[4:0] && mapdx[4:0] != 0) begin
+ /*else*/ if (valid_distance && o_map_col == mapdx[4:0] && mapdx[4:0] != 0 && !is_door) begin
             // HIT: 'mapdx' stripe.
             wall <= mapdxw;
             state <= SizePrep;
-          end else if (valid_distance && o_map_row == mapdy[4:0] && mapdy[4:0] != 0) begin
+          end else if (valid_distance && o_map_row == mapdy[4:0] && mapdy[4:0] != 0 && !is_door) begin
             // HIT: 'mapdy' stripe.
             wall <= mapdyw;
             state <= SizePrep;
           end else
 `endif // NO_DIV_WALLS
-          if (valid_distance && o_map_col == otherx[4:0] && o_map_row == othery[4:0]) begin
+ /*else*/ if (valid_distance && o_map_col == otherx[4:0] && o_map_row == othery[4:0] && !is_door) begin
             // HIT: 'other' block.
             wall <= 0;
             state <= SizePrep;
-          end else if (valid_distance && i_map_val!=0) begin
+          end else if (valid_distance && i_map_val!=0 && !is_door) begin
             // HIT: Normal wall.
-            wall <= i_map_val;
+            if (specialwall) begin //@@@SMELL: Bit of a hacky way to represent this state.
+              specialwall <= 1'b1;
+              wall <= `SPECIALWALL_DOORFRAME;
+            end else begin
+              wall <= i_map_val;
+            end
             state <= SizePrep;
           end else begin
             // No hit; still tracing.
@@ -452,9 +547,35 @@ module wall_tracer #(
           rcp_start <= 0;
         end else if (rcp_done) begin
           size_full <= rcp_out;
-          texu <= wallPartial[-1:-6] ^ {6{texu_mirror}}; // wallPartial depends on `FF(mul_out).
           w <= WAITS;
           state <= CalcTexVInit;
+`ifdef USE_DOORS
+          if (is_door) begin
+            if (wallPartialTexU8b < door_pos) begin
+              // Looking through a door's opening...
+              // Commented out bit here is a way to allow a 'door' to share its plane with an underlying wall block texture (if any).
+              // if (i_map_val!=0) begin
+              //   // There is an underlying wall texture coexisting with this map cell.
+              //   //NOTE: This should also account for 'other' and dividers?
+              //   texu <= (wallPartialTexU ^ {6{texu_mirror}});
+              //   specialwall <= 0;
+              //   wall <= i_map_val;
+              // end else begin
+                texu <= 0;
+                visualWallDist <= visualWallDist - (side ? (stepDistY>>1) : (stepDistX>>1)); // Step back a bit to resume the trace.
+                state <= TraceStep;
+              // end
+            end else begin
+              // Unlike wall textures, doors do not get texu_mirror applied:
+              texu <= {(wallPartialTexU8b - door_pos)}[7:2]; // wallPartial depends on `FF(mul_out). //NOTE: [7:2]; 6 MSB used for texture 0..63
+              //@@@NOTE: Possible hack to fix rendering of door at extremes (i.e. 1-texu under/overflow):
+              // If texu8b==0 or texu8b==255, then set (special)wall=doorframe, and texu=31 -- this will repeat 1 tiny sliver either end of the door that is the same as where it meets the frame.
+            end
+          end else
+`endif // USE_DOORS
+          begin
+            texu <= {(wallPartialTexU8b ^ {8{texu_mirror}})}[7:2]; // wallPartial depends on `FF(mul_out).
+          end
         end
 
         // This state is used by shmul to determine inputs for calculating o_texVinit:
@@ -464,6 +585,7 @@ module wall_tracer #(
           end else begin
             state <= TraceDone;
             `ifndef NO_EXTERNAL_TEXTURES
+              o_specialwall_hot <= specialwall;
               o_wall_hot <= wall;
               o_side_hot <= side;
               o_texu_hot <= texu;
@@ -479,6 +601,7 @@ module wall_tracer #(
             line_counter = line_counter + 1; // DEBUG.
 `endif // DEBUG_RAY_LINE_COUNTER
             // Upon hmax, present our new result and start the next line.
+            o_specialwall <= specialwall;
             o_wall <= wall;
             o_size <= size;
             o_side <= side;

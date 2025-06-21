@@ -50,6 +50,10 @@ module spi_registers #(
   output reg  [2:0]   mapr_wall,
 `endif // USE_MAP_RECT
 
+`ifdef USE_DOORS
+  output reg  [23:0]  doors [0:3],    // {doorx[5:0], doory[5:0], wallid[2:0], reserved[0], pos[7:0]}
+`endif
+
 `ifdef USE_POV_VIA_SPI_REGS
   input               i_inc_px, i_inc_py, // Demo overrides for playerX/Y inc. If either is asserted, SPI POV loads are masked out and 'ready' is cleared.
   output `F           playerX, playerY,
@@ -89,6 +93,14 @@ module spi_registers #(
   localparam CMD_MAPR   = 8'b00000111;  localparam LEN_MAPR   = 28; // 7: {ax[5:0],ay[5:0], bx[5:0],by[5:0], erase[0], wallID[2:0]}
 `endif // USE_MAP_RECT
 
+`ifdef USE_DOORS
+  localparam CMD_DOOR0  = 8'b00001000;  localparam LEN_DOOR   = 24; // 8..11: {doorx[5:0], doory[5:0], wallid[2:0], reserved[0], pos[7:0]}
+  localparam CMD_DOOR1  = 8'b00001001;
+  localparam CMD_DOOR2  = 8'b00001010;
+  localparam CMD_DOOR3  = 8'b00001011;
+`endif // USE_DOORS
+  //NOTE: CMD 12..15 reserved for 4 more doors.
+
 `ifndef NO_EXTERNAL_TEXTURES
   localparam CMD_TEXADD0= 8'b00100000;  localparam LEN_TEXADD0= 24; // 32
   localparam CMD_TEXADD1= 8'b00100001;  localparam LEN_TEXADD1= 24; // 33
@@ -118,7 +130,11 @@ module spi_registers #(
   localparam SPI_BUFFER_SIZE = 28; // (LEN_MAPR)
 `else // USE_POV_VIA_SPI_REGS
   `ifdef NO_EXTERNAL_TEXTURES
-    localparam SPI_BUFFER_SIZE = 18; //NOTE: Should be set to whatever the largest LEN_* value is above.
+    `ifdef USE_DOORS
+      localparam SPI_BUFFER_SIZE = 24;
+    `else
+      localparam SPI_BUFFER_SIZE = 18; //NOTE: Should be set to whatever the largest LEN_* value is above.
+    `endif
   `else // NO_EXTERNAL_TEXTURES
     localparam SPI_BUFFER_SIZE = 24; //NOTE: Should be set to whatever the largest LEN_* value is above.
   `endif
@@ -239,6 +255,10 @@ module spi_registers #(
   reg [2:0]   buf_mapr_wall;
 `endif // USE_MAP_RECT
 
+`ifdef USE_DOORS
+  reg [23:0]  buf_doors [0:3];
+`endif // USE_DOORS
+
   //SMELL: If we don't want to waste space with all these extra registers,
   // could we just transfer one 'waiting' value into a SINGLE selected register?
   // Only problem with doing so is that we can then only update 1 per frame
@@ -306,6 +326,14 @@ module spi_registers #(
 `ifdef USE_MAP_RECT
         (spi_cmd == CMD_MAPR    ) ?   LEN_MAPR:
 `endif // USE_MAP_RECT
+
+`ifdef USE_DOORS
+        (spi_cmd == CMD_DOOR0   ) ?   LEN_DOOR:
+        (spi_cmd == CMD_DOOR1   ) ?   LEN_DOOR:
+        (spi_cmd == CMD_DOOR2   ) ?   LEN_DOOR:
+        (spi_cmd == CMD_DOOR3   ) ?   LEN_DOOR:
+`endif // USE_DOORS
+
 
 `ifdef USE_LEAK_FIXED
       /*(spi_cmd == CMD_VOPTS   ) ?*/ LEN_VOPTS
@@ -405,6 +433,12 @@ module spi_registers #(
       mapr_erase<= 1'b0;
       mapr_wall <= 3'd0;
 `endif // USE_MAP_RECT
+`ifdef USE_DOORS
+      doors[0] <= 24'd0;
+      doors[1] <= 24'd0;
+      doors[2] <= 24'd0;
+      doors[3] <= 24'd0;
+`endif // USE_DOORS
 
     end else if (load_new) begin
 
@@ -455,6 +489,12 @@ module spi_registers #(
       mapr_erase<= buf_mapr_erase;
       mapr_wall <= buf_mapr_wall;
 `endif // USE_MAP_RECT
+`ifdef USE_DOORS
+      doors[0]  <= buf_doors[0];
+      doors[1]  <= buf_doors[1];
+      doors[2]  <= buf_doors[2];
+      doors[3]  <= buf_doors[3];
+`endif // USE_DOORS
 
     end
 
@@ -501,6 +541,12 @@ module spi_registers #(
       buf_mapr_erase<= 1'b0;
       buf_mapr_wall <= 3'd0;
 `endif // USE_MAP_RECT
+`ifdef USE_DOORS
+      buf_doors[0]  <= 24'd0;
+      buf_doors[1]  <= 24'd0;
+      buf_doors[2]  <= 24'd0;
+      buf_doors[3]  <= 24'd0;
+`endif // USE_DOORS
 
     end else if (spi_done) begin
 
@@ -549,6 +595,13 @@ module spi_registers #(
                                   buf_mapr_erase, buf_mapr_wall}
                                                 <= spi_buffer[LEN_MAPR-1:0];
 `endif // USE_MAP_RECT
+
+`ifdef USE_DOORS
+      if (spi_cmd == CMD_DOOR0  ) buf_doors[0]  <= spi_buffer[23:0];
+      if (spi_cmd == CMD_DOOR1  ) buf_doors[1]  <= spi_buffer[23:0];
+      if (spi_cmd == CMD_DOOR2  ) buf_doors[2]  <= spi_buffer[23:0];
+      if (spi_cmd == CMD_DOOR3  ) buf_doors[3]  <= spi_buffer[23:0];
+`endif // USE_DOORS
 
     end
 

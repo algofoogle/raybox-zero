@@ -22,6 +22,9 @@ module map_overlay #(
   // Map X/Y dividers:
   input [5:0]             i_mapdx, i_mapdy,
 `endif // NO_DIV_WALLS
+`ifdef USE_DOORS
+  input [23:0]            i_doors [0:3],
+`endif // USE_DOORS
 
   output in_map_overlay,
   output [5:0] map_rgb
@@ -35,12 +38,32 @@ module map_overlay #(
   wire [MAP_WBITS-1:0] hpos_mapx = hpos[MAP_SCALE+MAP_WBITS-1:MAP_SCALE];
   wire [MAP_HBITS-1:0] vpos_mapy = vpos[MAP_SCALE+MAP_HBITS-1:MAP_SCALE];
 
+`ifdef USE_DOORS
+  wire                    door_hit;
+  wire [MAP_WALLBITS-1:0] door_wall;
+  wire [7:0]              door_pos;
+
+  door_check  #(
+    .MAP_WALLBITS (MAP_WALLBITS),
+    .MAP_WBITS    (MAP_WBITS),
+    .MAP_HBITS    (MAP_HBITS)
+  ) door_check (
+    .i_doors  (i_doors),
+    .i_mapx   (hpos_mapx),
+    .i_mapy   (vpos_mapy),
+    .o_hit    (door_hit),
+    .o_wall   (door_wall),
+    .o_pos    (door_pos)
+  );
+`endif // USE_DOORS
+
   assign in_map_overlay = hpos < MAP_OVERLAY_WIDTH  && vpos < MAP_OVERLAY_HEIGHT;
   wire in_map_gridline  = hpos[MAP_SCALE-1:0]==0    || vpos[MAP_SCALE-1:0]==0;
   wire in_player_cell   = hpos_mapx==playerX[MAP_WBITS-1:0] &&
                           vpos_mapy==playerY[MAP_HBITS-1:0];
   wire in_other_cell    = hpos_mapx==i_otherx[MAP_WBITS-1:0] &&
                           vpos_mapy==i_othery[MAP_HBITS-1:0];
+
 `ifndef NO_DIV_WALLS
   wire in_mapdx_cell    = hpos_mapx==i_mapdx[MAP_WBITS-1:0] && i_mapdx!=0;
   wire in_mapdy_cell    = vpos_mapy==i_mapdy[MAP_HBITS-1:0] && i_mapdy!=0;
@@ -52,10 +75,18 @@ module map_overlay #(
   assign o_map_col = hpos[MAP_SCALE+MAP_WBITS-1:MAP_SCALE];
   assign o_map_row = vpos[MAP_SCALE+MAP_HBITS-1:MAP_SCALE];
 
-  wire [MAP_WALLBITS-1:0] map_cell_wall_id = i_map_val;
+  wire [MAP_WALLBITS-1:0] map_cell_wall_id =
+`ifdef USE_DOORS
+    door_hit ? door_wall :
+`endif // USE_DOORS
+    i_map_val;
 
   wire [5:0] map_cell_base_color =
+`ifdef USE_DOORS
+    map_cell_wall_id==0     ? (door_hit ? 6'b00_00_11 : 6'b00_00_00):  // Door wall ID 0 is read. Otherwise: unoccupied map cells are black.
+`else
     map_cell_wall_id==0     ? 6'b00_00_00:  // Unoccupied map cells are black.
+`endif // USE_DOORS
     map_cell_wall_id==1     ? 6'b11_10_00:  // Wall ID 1: Map cell is Light blue
     map_cell_wall_id==2     ? 6'b11_00_00:  // Wall ID 2: Map cell is Blue
     map_cell_wall_id==3     ? 6'b11_00_10:  // Wall ID 3: Map cell is Purple
@@ -68,6 +99,9 @@ module map_overlay #(
     in_player_pixel ? 6'b00_11_11:  // Player pixel in map is yellow.
     in_player_cell  ? 6'b00_01_00:  // Player cell is dark green.
     in_map_gridline ? 6'b01_00_00:  // Map gridlines are dark blue.
+`ifdef USE_DOORS
+    door_hit        ? (map_cell_base_color & {6{~(hpos[0] | vpos[0])}}):
+`endif // USE_DOORS
     in_other_cell   ? 6'b00_00_11:  // 'Other' cell is red.
 `ifndef NO_DIV_WALLS
     in_mapdx_cell   ? 6'b00_00_10:  // mapdx bar is dark red.

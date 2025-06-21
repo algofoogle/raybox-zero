@@ -178,6 +178,7 @@ int           gMapDXW = 0;
 int           gMapDYW = 0;
 bool          gMouseYTexV = false;
 double        gMotionMultiplier = 1.0;
+int           gDoorPos = 0;
 #ifdef WINDOWS
 bool          gMouseCapture = true;
 #else
@@ -307,6 +308,10 @@ void scale_motion_multiplier(double s) {
   printf("Motion multiplier is now: %lf\n", gMotionMultiplier);
 }
 
+void handle_mouse_wheel_event(int motion) {
+  gDoorPos -= motion;
+}
+
 
 void process_sdl_events() {
   // Event used to receive window close, keyboard actions, etc:
@@ -316,6 +321,8 @@ void process_sdl_events() {
     if (SDL_QUIT == e.type) {
       // SDL quit event (e.g. close window)?
       gQuit = true;
+    } else if (SDL_MOUSEWHEEL == e.type) {
+      handle_mouse_wheel_event(e.wheel.y);
     } else if (SDL_KEYDOWN == e.type) {
       int fn_key = 0;
       switch (e.key.keysym.sym) {
@@ -910,6 +917,10 @@ enum {
   CMD_VINF    = 5, CMD_VOPTS = 5, // Same command, but depends on USE_LEAK_FIXED.
   CMD_MAPD    = 6,
   CMD_MAPR    = 7,
+  CMD_DOOR0   = 8,
+  CMD_DOOR1   = 9,
+  CMD_DOOR2   = 10,
+  CMD_DOOR3   = 11,
   CMD_TEXADD0 = 32,
   CMD_TEXADD1 = 33,
   CMD_TEXADD2 = 34,
@@ -955,6 +966,10 @@ int update_spi_registers_state() {
     CMD_VINF,
     CMD_MAPD,
     CMD_MAPR,
+    CMD_DOOR0,
+    CMD_DOOR1,
+    CMD_DOOR2,
+    CMD_DOOR3,
     CMD_TEXADD0,
     CMD_TEXADD1,
     CMD_TEXADD2,
@@ -1044,6 +1059,34 @@ int update_spi_registers_state() {
             // push_bits_onto_stack(bits, 32,  6); // mapr_by
             // push_bits_onto_stack(bits, 1,   1); // mapr_erase
             // push_bits_onto_stack(bits, 0,   3); // mapr_wall
+            break;
+          case CMD_DOOR0:
+            push_bits_onto_stack(bits, 8,   6); // X
+            push_bits_onto_stack(bits, 8,   6); // Y
+            push_bits_onto_stack(bits, 3,   3); // Wall ID
+            push_bits_onto_stack(bits, 0,   1); // reserved
+            push_bits_onto_stack(bits, 0,   8); // pos
+            break;
+          case CMD_DOOR1:
+            push_bits_onto_stack(bits, 6,   6); // X
+            push_bits_onto_stack(bits, 15,  6); // Y
+            push_bits_onto_stack(bits, 3,   3); // Wall ID
+            push_bits_onto_stack(bits, 0,   1); // reserved
+            push_bits_onto_stack(bits, gDoorPos,  8); // pos
+            break;
+          case CMD_DOOR2:
+            push_bits_onto_stack(bits, 9,   6); // X
+            push_bits_onto_stack(bits, 17,  6); // Y
+            push_bits_onto_stack(bits, 2,   3); // Wall ID
+            push_bits_onto_stack(bits, 0,   1); // reserved
+            push_bits_onto_stack(bits, gDoorPos,  8); // pos
+            break;
+          case CMD_DOOR3:
+            push_bits_onto_stack(bits, 11,  6); // X
+            push_bits_onto_stack(bits, 14,  6); // Y
+            push_bits_onto_stack(bits, 2,   3); // Wall ID
+            push_bits_onto_stack(bits, 0,   1); // reserved
+            push_bits_onto_stack(bits, gDoorPos,  8); // pos
             break;
           case CMD_TEXADD0:
           case CMD_TEXADD1:

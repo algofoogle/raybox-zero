@@ -161,6 +161,7 @@ module rbzero(
   //NOTE: If USE_LEAK_FIXED is NOT defined, then spi_registers sets this to const 0.
 
   // --- Row-level ray caster/tracer: ---
+  wire        traced_specialwall;
   wire [MAP_WALLBITS-1:0]  traced_wall;
   wire        traced_side;
   wire [10:0] traced_size;  // Calculated from traced_vdist, in this module.
@@ -168,6 +169,7 @@ module rbzero(
   wire `F     traced_texa;
   wire `F     traced_texVinit;
 `ifndef NO_EXTERNAL_TEXTURES
+  wire        specialwall_hot;
   wire [MAP_WALLBITS-1:0]  wall_hot;
   wire        side_hot;
   wire [5:0]  texu_hot;
@@ -191,6 +193,7 @@ module rbzero(
     .MAP_WALLBITS(MAP_WALLBITS)
   ) row_render(
     // Inputs:
+    .specialwall(traced_specialwall),
     .wall     (traced_wall),
     .side     (traced_side),
     .size     (traced_size),
@@ -212,6 +215,7 @@ module rbzero(
   // This assumes that by the time the SPI sequence starts, the wall slice address
   // is already known, i.e. wall_tracer has determined traced_wall/side/texu,
   // and they're all stable for the remainder of the line...
+  //@@@SMELL: Need to decide how to handle traced_specialwall with external textures; i.e. specialwall_hot.
   wire [MAP_WALLBITS-1:0] shifted_wall_id = wall_hot-1'd1;
   // Address we'd start reading from if it wasn't for adding the texture addends:
   wire [23:0] wall_slice_base_address = {{(11-MAP_WALLBITS){1'b0}}, shifted_wall_id, side_hot, texu_hot, 6'd0};
@@ -357,6 +361,10 @@ module rbzero(
   wire [2:0]  mapr_wall;
 `endif // USE_MAP_RECT
 
+`ifdef USE_DOORS
+  wire [23:0] doors [0:3];
+`endif // USE_DOORS
+
   spi_registers spi_registers(
     .clk      (clk),
     .reset    (reset),
@@ -409,6 +417,10 @@ module rbzero(
     .mapr_erase (mapr_erase),
     .mapr_wall  (mapr_wall),
 `endif // USE_MAP_RECT
+
+`ifdef USE_DOORS
+    .doors      (doors),
+`endif // USE_DOORS
 
     .load_new (visible_frame_end)
   );
@@ -485,6 +497,9 @@ module rbzero(
 `ifndef NO_DIV_WALLS
     .i_mapdx(mapdx), .i_mapdy(mapdy),
 `endif // NO_DIV_WALLS
+`ifdef USE_DOORS
+    .i_doors(doors),
+`endif // USE_DOORS
     .map_rgb(map_rgb)
   );
 `endif//USE_MAP_OVERLAY
@@ -544,16 +559,21 @@ module rbzero(
     .o_state  (trace_state), //DEBUG.
 `endif//TRACE_STATE_DEBUG
 `ifndef NO_EXTERNAL_TEXTURES
-    .o_wall_hot(wall_hot),
-    .o_side_hot(side_hot),
-    .o_texu_hot(texu_hot),
+    .o_specialwall_hot(specialwall_hot),
+    .o_wall_hot       (wall_hot),
+    .o_side_hot       (side_hot),
+    .o_texu_hot       (texu_hot),
 `endif // NO_EXTERNAL_TEXTURES
-    .o_wall   (traced_wall),
-    .o_side   (traced_side),
-    .o_size   (traced_size),
-    .o_texu   (traced_texu),
-    .o_texa   (traced_texa),
-    .o_texVinit(traced_texVinit)
+`ifdef USE_DOORS
+    .i_doors          (doors),
+`endif // USE_DOORS
+    .o_specialwall    (traced_specialwall),
+    .o_wall           (traced_wall),
+    .o_side           (traced_side),
+    .o_size           (traced_size),
+    .o_texu           (traced_texu),
+    .o_texa           (traced_texa),
+    .o_texVinit       (traced_texVinit)
   );
 
   // --- Combined pixel colour driver/mux: ---

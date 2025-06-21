@@ -23,6 +23,7 @@ MAIN_VSOURCES = \
 	src/config/rbz_options.v        \
     src/rtl/fixed_point_params.v	\
     src/rtl/helpers.v				\
+	src/rtl/doors.v 				\
     src/rtl/debug_overlay.v			\
     src/rtl/map_overlay.v			\
     src/rtl/map_rom.v				\
