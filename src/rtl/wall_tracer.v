@@ -313,6 +313,8 @@ module wall_tracer #(
     .o_wall   (door_wall),
     .o_pos    (door_pos)
   );
+`else // !USE_DOORS
+  wire is_door = 0;
 `endif // USE_DOORS
 
 `ifdef DEBUG_RAY_LINE_COUNTER
@@ -356,7 +358,9 @@ module wall_tracer #(
       rcp_start <= 0;
       specialwall <= 0;
       o_specialwall <= 0;
+`ifdef USE_DOORS
       is_door <= 0;
+`endif // USE_DOORS
 
       `ifdef RESET_TO_KNOWN
         // Set a known initial state for stuff:
@@ -429,7 +433,9 @@ module wall_tracer #(
         end
 
         TracePrepY: begin
+`ifdef USE_DOORS
           is_door <= door_hit; // This helps set up for rendering a door frame when the player is standing in a door cell. We do it here because this is when mapX and mapY are known.
+`endif // USE_DOORS
           if (w!=0) begin
             w <= w - 1;
           end else begin
@@ -438,7 +444,6 @@ module wall_tracer #(
             trackDistY <= `FF(mul_out);
             w <= WAITS; // Makes us linger on the next step (while mul_out settles).
             state <= TraceStep;
-            last_map_nibble_index <= map_nibble_index;
           end
         end
 
