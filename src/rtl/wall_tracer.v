@@ -46,7 +46,12 @@ module wall_tracer #(
 `endif // NO_DIV_WALLS
 
 `ifdef USE_DOORS
-  input [23:0]            i_doors [0:3],
+  // Yosys doesn't support arrayed ports?
+  // input [23:0]            i_doors [0:3],
+  input wire [23:0]       i_doors0,
+  input wire [23:0]       i_doors1,
+  input wire [23:0]       i_doors2,
+  input wire [23:0]       i_doors3,
 `endif // USE_DOORS
 
   // Interface to map ROM:
@@ -310,7 +315,12 @@ module wall_tracer #(
     .MAP_WBITS    (MAP_WBITS),
     .MAP_HBITS    (MAP_HBITS)
   ) door_check (
-    .i_doors  (i_doors),
+    // Yosys doesn't support arrayed ports?
+    // .i_doors  (i_doors),
+    .i_doors0 (i_doors0),
+    .i_doors1 (i_doors1),
+    .i_doors2 (i_doors2),
+    .i_doors3 (i_doors3),
     .i_mapx   (o_map_col),
     .i_mapy   (o_map_row),
     .o_hit    (door_hit),

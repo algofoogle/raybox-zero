@@ -23,7 +23,12 @@ module map_overlay #(
   input [5:0]             i_mapdx, i_mapdy,
 `endif // NO_DIV_WALLS
 `ifdef USE_DOORS
-  input [23:0]            i_doors [0:3],
+  // Yosys doesn't support arrayed ports?
+  // input [23:0]            i_doors [0:3],
+  input wire [23:0]       i_doors0,
+  input wire [23:0]       i_doors1,
+  input wire [23:0]       i_doors2,
+  input wire [23:0]       i_doors3,
 `endif // USE_DOORS
 
   output in_map_overlay,
@@ -48,7 +53,12 @@ module map_overlay #(
     .MAP_WBITS    (MAP_WBITS),
     .MAP_HBITS    (MAP_HBITS)
   ) door_check (
-    .i_doors  (i_doors),
+    // Yosys doesn't support arrayed ports?
+    // .i_doors  (i_doors),
+    .i_doors0 (i_doors0),
+    .i_doors1 (i_doors1),
+    .i_doors2 (i_doors2),
+    .i_doors3 (i_doors3),
     .i_mapx   (hpos_mapx),
     .i_mapy   (vpos_mapy),
     .o_hit    (door_hit),

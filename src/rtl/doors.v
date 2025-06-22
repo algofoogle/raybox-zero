@@ -5,7 +5,12 @@ module door_check #(
     parameter MAP_WBITS = 4,
     parameter MAP_HBITS = 4
 ) (
-    input wire [23:0]               i_doors [0:3],
+    // Yosys doesn't support arrayed ports?
+    // input wire [23:0]               i_doors [0:3],
+    input wire [23:0]               i_doors0,
+    input wire [23:0]               i_doors1,
+    input wire [23:0]               i_doors2,
+    input wire [23:0]               i_doors3,
     input wire [MAP_WBITS-1:0]      i_mapx,
     input wire [MAP_HBITS-1:0]      i_mapy,
     output reg                      o_hit,
@@ -19,10 +24,10 @@ module door_check #(
 
     // Unpack the regs:
     //NOTE: Bits 8, 17, 23 are currently reserved.
-    assign {dx[0], dy[0], dw[0], dp[0]} = { i_doors[0][22:18], i_doors[0][16:12], i_doors[0][11:9], i_doors[0][7:0] };
-    assign {dx[1], dy[1], dw[1], dp[1]} = { i_doors[1][22:18], i_doors[1][16:12], i_doors[1][11:9], i_doors[1][7:0] };
-    assign {dx[2], dy[2], dw[2], dp[2]} = { i_doors[2][22:18], i_doors[2][16:12], i_doors[2][11:9], i_doors[2][7:0] };
-    assign {dx[3], dy[3], dw[3], dp[3]} = { i_doors[3][22:18], i_doors[3][16:12], i_doors[3][11:9], i_doors[3][7:0] };
+    assign {dx[0], dy[0], dw[0], dp[0]} = { i_doors0[22:18], i_doors0[16:12], i_doors0[11:9], i_doors0[7:0] };
+    assign {dx[1], dy[1], dw[1], dp[1]} = { i_doors1[22:18], i_doors1[16:12], i_doors1[11:9], i_doors1[7:0] };
+    assign {dx[2], dy[2], dw[2], dp[2]} = { i_doors2[22:18], i_doors2[16:12], i_doors2[11:9], i_doors2[7:0] };
+    assign {dx[3], dy[3], dw[3], dp[3]} = { i_doors3[22:18], i_doors3[16:12], i_doors3[11:9], i_doors3[7:0] };
 
     wire [MAP_WBITS-1:0] x = i_mapx;
     wire [MAP_HBITS-1:0] y = i_mapy;

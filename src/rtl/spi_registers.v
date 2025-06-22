@@ -51,7 +51,13 @@ module spi_registers #(
 `endif // USE_MAP_RECT
 
 `ifdef USE_DOORS
-  output reg  [23:0]  doors [0:3],    // {doorx[5:0], doory[5:0], wallid[2:0], reserved[0], pos[7:0]}
+  // Each door port is: {doorx[5:0], doory[5:0], wallid[2:0], reserved[0], pos[7:0]}
+  // Yosys doesn't support arrayed ports?
+  // output      [23:0]  o_doors [0:3],
+  output      [23:0]  o_doors0,
+  output      [23:0]  o_doors1,
+  output      [23:0]  o_doors2,
+  output      [23:0]  o_doors3,
 `endif
 
 `ifdef USE_POV_VIA_SPI_REGS
@@ -63,6 +69,13 @@ module spi_registers #(
 
   input               load_new        // Will go high at the moment that buffered data can go live.
 );
+
+  reg [23:0] doors [0:3];
+
+  assign o_doors0 = doors[0];
+  assign o_doors1 = doors[1];
+  assign o_doors2 = doors[2];
+  assign o_doors3 = doors[3];
 
   localparam SPI_CMD_BITS = 8; // SPI command is 1 byte wide.
   localparam DEFAULT_MAP_MODE = 3'd1; // Start off with 'Tweaked' map.

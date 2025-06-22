@@ -419,7 +419,11 @@ module rbzero(
 `endif // USE_MAP_RECT
 
 `ifdef USE_DOORS
-    .doors      (doors),
+    // .o_doors    (doors), // Yosys doesn't support arrayed ports?
+    .o_doors0   (doors[0]),
+    .o_doors1   (doors[1]),
+    .o_doors2   (doors[2]),
+    .o_doors3   (doors[3]),
 `endif // USE_DOORS
 
     .load_new (visible_frame_end)
@@ -498,7 +502,11 @@ module rbzero(
     .i_mapdx(mapdx), .i_mapdy(mapdy),
 `endif // NO_DIV_WALLS
 `ifdef USE_DOORS
-    .i_doors(doors),
+    // .i_doors(doors), // Yosys doesn't support arrayed ports?
+    .i_doors0   (doors[0]),
+    .i_doors1   (doors[1]),
+    .i_doors2   (doors[2]),
+    .i_doors3   (doors[3]),
 `endif // USE_DOORS
     .map_rgb(map_rgb)
   );
@@ -565,7 +573,11 @@ module rbzero(
     .o_texu_hot       (texu_hot),
 `endif // NO_EXTERNAL_TEXTURES
 `ifdef USE_DOORS
-    .i_doors          (doors),
+    // .i_doors          (doors), // Yosys doesn't support arrayed ports?
+    .i_doors0         (doors[0]),
+    .i_doors1         (doors[1]),
+    .i_doors2         (doors[2]),
+    .i_doors3         (doors[3]),
 `endif // USE_DOORS
     .o_specialwall    (traced_specialwall),
     .o_wall           (traced_wall),
