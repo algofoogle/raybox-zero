@@ -219,6 +219,8 @@ enum {
   LOCK_MAP,
   LOCK_DEBUG,
   LOCK_TRACE,
+  LOCK_INCPX,
+  LOCK_INCPY,
   LOCK__MAX
 };
 bool gLockInputs[LOCK__MAX] = {0};
@@ -519,12 +521,15 @@ void process_sdl_events() {
             if (hit) {
               printf("Vector scaling: sf = %5.2f  sv = %5.2f\n", gView.sf, gView.sv);
             }
-            //CTRL+keypad numbers:
             switch (e.key.keysym.sym) {
+              //CTRL+keypad numbers:
               case SDLK_KP_8: gMapDXW++; if (gMapDXW>7) gMapDXW=0; printf("gMapDXW=%d (wallID)\n", gMapDXW); break;
               case SDLK_KP_2: gMapDXW--; if (gMapDXW<0) gMapDXW=7; printf("gMapDXW=%d (wallID)\n", gMapDXW); break;
               case SDLK_KP_6: gMapDYW++; if (gMapDYW>7) gMapDYW=0; printf("gMapDYW=%d (wallID)\n", gMapDYW); break;
               case SDLK_KP_4: gMapDYW--; if (gMapDYW<0) gMapDYW=7; printf("gMapDYW=%d (wallID)\n", gMapDYW); break;
+              //CTRL+inc_px/y lock:
+              case SDLK_LEFTBRACKET:  gLockInputs[LOCK_INCPX] ^= 1; break;
+              case SDLK_RIGHTBRACKET: gLockInputs[LOCK_INCPY] ^= 1; break;
             }
           } else {
             // Keypad numbers without modifier:
@@ -696,8 +701,8 @@ void handle_control_inputs(bool prepare, double t) {
     TB->m_core->i_debug_v  = gLockInputs[LOCK_DEBUG]; // Toggle lock with backtick (`)
     TB->m_core->i_debug_m  = gLockInputs[LOCK_MAP] |  keystate[SDL_SCANCODE_TAB ]; // Toggle lock with INSERT key.
     TB->m_core->i_debug_t  = gLockInputs[LOCK_TRACE]; // Toggle lock with T key.
-    TB->m_core->i_inc_px   =                          keystate[SDL_SCANCODE_LEFTBRACKET];
-    TB->m_core->i_inc_py   =                          keystate[SDL_SCANCODE_RIGHTBRACKET];
+    TB->m_core->i_inc_px   = gLockInputs[LOCK_INCPX] | keystate[SDL_SCANCODE_LEFTBRACKET];
+    TB->m_core->i_inc_py   = gLockInputs[LOCK_INCPY] | keystate[SDL_SCANCODE_RIGHTBRACKET];
 #ifndef NO_EXTERNAL_TEXTURES
     TB->m_core->i_gen_tex  = gGenTex;
 #endif // NO_EXTERNAL_TEXTURES
@@ -1063,29 +1068,29 @@ int update_spi_registers_state() {
           case CMD_DOOR0:
             push_bits_onto_stack(bits, 8,   6); // X
             push_bits_onto_stack(bits, 8,   6); // Y
-            push_bits_onto_stack(bits, 3,   3); // Wall ID
-            push_bits_onto_stack(bits, 0,   1); // reserved
+            push_bits_onto_stack(bits, 1,   3); // Wall ID
+            push_bits_onto_stack(bits, 1,   1); // Use frame
             push_bits_onto_stack(bits, 0,   8); // pos
             break;
           case CMD_DOOR1:
             push_bits_onto_stack(bits, 6,   6); // X
             push_bits_onto_stack(bits, 15,  6); // Y
-            push_bits_onto_stack(bits, 3,   3); // Wall ID
-            push_bits_onto_stack(bits, 0,   1); // reserved
+            push_bits_onto_stack(bits, 2,   3); // Wall ID
+            push_bits_onto_stack(bits, 1,   1); // Use frame
             push_bits_onto_stack(bits, gDoorPos,  8); // pos
             break;
           case CMD_DOOR2:
             push_bits_onto_stack(bits, 9,   6); // X
             push_bits_onto_stack(bits, 17,  6); // Y
-            push_bits_onto_stack(bits, 2,   3); // Wall ID
-            push_bits_onto_stack(bits, 0,   1); // reserved
+            push_bits_onto_stack(bits, 3,   3); // Wall ID
+            push_bits_onto_stack(bits, 0,   1); // NO frame
             push_bits_onto_stack(bits, gDoorPos,  8); // pos
             break;
           case CMD_DOOR3:
             push_bits_onto_stack(bits, 11,  6); // X
             push_bits_onto_stack(bits, 14,  6); // Y
-            push_bits_onto_stack(bits, 2,   3); // Wall ID
-            push_bits_onto_stack(bits, 0,   1); // reserved
+            push_bits_onto_stack(bits, 7,   3); // Wall ID
+            push_bits_onto_stack(bits, 1,   1); // Use frame
             push_bits_onto_stack(bits, gDoorPos,  8); // pos
             break;
           case CMD_TEXADD0:
@@ -1354,28 +1359,19 @@ int main(int argc, char **argv) {
   // }
   printf("Cold start...\n");
 
-  printf("------ NOTE: SPI transmissions are %s. Press E key to toggle.\n", gEnableSPI ? "ENABLED" : "disabled");
+  if (!gEnableSPI) {
+    printf("------ NOTE: SPI transmissions are %s. Press E key to toggle.\n", gEnableSPI ? "ENABLED" : "disabled");
+  }
 
   printf("Simulator keys:\n\
-    W/A/S/D:    Typical player motion keys                      \n\
+  UI/simulator control:                                         \n\
     ESC:        Quit                                            \n\
     F12:        Toggle mouse capture                            \n\
-    F11:        Toggle generated/SPI textures                   \n\
-    F1..F10:    Load preset state (not currently implemented)   \n\
     SPACE:      Pause                                           \n\
-    p:          Toggle portrait rotation                        \n\
-    r:          Reset signal                                    \n\
-    e:          Toggle SPI transmissions                        \n\
     o:          Toggle mouse axis swap                          \n\
-    y:          Toggle 'Mouse Y => TexV' control mode           \n\
+    p:          Toggle portrait rotation                        \n\
     g:          Toggle guides                                   \n\
     h:          Toggle screen paint highlighting                \n\
-    `:          Toggle LOCK_DEBUG                               \n\
-    INSERT:     Toggle LOCK_MAP                                 \n\
-    TAB:        Momentary map overlay signal                    \n\
-    [:          inc_px signal                                   \n\
-    ]:          inc_py signal                                   \n\
-    t:          Toggle LOCK_TRACE                               \n\
     1:          Refresh screen every pixel                      \n\
     2:          Refresh every line                              \n\
     3:          Refresh every 10 lines                          \n\
@@ -1386,21 +1382,35 @@ int main(int argc, char **argv) {
     9:          Refresh every 100 pixels                        \n\
     Keypad +:   Increase refresh quantum by 1000                \n\
     Keypad -:   Decrease refresh quantum by 1000                \n\
-    Keypad 8:   Map X divider ++                                \n\
-    Keypad 2:   Map X divider --                                \n\
-    Keypad 6:   Map Y divider ++                                \n\
-    Keypad 4:   Map Y divider --                                \n\
-    /:          Toggle funky register animation                 \n\
-    \\:          With SHIFT, toggle LEAK 'FIXED'; Without, toggle VINF  \n\
-    CTRL+\\:     Cycle through map modes                        \n\
     v:          VSYNC logging                                   \n\
     f:          Frame-step                                      \n\
     x:          Toggle 'examine' mode (not implemented in this version?)\n\
     s:          Step-examine (not implemented)                  \n\
     i:          Inspect (not implemented)                       \n\
+  Game state control:                                           \n\
+    W/A/S/D:    Typical player motion keys                      \n\
     PGUP:       Add 10%% to motion rate                         \n\
     PGDN:       Sub 10%% from motion rate                       \n\
+  DUT inputs:                                                   \n\
+    F1..F10:    Load preset state (not currently implemented)   \n\
+    F11:        Toggle generated/SPI textures                   \n\
+    r:          Reset signal                                    \n\
+    e:          Toggle SPI transmissions                        \n\
+    y:          Toggle 'Mouse Y => TexV' control mode           \n\
+    t:          Toggle LOCK_TRACE                               \n\
+    `:          Toggle LOCK_DEBUG                               \n\
+    INSERT:     Toggle LOCK_MAP                                 \n\
+    TAB:        Momentary map overlay signal                    \n\
+    (CTRL+) [:  (Toggle lock) inc_px signal                     \n\
+    (CTRL+) ]:  (Toggle lock) inc_py signal                     \n\
     END:        Turn off all input locks                        \n\
+    Keypad 8:   Map X divider ++                                \n\
+    Keypad 2:   Map X divider --                                \n\
+    Keypad 6:   Map Y divider ++                                \n\
+    Keypad 4:   Map Y divider --                                \n\
+    /:          Toggle funky register animation                 \n\
+    (Shift+) \\: With SHIFT, toggle LEAK 'FIXED'; Without, toggle VINF  \n\
+    CTRL+\\:     Cycle through map modes                        \n\
   Arrow keys:                                                   \n\
     Up:         LEAK ++                                         \n\
     Dn:         LEAK --                                         \n\

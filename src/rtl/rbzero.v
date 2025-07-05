@@ -109,6 +109,10 @@ module rbzero(
 `ifndef NO_EXTERNAL_TEXTURES
   //SMELL: Should use MAP_WALLBITS, but then so should a lot of other stuff:
   wire [23:0] texadd [0:7]  /* verilator public */;
+  wire [7:0] texadd_ena_walls;
+  `ifdef USE_DOORS
+  wire [7:0] texadd_ena_doors;
+  `endif // USE_DOORS
 `endif // NO_EXTERNAL_TEXTURES
   // --- Point-Of-View data, i.e. view vectors: ---
   wire `F playerX /* verilator public */;
@@ -161,16 +165,14 @@ module rbzero(
   //NOTE: If USE_LEAK_FIXED is NOT defined, then spi_registers sets this to const 0.
 
   // --- Row-level ray caster/tracer: ---
-  wire        traced_specialwall;
-  wire [MAP_WALLBITS-1:0]  traced_wall;
+  wire `WALL  traced_wall;
   wire        traced_side;
   wire [10:0] traced_size;  // Calculated from traced_vdist, in this module.
   wire [5:0]  traced_texu;  // Texture 'u' coordinate value.
   wire `F     traced_texa;
   wire `F     traced_texVinit;
 `ifndef NO_EXTERNAL_TEXTURES
-  wire        specialwall_hot;
-  wire [MAP_WALLBITS-1:0]  wall_hot;
+  wire `WALL  wall_hot;
   wire        side_hot;
   wire [5:0]  texu_hot;
 `endif // NO_EXTERNAL_TEXTURES
@@ -193,7 +195,6 @@ module rbzero(
     .MAP_WALLBITS(MAP_WALLBITS)
   ) row_render(
     // Inputs:
-    .specialwall(traced_specialwall),
     .wall     (traced_wall),
     .side     (traced_side),
     .size     (traced_size),
@@ -215,18 +216,22 @@ module rbzero(
   // This assumes that by the time the SPI sequence starts, the wall slice address
   // is already known, i.e. wall_tracer has determined traced_wall/side/texu,
   // and they're all stable for the remainder of the line...
-  //@@@SMELL: Need to decide how to handle traced_specialwall with external textures; i.e. specialwall_hot.
-  wire [MAP_WALLBITS-1:0] shifted_wall_id = wall_hot-1'd1;
+  wire wall_id_is_door = (wall_hot[7:5]==3'b010);
+  wire door_frame_bit = wall_hot[0];
+  wire [2:0] wall_id_texadd_index = wall_id_is_door ? wall_hot[3:1] : wall_hot[2:0];
   // Address we'd start reading from if it wasn't for adding the texture addends:
-  wire [23:0] wall_slice_base_address = {{(11-MAP_WALLBITS){1'b0}}, shifted_wall_id, side_hot, texu_hot, 6'd0};
+  wire [23:0] wall_slice_base_address = {{(11-`WALLBITS){1'b0}}, wall_hot, side_hot, texu_hot, 6'd0};
+  wire use_texadd =
+    (texadd_ena_doors[wall_id_texadd_index] && wall_id_is_door && !door_frame_bit) | //SMELL: Is it a good idea to exclude frames? Prevents 'glow' animation, etc.
+    (texadd_ena_walls[wall_id_texadd_index] && !wall_id_is_door);
   // Actual start address we'll send to the SPI memory to start reading from (i.e. base address offset by texture addend):
-  wire [23:0] wall_slice_start_address = wall_slice_base_address + texadd[shifted_wall_id];
+  wire [23:0] wall_slice_start_address = wall_slice_base_address + (use_texadd ? texadd[wall_id_texadd_index] : 0);
   // Wall slice BASE address pattern (i.e. without addend):
   // ------------------000000 (Covers 0..63 texels in the slice)
   // ------------UUUUUU------ texu (wall slice 0..63)
   // -----------S------------ side 0 or 1
-  // ---------WW------------- Wall ID 0..3
-  // 000000000--------------- Unused (extra address range)
+  // ---WWWWWWWW------------- Wall ID 0..255 (typically only 0x00-0x5F are used)
+  // 000--------------------- Unused (extra address range)
   //NOTE: Each texel is currently 8 bits in the ROM, i.e. 64 bytes per slice,
   // representing 64 pixels. In each byte, the packing is XBGRXBGR, i.e.
   // X---X--- Unused -- io3 input might not always be available as an IO pad.
@@ -361,6 +366,7 @@ module rbzero(
   wire [2:0]  mapr_wall;
 `endif // USE_MAP_RECT
 
+
 `ifdef USE_DOORS
   wire [23:0] doors [0:3];
 `endif // USE_DOORS
@@ -399,6 +405,10 @@ module rbzero(
     .texadd5  (texadd[5]),
     .texadd6  (texadd[6]),
     .texadd7  (texadd[7]),
+    .texadd_ena_walls(texadd_ena_walls),
+  `ifdef USE_DOORS
+    .texadd_ena_doors(texadd_ena_doors),
+  `endif // USE_DOORS
 `endif // NO_EXTERNAL_TEXTURES
 
 `ifdef USE_POV_VIA_SPI_REGS
@@ -567,7 +577,6 @@ module rbzero(
     .o_state  (trace_state), //DEBUG.
 `endif//TRACE_STATE_DEBUG
 `ifndef NO_EXTERNAL_TEXTURES
-    .o_specialwall_hot(specialwall_hot),
     .o_wall_hot       (wall_hot),
     .o_side_hot       (side_hot),
     .o_texu_hot       (texu_hot),
@@ -579,7 +588,6 @@ module rbzero(
     .i_doors2         (doors[2]),
     .i_doors3         (doors[3]),
 `endif // USE_DOORS
-    .o_specialwall    (traced_specialwall),
     .o_wall           (traced_wall),
     .o_side           (traced_side),
     .o_size           (traced_size),

@@ -11,7 +11,12 @@
 // Should it really be storing registers itself?
 
 module spi_registers #(
-  parameter MAP_WALLBITS = 3
+  parameter MAP_WALLBITS = 3,
+  // Door register initials:         X     Y  Wall  Frame Pos
+  parameter [23:0] DOOR0_INIT = {6'd13, 6'd6, 3'd1, 1'b1, 8'd0},
+  parameter [23:0] DOOR1_INIT = {6'd15, 6'd7, 3'd1, 1'b1, 8'd0},
+  parameter [23:0] DOOR2_INIT = {6'd17, 6'd0, 3'd1, 1'b1, 8'd0},
+  parameter [23:0] DOOR3_INIT = {6'd22, 6'd16, 3'd1, 1'b1, 8'd0}
 ) (
   input               clk,
   input               reset,
@@ -39,6 +44,10 @@ module spi_registers #(
   output reg  [23:0]  texadd5,        // Texture address addend 5
   output reg  [23:0]  texadd6,        // Texture address addend 6
   output reg  [23:0]  texadd7,        // Texture address addend 7
+  output reg  [7:0]   texadd_ena_walls, // Each bit enables applying the respective TEXADD for walls.
+  `ifdef USE_DOORS
+  output reg  [7:0]   texadd_ena_doors, // Each bit enables applying the respective TEXADD for doors.
+  `endif // USE_DOORS
 `endif // NO_EXTERNAL_TEXTURES
 
 `ifdef USE_MAP_RECT
@@ -52,6 +61,7 @@ module spi_registers #(
 
 `ifdef USE_DOORS
   // Each door port is: {doorx[5:0], doory[5:0], wallid[2:0], reserved[0], pos[7:0]}
+  //NOTE: If wallid==0, then derive from the underlying map cell's wall ID (which can also be 0).
   // Yosys doesn't support arrayed ports?
   // output      [23:0]  o_doors [0:3],
   output      [23:0]  o_doors0,
@@ -107,7 +117,7 @@ module spi_registers #(
 `endif // USE_MAP_RECT
 
 `ifdef USE_DOORS
-  localparam CMD_DOOR0  = 8'b00001000;  localparam LEN_DOOR   = 24; // 8..11: {doorx[5:0], doory[5:0], wallid[2:0], reserved[0], pos[7:0]}
+  localparam CMD_DOOR0  = 8'b00001000;  localparam LEN_DOOR   = 24; // 8..11: {doorx[5:0], doory[5:0], wallid[2:0], frame[0], pos[7:0]}
   localparam CMD_DOOR1  = 8'b00001001;
   localparam CMD_DOOR2  = 8'b00001010;
   localparam CMD_DOOR3  = 8'b00001011;
@@ -125,6 +135,11 @@ module spi_registers #(
   localparam CMD_TEXADD7= 8'b00100111;  localparam LEN_TEXADD7= 24; // 39
 `endif
   /////////////////////// 8'b001xxxxx (32..63) -- reserved for TEXADD and related registers.
+
+`ifndef NO_EXTERNAL_TEXTURES
+  localparam CMD_TEXADDENA = 8'b01000000; localparam LEN_TEXADDENA= 16; // 8 MSB for doors, 8 LSB for walls.
+  //NOTE: For consistency, 8 bits are reserved for doors, even if USE_DOORS is not defined.
+`endif // NO_EXTERNAL_TEXTURES
 
 `ifdef USE_POV_VIA_SPI_REGS
   // player(X,Y), facing(X,Y), vplane(X,Y): 74 bits
@@ -250,6 +265,10 @@ module spi_registers #(
   reg [23:0]  buf_texadd5;
   reg [23:0]  buf_texadd6;
   reg [23:0]  buf_texadd7;
+  reg [7:0]   buf_texadd_ena_walls;
+  `ifdef USE_DOORS
+  reg [7:0]   buf_texadd_ena_doors;
+  `endif // USE_DOORS
 `endif // NO_EXTERNAL_TEXTURES
 `ifdef USE_POV_VIA_SPI_REGS
   // POV registers:
@@ -330,6 +349,7 @@ module spi_registers #(
         (spi_cmd == CMD_TEXADD5 ) ?   LEN_TEXADD5:
         (spi_cmd == CMD_TEXADD6 ) ?   LEN_TEXADD6:
         (spi_cmd == CMD_TEXADD7 ) ?   LEN_TEXADD7:
+        (spi_cmd == CMD_TEXADDENA)?   LEN_TEXADDENA:
 `endif // NO_EXTERNAL_TEXTURES
 
 `ifdef USE_POV_VIA_SPI_REGS
@@ -432,6 +452,10 @@ module spi_registers #(
       texadd5   <= 24'd0;
       texadd6   <= 24'd0;
       texadd7   <= 24'd0;
+      texadd_ena_walls <= 8'b1111_1111; // By default, TEXADDs are enabled for all walls.
+  `ifdef USE_DOORS
+      texadd_ena_doors <= 8'b0;
+  `endif // USE_DOORS
 `endif // NO_EXTERNAL_TEXTURES
 `ifdef USE_POV_VIA_SPI_REGS
       playerRX  <= playerInitX;      playerRY  <= playerInitY;
@@ -447,10 +471,10 @@ module spi_registers #(
       mapr_wall <= 3'd0;
 `endif // USE_MAP_RECT
 `ifdef USE_DOORS
-      doors[0] <= 24'd0;
-      doors[1] <= 24'd0;
-      doors[2] <= 24'd0;
-      doors[3] <= 24'd0;
+      doors[0] <= DOOR0_INIT;
+      doors[1] <= DOOR1_INIT;
+      doors[2] <= DOOR2_INIT;
+      doors[3] <= DOOR3_INIT;
 `endif // USE_DOORS
 
     end else if (load_new) begin
@@ -482,6 +506,10 @@ module spi_registers #(
       texadd5   <= buf_texadd5;
       texadd6   <= buf_texadd6;
       texadd7   <= buf_texadd7;
+      texadd_ena_walls <= buf_texadd_ena_walls;
+  `ifdef USE_DOORS
+      texadd_ena_doors <= buf_texadd_ena_doors;
+  `endif // USE_DOORS
 `endif // NO_EXTERNAL_TEXTURES
 `ifdef USE_POV_VIA_SPI_REGS
       // POV registers:
@@ -540,6 +568,10 @@ module spi_registers #(
       buf_texadd5   <= 24'd0;
       buf_texadd6   <= 24'd0;
       buf_texadd7   <= 24'd0;
+      buf_texadd_ena_walls <= 8'b1111_1111;
+  `ifdef USE_DOORS
+      buf_texadd_ena_doors <= 8'b0;
+  `endif // USE_DOORs
 `endif // NO_EXTERNAL_TEXTURES
 `ifdef USE_POV_VIA_SPI_REGS
       buf_playerRX  <= playerInitX;   buf_playerRY  <= playerInitY;
@@ -555,10 +587,10 @@ module spi_registers #(
       buf_mapr_wall <= 3'd0;
 `endif // USE_MAP_RECT
 `ifdef USE_DOORS
-      buf_doors[0]  <= 24'd0;
-      buf_doors[1]  <= 24'd0;
-      buf_doors[2]  <= 24'd0;
-      buf_doors[3]  <= 24'd0;
+      buf_doors[0]  <= DOOR0_INIT;
+      buf_doors[1]  <= DOOR1_INIT;
+      buf_doors[2]  <= DOOR2_INIT;
+      buf_doors[3]  <= DOOR3_INIT;
 `endif // USE_DOORS
 
     end else if (spi_done) begin
@@ -591,6 +623,12 @@ module spi_registers #(
       if (spi_cmd == CMD_TEXADD5) buf_texadd5   <= spi_buffer[23:0];
       if (spi_cmd == CMD_TEXADD6) buf_texadd6   <= spi_buffer[23:0];
       if (spi_cmd == CMD_TEXADD7) buf_texadd7   <= spi_buffer[23:0];
+      if (spi_cmd == CMD_TEXADDENA) begin
+                                  buf_texadd_ena_walls <= spi_buffer[7:0];
+  `ifdef USE_DOORS
+                                  buf_texadd_ena_doors <= spi_buffer[15:8];
+  `endif // USE_DOORS
+      end
 `endif // NO_EXTERNAL_TEXTURES
 
 `ifdef USE_POV_VIA_SPI_REGS

@@ -20,8 +20,7 @@ module row_render #(
   parameter MAP_WALLBITS = 3,
   parameter H_VIEW = 640
 ) (
-  input wire        specialwall, // If set, 'wall' is a special wall ID reserved for things like door frames.
-  input wire  [MAP_WALLBITS-1:0] wall, // Wall texture ID.
+  input wire  `WALL wall, // Wall texture ID.
   input wire        side, // Light or dark side? side==1 is light.
   input wire [10:0] size, // Supports 0..2047; remember this is mirrored, too.
   input wire  [9:0] hpos, // Current horizontal trace position.
@@ -37,7 +36,11 @@ module row_render #(
   localparam HALF_SIZE = H_VIEW/2;
   //SMELL: Instead of combo logic, could use a register and check for enter/leave:
 
-  wire [MAP_WALLBITS:0] ewall = {specialwall, wall}; // NOTE: Extra bit at the top for 'specialwall'.
+  wire [7:0] ewall =
+    (wall[7:5] == 3'b010 && wall[0])  ? 8 :                     // Door frame.
+    (wall[7:4] == 4'b0100) /*0x4x*/   ? {5'b01000,wall[3:1]} :  // Door, with its own unique texture.
+    (wall[7:4] == 4'b0101) /*0x5x*/   ? {5'b00000,wall[3:1]} :  // Door, but using a direct wall texture.
+                                        {5'b00000,wall[2:0]};   // Regular wall.
 
   wire [5:0] checks = texu^texv;
 
@@ -54,9 +57,9 @@ module row_render #(
   wire [5:0] wall6;
   rgb222_darken wall6_tint(.ena(~side), .rgb_in(rainbow), .rgb_out(wall6));
 
-  wire [5:0] manhat = (((x - y) ^ (x + y)));
+  wire [5:0] nicexor = {checks[1:0],checks[5:2]};
   wire [5:0] wall7;
-  rgb222_darken wall7_tint(.ena(~side), .rgb_in(manhat), .rgb_out(wall7));
+  rgb222_darken wall7_tint(.ena(~side), .rgb_in(nicexor), .rgb_out(wall7));
 
   wire [5:0] doorframe;
   door_frame door_frame_tex(.x(texu), .y(texv), .rgb(doorframe));
@@ -65,6 +68,15 @@ module row_render #(
 
   wire [5:0] texvcomp = leakfix ? texvorg : texv;
   wire seam = (hpos < HALF_SIZE && texvorg == -6'd1) || (hpos >= HALF_SIZE && texvorg == 6'd0);
+
+  wire `RGB door0 = 6'b00_00_11;
+  wire `RGB door1 = 6'b00_11_11 & {3{{1'b1,side}}};
+  wire `RGB door2 = 6'b00_11_00 & {3{{1'b1,side}}};
+  wire `RGB door3 = 6'b11_11_00 & {3{{1'b1,side}}};
+  wire `RGB door4 = 6'b11_00_00 & {3{{1'b1,side}}};
+  wire `RGB door5 = 6'b11_00_11 & {3{{1'b1,side}}};
+  wire `RGB door6 = 6'b11_11_11 & {3{{1'b1,side}}};
+  wire `RGB door7 = 6'b00_00_11 & {3{{1'b1,side}}};
 
   assign hit =
     (texvcomp >= leak) &                      // 'Leaking' means background is visible instead of texture, up to 'leak' point. Can fake 'wading'.
@@ -79,6 +91,7 @@ module row_render #(
   // The following is just some bitwise maths to generate textures IF we don't have an external
   // texture memory via SPI, and just want something to show off/test:
   assign gen_tex_rgb =
+    ewall== 0 ? (side ? 6'b00_00_11 : 6'b00_00_10): // Red.
     // Fancy colourful XOR pattern:
     ewall== 1 ? ({texu[0],side,texu[2],side,texu[4],side} ^ {texv[0],1'b0,texv[2],1'b0,texv[4],1'b0}): // Fancy.
     // Blue bricks:
@@ -115,7 +128,15 @@ module row_render #(
     ewall== 7 ? wall7: // Argyle (yellow-green on map).
     // ----- Extended (special) walls -----
     ewall== 8 ? wall_doorframe:
-    /*wall==0?*/(side ? 6'b00_00_11 : 6'b00_00_10); // Red.
+    // ----- Generated door textures -----
+    ewall==8'h40  ? door0: //NOTE: Can't currently be selected by door reg, since '0' means "use map cell's wall ID"
+    ewall==8'h41  ? door1:
+    ewall==8'h42  ? door2:
+    ewall==8'h43  ? door3:
+    ewall==8'h44  ? door4:
+    ewall==8'h45  ? door5:
+    ewall==8'h46  ? door6:
+    /*8'h47*/       door7;
 
 endmodule
 
