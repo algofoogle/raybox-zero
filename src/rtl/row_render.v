@@ -36,6 +36,16 @@ module row_render #(
   localparam HALF_SIZE = H_VIEW/2;
   //SMELL: Instead of combo logic, could use a register and check for enter/leave:
 
+  reg [5:0] door_light [0:4095];
+  reg [5:0] door_shade [0:4095];
+
+  initial begin
+    $readmemb("door_light.mem", door_light);
+    $readmemb("door_shade.mem", door_shade);
+    // $readmemb("src/rtl/door_light.mem", door_light);
+    // $readmemb("src/rtl/door_shade.mem", door_shade);
+  end
+
   wire [7:0] ewall =
     (wall[7:5] == 3'b010 && wall[0])  ? 8 :                     // Door frame.
     (wall[7:4] == 4'b0100) /*0x4x*/   ? {5'b01000,wall[3:1]} :  // Door, with its own unique texture.
@@ -70,13 +80,13 @@ module row_render #(
   wire seam = (hpos < HALF_SIZE && texvorg == -6'd1) || (hpos >= HALF_SIZE && texvorg == 6'd0);
 
   wire `RGB door0 = 6'b00_00_11;
-  wire `RGB door1 = 6'b00_11_11 & {3{{1'b1,side}}};
-  wire `RGB door2 = 6'b00_11_00 & {3{{1'b1,side}}};
-  wire `RGB door3 = 6'b11_11_00 & {3{{1'b1,side}}};
-  wire `RGB door4 = 6'b11_00_00 & {3{{1'b1,side}}};
-  wire `RGB door5 = 6'b11_00_11 & {3{{1'b1,side}}};
-  wire `RGB door6 = 6'b11_11_11 & {3{{1'b1,side}}};
-  wire `RGB door7 = 6'b00_00_11 & {3{{1'b1,side}}};
+  wire `RGB door1 = side ? door_light[{texu,texv}] : door_shade[{texu,texv}]; //6'b00_11_11 & {3{{1'b1,side}}};
+  wire `RGB door2 = side ? door_light[{texu,texv}] : door_shade[{texu,texv}]; //6'b00_11_00 & {3{{1'b1,side}}};
+  wire `RGB door3 = side ? door_light[{texu,texv}] : door_shade[{texu,texv}]; //6'b11_11_00 & {3{{1'b1,side}}};
+  wire `RGB door4 = side ? door_light[{texu,texv}] : door_shade[{texu,texv}]; //6'b11_00_00 & {3{{1'b1,side}}};
+  wire `RGB door5 = side ? door_light[{texu,texv}] : door_shade[{texu,texv}]; //6'b11_00_11 & {3{{1'b1,side}}};
+  wire `RGB door6 = side ? door_light[{texu,texv}] : door_shade[{texu,texv}]; //6'b11_11_11 & {3{{1'b1,side}}};
+  wire `RGB door7 = side ? door_light[{texu,texv}] : door_shade[{texu,texv}]; //6'b00_00_11 & {3{{1'b1,side}}};
 
   assign hit =
     (texvcomp >= leak) &                      // 'Leaking' means background is visible instead of texture, up to 'leak' point. Can fake 'wading'.
