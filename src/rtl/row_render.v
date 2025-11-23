@@ -40,10 +40,13 @@ module row_render #(
   reg [5:0] door_shade [0:4095];
 
   initial begin
+`ifdef VERILATOR
+    $readmemb("src/rtl/door_light.mem", door_light);
+    $readmemb("src/rtl/door_shade.mem", door_shade);
+`else // !VERILATOR
     $readmemb("door_light.mem", door_light);
     $readmemb("door_shade.mem", door_shade);
-    // $readmemb("src/rtl/door_light.mem", door_light);
-    // $readmemb("src/rtl/door_shade.mem", door_shade);
+`endif // VERILATOR
   end
 
   wire [7:0] ewall =
