@@ -13,5 +13,6 @@
 // `timescale 1ns / 1ps
 
 `define DEBUG_POV_PORTS // Make the POV (player, facing, vplane vectors) accessible as top rbzero ports.
+`define READMEM_PATH "src/rtl/"
 
 //NOTE: Nothing else needing to be defined in this file right now, for this target.
