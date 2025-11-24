@@ -46,12 +46,18 @@ module row_render #(
   reg [5:0] frame_shade [0:4095];
 
   initial begin
-    $readmemb({`READMEM_PATH, "door_light.mem"}, door_light);
-    $readmemb({`READMEM_PATH, "door_shade.mem"}, door_shade);
-    $readmemb({`READMEM_PATH, "frame_light.mem"}, frame_light);
-    $readmemb({`READMEM_PATH, "frame_shade.mem"}, frame_shade);
-    // $readmemb("src/rtl/door_light.mem", door_light);
-    // $readmemb("src/rtl/door_shade.mem", door_shade);
+    `ifdef COCOTB_RTL_SIM // Can be defined in a tapeout project's test/Makefile.
+      //SMELL: This pathing is a bit of a hack for tests before a tapeout.
+      $readmemb("../src/raybox-zero/src/rtl/door_light.mem", door_light);
+      $readmemb("../src/raybox-zero/src/rtl/door_shade.mem", door_shade);
+      $readmemb("../src/raybox-zero/src/rtl/frame_light.mem", frame_light);
+      $readmemb("../src/raybox-zero/src/rtl//frame_light.mem", frame_shade);
+    `else // !COCOTB_RTL_SIM
+      $readmemb({`READMEM_PATH, "door_light.mem"}, door_light);
+      $readmemb({`READMEM_PATH, "door_shade.mem"}, door_shade);
+      $readmemb({`READMEM_PATH, "frame_light.mem"}, frame_light);
+      $readmemb({`READMEM_PATH, "frame_shade.mem"}, frame_shade);
+    `endif // COCOTB_RTL_SIM
   end
 
   wire [7:0] ewall =
