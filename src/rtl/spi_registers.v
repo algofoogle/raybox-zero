@@ -12,11 +12,12 @@
 
 module spi_registers #(
   parameter MAP_WALLBITS = 3,
-  // Door register initials:         X     Y  Wall  Frame Pos
-  parameter [23:0] DOOR0_INIT = {6'd13, 6'd6, 3'd1, 1'b1, 8'd0},
-  parameter [23:0] DOOR1_INIT = {6'd15, 6'd7, 3'd1, 1'b1, 8'd0},
-  parameter [23:0] DOOR2_INIT = {6'd17, 6'd0, 3'd1, 1'b1, 8'd0},
-  parameter [23:0] DOOR3_INIT = {6'd22, 6'd16, 3'd1, 1'b1, 8'd0}
+  // Door register initials:         X       Y  Wall  Frame Pos
+  parameter [23:0]  DOOR0_INIT = {6'd13, 6'd06, 3'd1, 1'b1, 8'd0},
+  parameter [23:0]  DOOR1_INIT = {6'd15, 6'd07, 3'd1, 1'b1, 8'd0},
+  parameter [23:0]  DOOR2_INIT = {6'd17, 6'd00, 3'd1, 1'b1, 8'd0},
+  parameter [23:0]  DOOR3_INIT = {6'd22, 6'd16, 3'd1, 1'b1, 8'd0},
+  parameter [2:0]   WAITS_INIT = 7
 ) (
   input               clk,
   input               reset,
@@ -69,6 +70,10 @@ module spi_registers #(
   output      [23:0]  o_doors2,
   output      [23:0]  o_doors3,
 `endif
+
+`ifdef USE_WAITS_CONFIG
+  output reg  [2:0]   o_waits,
+`endif // USE_WAITS_CONFIG
 
 `ifdef USE_POV_VIA_SPI_REGS
   input               i_inc_px, i_inc_py, // Demo overrides for playerX/Y inc. If either is asserted, SPI POV loads are masked out and 'ready' is cleared.
@@ -137,9 +142,14 @@ module spi_registers #(
   /////////////////////// 8'b001xxxxx (32..63) -- reserved for TEXADD and related registers.
 
 `ifndef NO_EXTERNAL_TEXTURES
-  localparam CMD_TEXADDENA = 8'b01000000; localparam LEN_TEXADDENA= 16; // 8 MSB for doors, 8 LSB for walls.
+  localparam CMD_TEXADDENA = 8'b01000000; localparam LEN_TEXADDENA= 16; // 64: 8 MSB for doors, 8 LSB for walls.
   //NOTE: For consistency, 8 bits are reserved for doors, even if USE_DOORS is not defined.
 `endif // NO_EXTERNAL_TEXTURES
+
+`ifdef USE_WAITS_CONFIG
+  // Trace control options:
+  localparam CMD_TRCTRL = 8'b01000001;  localparam LEN_TRCTRL =  3; // 65: 3 bits for number of wait states.
+`endif // USE_WAITS_CONFIG
 
 `ifdef USE_POV_VIA_SPI_REGS
   // player(X,Y), facing(X,Y), vplane(X,Y): 74 bits
@@ -291,6 +301,11 @@ module spi_registers #(
   reg [23:0]  buf_doors [0:3];
 `endif // USE_DOORS
 
+`ifdef USE_WAITS_CONFIG
+  reg [2:0]   buf_waits;
+`endif // USE_WAITS_CONFIG
+
+
   //SMELL: If we don't want to waste space with all these extra registers,
   // could we just transfer one 'waiting' value into a SINGLE selected register?
   // Only problem with doing so is that we can then only update 1 per frame
@@ -367,6 +382,9 @@ module spi_registers #(
         (spi_cmd == CMD_DOOR3   ) ?   LEN_DOOR:
 `endif // USE_DOORS
 
+`ifdef USE_WAITS_CONFIG
+        (spi_cmd == CMD_TRCTRL  ) ?   LEN_TRCTRL:
+`endif // USE_WAITS_CONFIG
 
 `ifdef USE_LEAK_FIXED
       /*(spi_cmd == CMD_VOPTS   ) ?*/ LEN_VOPTS
@@ -471,11 +489,14 @@ module spi_registers #(
       mapr_wall <= 3'd0;
 `endif // USE_MAP_RECT
 `ifdef USE_DOORS
-      doors[0] <= DOOR0_INIT;
-      doors[1] <= DOOR1_INIT;
-      doors[2] <= DOOR2_INIT;
-      doors[3] <= DOOR3_INIT;
+      doors[0]  <= DOOR0_INIT;
+      doors[1]  <= DOOR1_INIT;
+      doors[2]  <= DOOR2_INIT;
+      doors[3]  <= DOOR3_INIT;
 `endif // USE_DOORS
+`ifdef USE_WAITS_CONFIG
+      o_waits   <= WAITS_INIT;
+`endif // USE_WAITS_CONFIG
 
     end else if (load_new) begin
 
@@ -536,6 +557,9 @@ module spi_registers #(
       doors[2]  <= buf_doors[2];
       doors[3]  <= buf_doors[3];
 `endif // USE_DOORS
+`ifdef USE_WAITS_CONFIG
+      o_waits   <= buf_waits;
+`endif // USE_WAITS_CONFIG
 
     end
 
@@ -592,6 +616,9 @@ module spi_registers #(
       buf_doors[2]  <= DOOR2_INIT;
       buf_doors[3]  <= DOOR3_INIT;
 `endif // USE_DOORS
+`ifdef USE_WAITS_CONFIG
+      buf_waits     <= WAITS_INIT;
+`endif // USE_WAITS_CONFIG
 
     end else if (spi_done) begin
 
@@ -653,6 +680,10 @@ module spi_registers #(
       if (spi_cmd == CMD_DOOR2  ) buf_doors[2]  <= spi_buffer[23:0];
       if (spi_cmd == CMD_DOOR3  ) buf_doors[3]  <= spi_buffer[23:0];
 `endif // USE_DOORS
+
+`ifdef USE_WAITS_CONFIG
+      if (spi_cmd == CMD_TRCTRL)  buf_waits     <= spi_buffer[2:0];
+`endif // USE_WAITS_CONFIG
 
     end
 

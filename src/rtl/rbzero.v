@@ -371,6 +371,10 @@ module rbzero(
   wire [23:0] doors [0:3];
 `endif // USE_DOORS
 
+`ifdef USE_WAITS_CONFIG
+  wire [2:0] waits;
+`endif // USE_WAITS_CONFIG
+
   spi_registers spi_registers(
     .clk      (clk),
     .reset    (reset),
@@ -435,6 +439,10 @@ module rbzero(
     .o_doors2   (doors[2]),
     .o_doors3   (doors[3]),
 `endif // USE_DOORS
+
+`ifdef USE_WAITS_CONFIG
+    .o_waits    (waits),
+`endif // USE_WAITS_CONFIG
 
     .load_new (visible_frame_end)
   );
@@ -588,6 +596,9 @@ module rbzero(
     .i_doors2         (doors[2]),
     .i_doors3         (doors[3]),
 `endif // USE_DOORS
+`ifdef USE_WAITS_CONFIG
+    .i_waits          (waits),
+`endif // USE_WAITS_CONFIG
     .o_wall           (traced_wall),
     .o_side           (traced_side),
     .o_size           (traced_size),

@@ -4,11 +4,12 @@
 // core raybox-zero code to specify conditional compilation.
 `define USE_MAP_OVERLAY
 `define USE_DEBUG_OVERLAY
-`define TRACE_STATE_DEBUG  // Trace state is represented visually per each line on-screen.
-`define USE_LEAK_FIXED  // If enabled, modify CMD_VINF to support an extra bit controlling whether LEAK is floating (default) or fixed.
-`define USE_POV_VIA_SPI_REGS // If defined, POV access is via spi_registers.v, else it is via pov.v
-`define USE_MAP_RECT // If defined, enable SPI registers for controlling a rectangular region of the map (CMD_MAPR)
-`define USE_DOORS // If defined, enable SPI registers for controlling 4 doors.
+`define TRACE_STATE_DEBUG       // Trace state is represented visually per each line on-screen.
+`define USE_LEAK_FIXED          // If enabled, modify CMD_VINF to support an extra bit controlling whether LEAK is floating (default) or fixed.
+`define USE_POV_VIA_SPI_REGS    // If defined, POV access is via spi_registers.v, else it is via pov.v
+`define USE_MAP_RECT            // If defined, enable SPI registers for controlling a rectangular region of the map (CMD_MAPR)
+`define USE_DOORS               // If defined, enable SPI registers for controlling 4 doors.
+`define USE_WAITS_CONFIG        // If defined, enable SPI register for configuring reciprocal wait states (otherwise fixed).
 //`define STANDBY_RESET // If defined use extra logic to avoid clocking regs during reset (for power saving/stability).
 //`define RESET_TEXTURE_MEMORY // Should there be an explicit reset for local texture memory?
 //`define RESET_TEXTURE_MEMORY_PATTERNED // If defined with RESET_TEXTURE_MEMORY, texture memory reset is a pattern instead of black.

@@ -179,6 +179,7 @@ int           gMapDYW = 0;
 bool          gMouseYTexV = false;
 double        gMotionMultiplier = 1.0;
 int           gDoorPos = 0;
+int           gTraceWaits = 7;
 #ifdef WINDOWS
 bool          gMouseCapture = true;
 #else
@@ -530,6 +531,16 @@ void process_sdl_events() {
               //CTRL+inc_px/y lock:
               case SDLK_LEFTBRACKET:  gLockInputs[LOCK_INCPX] ^= 1; break;
               case SDLK_RIGHTBRACKET: gLockInputs[LOCK_INCPY] ^= 1; break;
+            }
+          } else if (KMOD_SHIFT & e.key.keysym.mod) {
+            bool hit = true;
+            switch (e.key.keysym.sym) {
+              case SDLK_PERIOD: gTraceWaits = (gTraceWaits+1) & 0b111;  break;
+              case SDLK_COMMA:  gTraceWaits = (gTraceWaits-1) & 0b111;  break;
+              default: hit = false; break;
+            }
+            if (hit) {
+              printf("WAITS <= %d\n", gTraceWaits);
             }
           } else {
             // Keypad numbers without modifier:
@@ -914,26 +925,28 @@ void update_game_state() {
 
 
 enum {
-  CMD_SKY     = 0,
-  CMD_FLOOR   = 1,
-  CMD_LEAK    = 2,
-  CMD_OTHER   = 3,
-  CMD_VSHIFT  = 4,
-  CMD_VINF    = 5, CMD_VOPTS = 5, // Same command, but depends on USE_LEAK_FIXED.
-  CMD_MAPD    = 6,
-  CMD_MAPR    = 7,
-  CMD_DOOR0   = 8,
-  CMD_DOOR1   = 9,
-  CMD_DOOR2   = 10,
-  CMD_DOOR3   = 11,
-  CMD_TEXADD0 = 32,
-  CMD_TEXADD1 = 33,
-  CMD_TEXADD2 = 34,
-  CMD_TEXADD3 = 35,
-  CMD_TEXADD4 = 36,
-  CMD_TEXADD5 = 37,
-  CMD_TEXADD6 = 38,
-  CMD_TEXADD7 = 39,
+  CMD_SKY       = 0,
+  CMD_FLOOR     = 1,
+  CMD_LEAK      = 2,
+  CMD_OTHER     = 3,
+  CMD_VSHIFT    = 4,
+  CMD_VINF      = 5, CMD_VOPTS = 5, // Same command, but depends on USE_LEAK_FIXED.
+  CMD_MAPD      = 6,
+  CMD_MAPR      = 7,
+  CMD_DOOR0     = 8,
+  CMD_DOOR1     = 9,
+  CMD_DOOR2     = 10,
+  CMD_DOOR3     = 11,
+  CMD_TEXADD0   = 32,
+  CMD_TEXADD1   = 33,
+  CMD_TEXADD2   = 34,
+  CMD_TEXADD3   = 35,
+  CMD_TEXADD4   = 36,
+  CMD_TEXADD5   = 37,
+  CMD_TEXADD6   = 38,
+  CMD_TEXADD7   = 39,
+  CMD_TEXADDENA = 64,
+  CMD_TRCTRL    = 65,
 #ifdef USE_POV_VIA_SPI_REGS
   CMD_POV     = 127,
 #endif // USE_POV_VIA_SPI_REGS
@@ -983,6 +996,8 @@ int update_spi_registers_state() {
     CMD_TEXADD5,
     CMD_TEXADD6,
     CMD_TEXADD7,
+    CMD_TEXADDENA,
+    CMD_TRCTRL,
     CMD_POV,
     -1
   };
@@ -1057,13 +1072,13 @@ int update_spi_registers_state() {
             push_bits_onto_stack(bits, 8+10,6); // mapr_by
             push_bits_onto_stack(bits, 0,   1); // mapr_erase
             push_bits_onto_stack(bits, 6,   3); // mapr_wall
-            // This example puts a hole right through the map, allowing for infinite tracing (overflow):
-            // push_bits_onto_stack(bits, 6,   6); // mapr_ax
-            // push_bits_onto_stack(bits, 0,   6); // mapr_ay
-            // push_bits_onto_stack(bits, 12,  6); // mapr_bx
-            // push_bits_onto_stack(bits, 32,  6); // mapr_by
-            // push_bits_onto_stack(bits, 1,   1); // mapr_erase
-            // push_bits_onto_stack(bits, 0,   3); // mapr_wall
+            // // This example puts a hole right through the map, allowing for infinite tracing (overflow):
+            // // push_bits_onto_stack(bits, 6,   6); // mapr_ax
+            // // push_bits_onto_stack(bits, 0,   6); // mapr_ay
+            // // push_bits_onto_stack(bits, 12,  6); // mapr_bx
+            // // push_bits_onto_stack(bits, 32,  6); // mapr_by
+            // // push_bits_onto_stack(bits, 1,   1); // mapr_erase
+            // // push_bits_onto_stack(bits, 0,   3); // mapr_wall
             break;
           case CMD_DOOR0:
             push_bits_onto_stack(bits, 8,   6); // X
@@ -1101,7 +1116,11 @@ int update_spi_registers_state() {
           case CMD_TEXADD5:
           case CMD_TEXADD6:
           case CMD_TEXADD7:
+          case CMD_TEXADDENA:
             // NOT IMPLEMENTED yet. Not much point until SPI ROM simulation works.
+            break;
+          case CMD_TRCTRL:
+            push_bits_onto_stack(bits, gTraceWaits, 3);
             break;
 #ifdef USE_POV_VIA_SPI_REGS
           case CMD_POV:
@@ -1241,6 +1260,7 @@ void update_spi_state() {
   }
 }
 #endif // USE_POV_VIA_SPI_REGS
+
 
 
 int main(int argc, char **argv) {
@@ -1411,6 +1431,8 @@ int main(int argc, char **argv) {
     /:          Toggle funky register animation                 \n\
     (Shift+) \\: With SHIFT, toggle LEAK 'FIXED'; Without, toggle VINF  \n\
     CTRL+\\:     Cycle through map modes                        \n\
+    <:          Decrement WAITS                                 \n\
+    >:          Increment WAITS                                 \n\
   Arrow keys:                                                   \n\
     Up:         LEAK ++                                         \n\
     Dn:         LEAK --                                         \n\

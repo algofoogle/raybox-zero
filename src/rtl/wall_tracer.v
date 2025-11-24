@@ -54,6 +54,10 @@ module wall_tracer #(
   input wire [23:0]       i_doors3,
 `endif // USE_DOORS
 
+`ifdef USE_WAITS_CONFIG
+  input wire [2:0]        i_waits,
+`endif // USE_WAITS_CONFIG
+
   // Interface to map ROM:
   output [MAP_WBITS-1:0]  o_map_col,
   output [MAP_HBITS-1:0]  o_map_row,
@@ -84,7 +88,14 @@ module wall_tracer #(
 
 
   reg [2:0] w; // Wait states for heavy combo maths.
+  wire [2:0] waits;
+`ifdef USE_WAITS_CONFIG
+  assign waits = i_waits;
+`else
+  // Use a static default for number of wait states:
   localparam [2:0] WAITS = 7;
+  assign waits = WAITS;
+`endif // !USE_WAITS_CONFIG
 
   localparam `F HALF_SIZE_CLIP = HALF_SIZE[`QMNI:0]<<(`Qn-8); //SMELL: I can't remember what this shift is for.
 
@@ -464,7 +475,7 @@ module wall_tracer #(
           // Get the cell the player's currently in:
           mapX <= playerMapX;
           mapY <= playerMapY;
-          w <= WAITS; // Makes us linger on the next step (while mul_out settles).
+          w <= waits; // Makes us linger on the next step (while mul_out settles).
           state <= TracePrepY;
         end
 
@@ -480,7 +491,7 @@ module wall_tracer #(
             //NOTE: track init comes from stepDist, comes from rayDir, comes from rayAddend.
             //NOTE: mul inputs (and hence mul_out) react to 'state'.
             trackDistY <= `FF(mul_out);
-            w <= WAITS; // Makes us linger on the next step (while mul_out settles).
+            w <= waits; // Makes us linger on the next step (while mul_out settles).
             state <= TraceStep;
           end
         end
@@ -552,7 +563,7 @@ module wall_tracer #(
           rcp_start <= 0;
         end else if (rcp_done) begin
           size_full <= rcp_out;
-          w <= WAITS;
+          w <= waits;
           state <= CalcTexVInit;
 `ifdef USE_DOORS
           if (is_door) begin
