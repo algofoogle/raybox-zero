@@ -66,8 +66,8 @@ module map_overlay #(
     .map_cell       (i_map_val),
 `ifndef NO_DIV_WALLS
     // Parameters from map "dividing walls" registers:
-    .mapdivx        (i_mapdx[4:0]),  .mapdivx_wall(0), // wall ID is 0 because it's unknown (and irrelevant) in here.
-    .mapdivy        (i_mapdy[4:0]),  .mapdivy_wall(0), // wall ID is 0 because it's unknown (and irrelevant) in here.
+    .mapdivx        (i_mapdx[4:0]),  .mapdivx_wall(3'd0), // wall ID is 0 because it's unknown (and irrelevant) in here.
+    .mapdivy        (i_mapdy[4:0]),  .mapdivy_wall(3'd0), // wall ID is 0 because it's unknown (and irrelevant) in here.
 `endif // NO_DIV_WALLS
     // Parameters from "OTHER" cell:
     .otherx         (i_otherx[4:0]),

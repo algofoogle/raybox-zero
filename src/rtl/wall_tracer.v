@@ -210,10 +210,8 @@ module wall_tracer #(
   wire texu_mirror = side ? ryi : ~rxi;
   //NOTE: The FSM CalcTexU step will use a fractional part of
   // wallPartial to determine the wall texture offset.
-`ifdef USE_DOORS
-  wire [7:0] wall_partial_door_pos_offset = wallPartialTexU8b - hit_door_pos;
-`endif // USE_DOORS
   wire [7:0] wall_partial_with_flip = wallPartialTexU8b ^ {8{texu_mirror}};
+  //NOTE: wallPartialTexU8b is also used with hit_door_pos to determine door position offset.
 
   //SMELL: Do these need to be signed? They should only ever be positive, anyway.
   // Get integer player position:
@@ -320,6 +318,7 @@ module wall_tracer #(
   reg         is_door;
   wire        hit_door;
   wire [7:0]  hit_door_pos;
+  wire [7:0]  wall_partial_door_pos_offset = wallPartialTexU8b - hit_door_pos;
 `else // !USE_DOORS
   wire        hit_door = 0;
 `endif // USE_DOORS
