@@ -47,15 +47,15 @@ module vga_sync #(
 
   // Horizontal tracing:
   always @(posedge clk) begin
-          if (reset)                      hpos <= 0;
-    else  if (hmax)                       hpos <= 0;
-    else                                  hpos <= hpos + 1'b1;
+          if (reset)                      hpos <= 10'd0;
+    else  if (hmax)                       hpos <= 10'd0;
+    else                                  hpos <= hpos + 10'd1;
   end
 
   // Vertical tracing:
   always @(posedge clk) begin
-          if (reset)                      vpos <= 0;
-    else  if (hmax)                       vpos <= (vmax) ? 10'd0 : vpos + 1'b1;
+          if (reset)                      vpos <= 10'd0;
+    else  if (hmax)                       vpos <= (vmax) ? 10'd0 : (vpos + 10'd1);
   end
 
   // HSYNC:
